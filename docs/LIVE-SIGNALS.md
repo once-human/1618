@@ -7,7 +7,7 @@ Each source is cached separately with `"use cache"` + `cacheLife` in `src/lib/pr
 | --- | --- | --- | --- |
 | Pune time + part of day | Visitor's browser, Asia/Kolkata | none | n/a |
 | Pune weather | Open-Meteo | none | 15 min |
-| Latest public activity | GitHub `users/once-human/events/public` | none (optional `GITHUB_TOKEN`) | 5 min |
+| Latest public activity | Newest of GitHub `events/public` and repo `pushed_at` (events lag by hours), plus the latest commit message | none (optional `GITHUB_TOKEN`) | 5 min |
 | "Updated X ago" per project | GitHub `users/once-human/repos` `pushed_at` | set `repo` on the project in `src/content/projects.ts` | 5 min |
 | Now playing / last played | Last.fm `user.getrecenttracks` | `LASTFM_USER`, `LASTFM_API_KEY` | 30 s |
 
@@ -24,7 +24,7 @@ never styled as live.
 
 ## Rate limits
 
-Unauthenticated GitHub allows 60 requests per hour per IP. The 5-minute cache uses about 24. Add a
+Unauthenticated GitHub allows 60 requests per hour per IP. The 5-minute cache uses about 36 (three calls per refresh). Add a
 fine-grained `GITHUB_TOKEN` with no scopes (public data only) if that ever gets tight.
 
 ## Privacy

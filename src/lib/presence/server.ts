@@ -34,7 +34,6 @@ interface GhEvent {
   payload: {
     ref_type?: string;
     action?: string;
-    commits?: { message: string }[];
   };
 }
 
@@ -59,19 +58,43 @@ export async function getGithub(): Promise<Pick<Presence, "github" | "repos">> {
     ),
   ]);
 
+  // The events feed can lag by hours, while repo `pushed_at` is near real-time.
+  // Use whichever is newer.
   const ev = events?.find((e) => e.type in ACTION) ?? null;
-  const firstLine = ev?.payload.commits?.at(-1)?.message.split("\n")[0]?.trim() ?? null;
+  const newest = repos?.[0] ?? null; // already sorted by pushed_at desc
+  const repoWins = newest && (!ev || new Date(newest.pushed_at) > new Date(ev.created_at));
+
+  let activity: Presence["github"] = null;
+  if (repoWins && newest) {
+    activity = {
+      repo: newest.name,
+      url: `https://github.com/${GH_USER}/${newest.name}`,
+      action: "Pushed to",
+      message: null,
+      at: newest.pushed_at,
+    };
+  } else if (ev) {
+    activity = {
+      repo: ev.repo.name.split("/")[1],
+      url: `https://github.com/${ev.repo.name}`,
+      action: ACTION[ev.type],
+      message: null,
+      at: ev.created_at,
+    };
+  }
+
+  // Push events no longer carry commit messages, so read the latest commit directly.
+  if (activity && activity.action === "Pushed to") {
+    const commits = await getJson<{ commit: { message: string } }[]>(
+      `https://api.github.com/repos/${GH_USER}/${activity.repo}/commits?per_page=1`,
+      ghHeaders(),
+    );
+    const line = commits?.[0]?.commit.message.split("\n")[0]?.trim() ?? null;
+    activity.message = line && line.length > 90 ? `${line.slice(0, 87)}…` : line;
+  }
 
   return {
-    github: ev
-      ? {
-          repo: ev.repo.name.split("/")[1],
-          url: `https://github.com/${ev.repo.name}`,
-          action: ACTION[ev.type],
-          message: firstLine && firstLine.length > 90 ? `${firstLine.slice(0, 87)}…` : firstLine,
-          at: ev.created_at,
-        }
-      : null,
+    github: activity,
     repos: Object.fromEntries((repos ?? []).map((r) => [r.name.toLowerCase(), r.pushed_at])),
   };
 }
