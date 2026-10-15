@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { projectBySlug, projects } from "@/content/projects";
+import { RepoPulse } from "@/components/live/RepoPulse";
+import { LivingProfile } from "@/components/live/LivingProfile";
 
 type Params = { slug: string };
 
@@ -25,13 +27,16 @@ export default async function CaseStudy({ params }: { params: Promise<Params> })
   const next = projects[(i + 1) % projects.length];
 
   return (
-    <main className="mx-auto max-w-3xl px-5 py-24 sm:px-8">
+    <main className="mx-auto max-w-3xl px-5 pt-24 pb-36 sm:px-8">
       <Link href="/work" className="font-mono text-xs text-muted hover:text-foreground">
         ← All work
       </Link>
 
-      <p className="mt-12 font-mono text-[11px] uppercase tracking-[0.18em] text-amber-200/75">
-        {p.status}
+      <p className="mt-12 flex flex-wrap items-center gap-4">
+        <span className="font-mono text-[11px] uppercase tracking-[0.18em] text-amber-200/75">
+          {p.status}
+        </span>
+        <RepoPulse repo={p.repo} />
       </p>
       <h1 className="mt-3 text-4xl font-light tracking-tight sm:text-6xl">{p.name}</h1>
       <p className="mt-5 text-xl font-light leading-snug text-foreground/85">{p.tagline}</p>
@@ -94,6 +99,7 @@ export default async function CaseStudy({ params }: { params: Promise<Params> })
           {next.name} →
         </Link>
       </nav>
+      <LivingProfile />
     </main>
   );
 }

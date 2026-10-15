@@ -3,7 +3,7 @@ import { profile } from "@/content/profile";
 
 export function Closing() {
   return (
-    <footer className="relative z-10 border-t border-white/10 bg-black/80 px-5 py-16 text-center">
+    <footer className="relative z-10 border-t border-white/10 bg-black/80 px-5 pt-16 pb-28 text-center">
       <p className="text-lg font-light tracking-tight text-foreground">
         {profile.name}. {profile.role}, {profile.city}.
       </p>

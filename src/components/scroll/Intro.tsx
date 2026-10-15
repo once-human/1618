@@ -5,6 +5,7 @@ import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { INTRO } from "@/content/story";
 import { setClock } from "@/lib/clock";
+import { RealNow } from "@/components/live/RealNow";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -55,6 +56,7 @@ export function Intro() {
       <div data-intro-rest className="mt-10 space-y-2">
         <h1 className="text-lg font-medium tracking-tight sm:text-xl">{INTRO.name}</h1>
         <p className="text-sm text-muted">{INTRO.line}</p>
+        <RealNow className="pt-6 font-mono text-[11px] text-muted/80" />
       </div>
       <p
         data-intro-rest

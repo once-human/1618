@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { projects } from "@/content/projects";
+import { RepoPulse } from "@/components/live/RepoPulse";
+import { LivingProfile } from "@/components/live/LivingProfile";
 
 export const metadata: Metadata = {
   title: "Work · Onkar Yaglewad",
@@ -9,7 +11,7 @@ export const metadata: Metadata = {
 
 export default function WorkIndex() {
   return (
-    <main className="mx-auto max-w-4xl px-5 py-24 sm:px-8">
+    <main className="mx-auto max-w-4xl px-5 pt-24 pb-36 sm:px-8">
       <Link href="/" className="font-mono text-xs text-muted hover:text-foreground">
         ← Back to the day
       </Link>
@@ -30,13 +32,17 @@ export default function WorkIndex() {
                 </h2>
                 <p className="mt-1.5 max-w-xl text-sm leading-relaxed text-muted">{p.tagline}</p>
               </div>
-              <span className="shrink-0 font-mono text-[11px] uppercase tracking-[0.16em] text-muted">
-                {p.status}
+              <span className="flex shrink-0 flex-col gap-1.5 sm:items-end">
+                <span className="font-mono text-[11px] uppercase tracking-[0.16em] text-muted">
+                  {p.status}
+                </span>
+                <RepoPulse repo={p.repo} />
               </span>
             </Link>
           </li>
         ))}
       </ul>
+      <LivingProfile />
     </main>
   );
 }

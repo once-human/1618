@@ -17,6 +17,8 @@ export interface Project {
   tagline: string;
   status: ProjectStatus;
   role: string;
+  /** Public GitHub repo name under once-human, for the live "updated X ago" signal. */
+  repo?: string;
   tags: string[];
   summary: string;
   sections: { heading: string; body: string[] }[];
@@ -64,6 +66,7 @@ export const projects: Project[] = [
   },
   {
     slug: "head-tracked-window",
+    repo: "pfolio-headtrack-test",
     name: "Head-tracked window",
     tagline: "Lean around a photo in your browser. Webcam only, no special hardware.",
     status: "Prototype",
@@ -98,6 +101,7 @@ export const projects: Project[] = [
   },
   {
     slug: "project-friday",
+    repo: "project-friday",
     name: "Project Friday",
     tagline: "Claude built into the desktop itself, not bolted on as a chat window.",
     status: "Prototype",
@@ -128,6 +132,7 @@ export const projects: Project[] = [
   },
   {
     slug: "pixelos-sky",
+    repo: "pixelos-sky",
     name: "PixelOS for sky",
     tagline: "Public, unofficial PixelOS builds for the Redmi 12 5G and POCO M6 Pro 5G.",
     status: "Ongoing",

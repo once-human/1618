@@ -16,3 +16,21 @@ export const profile = {
     telegram: null as string | null,
   },
 } as const;
+
+const LABELS: Record<string, string> = {
+  github: "GitHub",
+  email: "Email",
+  linkedin: "LinkedIn",
+  x: "X",
+  telegram: "Telegram",
+};
+
+/** Public links that are set, with display labels. */
+export function publicLinks(): { label: string; href: string }[] {
+  return Object.entries(profile.links)
+    .filter((e): e is [string, string] => !!e[1])
+    .map(([k, v]) => ({
+      label: LABELS[k] ?? k,
+      href: k === "email" && !v.startsWith("mailto:") ? `mailto:${v}` : v,
+    }));
+}

@@ -6,9 +6,10 @@ import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { COUNTER } from "@/content/story";
 import { projects } from "@/content/projects";
-import { profile } from "@/content/profile";
+import { publicLinks } from "@/content/profile";
 import { setGrade } from "@/components/scroll/Grade";
 import { setClock } from "@/lib/clock";
+import { RepoPulse } from "@/components/live/RepoPulse";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -95,7 +96,7 @@ export function Counter() {
     return () => window.removeEventListener("keydown", onKey);
   }, [mode]);
 
-  const links = Object.entries(profile.links).filter(([, v]) => v) as [string, string][];
+  const links = publicLinks();
 
   return (
     <section
@@ -258,8 +259,11 @@ export function Counter() {
                         <h3 className="text-xl font-medium tracking-tight text-white">{p.name}</h3>
                         <p className="mt-2 text-sm leading-relaxed text-white/60">{p.tagline}</p>
                       </div>
-                      <span className="mt-5 font-mono text-xs text-white/45 transition-colors group-hover:text-white">
-                        Read the case →
+                      <span className="mt-5 flex items-center justify-between gap-3">
+                        <span className="font-mono text-xs text-white/45 transition-colors group-hover:text-white">
+                          Read the case →
+                        </span>
+                        <RepoPulse repo={p.repo} />
                       </span>
                     </Link>
                   ))}
@@ -272,15 +276,15 @@ export function Counter() {
                   I&apos;m always up for talking about products, communities, or good coffee.
                 </p>
                 <ul className="mt-8 space-y-3 font-mono text-sm">
-                  {links.map(([key, href]) => (
-                    <li key={key}>
+                  {links.map(({ label, href }) => (
+                    <li key={label}>
                       <a
                         href={href}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-amber-200/90 underline-offset-4 hover:underline"
                       >
-                        {key === "x" ? "X" : key[0].toUpperCase() + key.slice(1)} ↗
+                        {label} ↗
                       </a>
                     </li>
                   ))}

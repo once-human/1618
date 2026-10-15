@@ -8,6 +8,7 @@ import { Chapter } from "@/components/scroll/Chapter";
 import { Counter } from "@/components/finale/Counter";
 import { Closing } from "@/components/finale/Closing";
 import { Header } from "@/components/ui/Header";
+import { LivingProfile } from "@/components/live/LivingProfile";
 
 /** The whole film: intro, six chapters, the counter finale, closing credits. */
 export function Experience() {
@@ -23,6 +24,7 @@ export function Experience() {
         <Counter />
       </main>
       <Closing />
+      <LivingProfile />
     </SmoothScroll>
   );
 }

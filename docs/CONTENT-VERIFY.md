@@ -31,3 +31,11 @@ Beats in `story.ts` are in your voice but are mine. Lines most worth rewriting:
 - Personal/family/relationship details, finances, and job-search plans.
 - Ideas you haven't built (e.g. the Gen Z social app).
 - Your email, LinkedIn, X, Telegram: all `null` in `src/content/profile.ts`. Add what you want public.
+
+## Live profile
+
+| Where | What | Why check |
+| --- | --- | --- |
+| Living profile → Live | Your latest public GitHub commit message, shown verbatim | Anything you push publicly is visible here |
+| Living profile → Always | Marathon, coffee, PuneFOSS 400+, "consumer products end to end" | Static facts from chat; edit in `src/content/always.ts` |
+| Avatar | "OY" initials | Swap for a real photo or a live profile pic later |
