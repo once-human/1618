@@ -1,44 +1,28 @@
 "use client";
 
-import { useState } from "react";
-import { SCENES } from "@/lib/scenes";
+import { CHAPTERS } from "@/content/story";
 import { SmoothScroll } from "@/components/scroll/SmoothScroll";
-import { FrameSequence } from "@/components/scroll/FrameSequence";
+import { Grade } from "@/components/scroll/Grade";
+import { Intro } from "@/components/scroll/Intro";
+import { Chapter } from "@/components/scroll/Chapter";
+import { Counter } from "@/components/finale/Counter";
+import { Closing } from "@/components/finale/Closing";
 import { Header } from "@/components/ui/Header";
 
-/**
- * Top-level scroll experience. Sequence scenes render a FrameSequence;
- * the interactive (Three.js) scene is a placeholder until it's built.
- *
- * NOTE: time-of-day tracking per scene (updating `time` on scroll) is not
- * wired yet; it comes with the first real scene.
- */
+/** The whole film: intro, six chapters, the counter finale, closing credits. */
 export function Experience() {
-  const [time] = useState(SCENES[0].time);
-
   return (
     <SmoothScroll>
-      <Header time={time} />
+      <Grade initial={["#241d17", "#0b0b0c"]} />
+      <Header />
       <main>
-        {SCENES.map((scene) =>
-          scene.kind === "sequence" && scene.frameCount ? (
-            <FrameSequence
-              key={scene.id}
-              sceneId={scene.id}
-              frameCount={scene.frameCount}
-              scrollScreens={scene.scrollScreens}
-            />
-          ) : (
-            <section
-              key={scene.id}
-              id={scene.id}
-              className="flex min-h-screen items-center justify-center font-mono text-sm text-muted"
-            >
-              [{scene.id}: Three.js interactive scene goes here]
-            </section>
-          ),
-        )}
+        <Intro />
+        {CHAPTERS.map((chapter, i) => (
+          <Chapter key={chapter.id} chapter={chapter} index={i} />
+        ))}
+        <Counter />
       </main>
+      <Closing />
     </SmoothScroll>
   );
 }
