@@ -127,7 +127,7 @@ export function Counter() {
             <p
               key={line}
               data-line
-              className="mb-3 text-balance text-xl font-light leading-snug tracking-tight text-white sm:text-2xl md:text-[1.7rem]"
+              className="mb-3 text-balance text-xl font-light leading-snug tracking-tight text-white [text-shadow:0_2px_18px_rgba(0,0,0,0.75)] sm:text-2xl md:text-[1.7rem]"
             >
               {line}
             </p>
@@ -135,7 +135,7 @@ export function Counter() {
         </div>
 
         {/* Objects on the counter */}
-        <div className="absolute inset-0 flex items-center justify-center gap-[min(10vw,140px)] pt-[18vh]">
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-6 pt-[22vh] sm:flex-row sm:gap-[min(10vw,140px)] sm:pt-[18vh]">
           <button
             type="button"
             data-object
@@ -146,7 +146,7 @@ export function Counter() {
             <span className="sr-only">Open the bag: my projects</span>
             <svg
               viewBox="0 0 220 260"
-              className="h-[min(38vh,300px)] w-auto drop-shadow-[0_30px_30px_rgba(0,0,0,0.55)] transition-transform duration-500 group-hover:-translate-y-2 group-hover:rotate-[-2deg] group-focus-visible:-translate-y-2"
+              className="h-[min(26vh,300px)] w-auto sm:h-[min(38vh,300px)] drop-shadow-[0_30px_30px_rgba(0,0,0,0.55)] transition-transform duration-500 group-hover:-translate-y-2 group-hover:rotate-[-2deg] group-focus-visible:-translate-y-2"
               aria-hidden
             >
               <path
@@ -193,7 +193,7 @@ export function Counter() {
             <span className="sr-only">Pick up the glass: contact</span>
             <svg
               viewBox="0 0 200 200"
-              className="h-[min(24vh,190px)] w-auto drop-shadow-[0_24px_24px_rgba(0,0,0,0.5)] transition-transform duration-500 group-hover:scale-105 group-focus-visible:scale-105"
+              className="h-[min(15vh,190px)] w-auto sm:h-[min(24vh,190px)] drop-shadow-[0_24px_24px_rgba(0,0,0,0.5)] transition-transform duration-500 group-hover:scale-105 group-focus-visible:scale-105"
               aria-hidden
             >
               <circle cx="100" cy="100" r="84" fill="rgba(255,255,255,.14)" stroke="rgba(255,255,255,.55)" strokeWidth="3" />

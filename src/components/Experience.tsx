@@ -13,7 +13,7 @@ import { Header } from "@/components/ui/Header";
 export function Experience() {
   return (
     <SmoothScroll>
-      <Grade initial={["#241d17", "#0b0b0c"]} />
+      <Grade />
       <Header />
       <main>
         <Intro />

@@ -5,6 +5,9 @@
   --background: #0b0b0c;
   --foreground: #f2efe9;
   --muted: #8d8a84;
+  /* time-of-day grade, tweened by GSAP as you scroll */
+  --g1: #2a2018;
+  --g2: #0b0b0c;
 }
 
 @theme inline {
@@ -21,7 +24,7 @@ html {
 }
 
 body {
-  background: var(--background);
+  /* no body background: the fixed <Grade /> layer paints the page */
   color: var(--foreground);
   font-family: var(--font-geist-sans), system-ui, sans-serif;
 }
