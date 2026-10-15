@@ -1,39 +1,40 @@
-# Storyboard (DRAFT)
+# Storyboard
 
-Source: the planning chats. The last agreed structure was a 12-beat version with one interactive
-finale; the full beat list was not re-read verbatim into this repo, so the table below is a
-working skeleton to be corrected, not the locked list.
+The live source of truth is `src/content/story.ts`. This is the readable version.
 
 ## Arc
 
-Alarm / wake at 07:00 → walk toward door → door opens as a portal into a café (outfit changes
-mid-shot) → coffee → run → community/speaking moment → evening → home: cooking + drink prep →
-interactive tabletop → bag opens → project cards → case studies.
+A clock starts at 06:59. Scrolling wakes the day. The time indicator in the header ticks forward
+continuously, the page's colour grade follows the light, and "Skip to work →" jumps to the finale
+at any point.
 
-A small time-of-day indicator (header) advances 07:00 → ~22:00.
-
-## Scene table (mirrors `src/lib/scenes.ts`)
-
-| id | time | beat | status |
+| # | Chapter | Time | What it says about him |
 | --- | --- | --- | --- |
-| wake | 07:00 | Wake up, alarm | not started |
-| door | 07:40 | Back-shot walk to door, portal into café | **prototype first** |
-| cafe | 09:00 | Coffee | not started |
-| run | 11:00 | Running (café → run via motion blur, not hard cut) | not started |
-| event | 17:00 | Community / speaking | not started |
-| tabletop | 22:00 | Eye-level counter → overhead top view; head-tracking on; bag → projects | prototype exists elsewhere |
+| 0 | Intro | 06:59 | Name, role, city. Nothing else. |
+| 1 | Morning | 07:00 | Builds consumer products end to end; likes owning the whole thing |
+| 2 | Threshold | 07:40 | Starts things by walking toward doors he hasn't opened; against narrow slices |
+| 3 | Coffee | 09:00 | All-day coffee; cafés as where ideas get a first draft |
+| 4 | Distance | 11:00 | Marathon runner; paces rather than sprints; right over twice |
+| 5 | People | 17:00 | PuneFOSS, 400+ in the room; connecting people |
+| 6 | Headphones | 20:00 | Music: house, afro house, techno, Fred again.. |
+| 7 | The counter | 21:00 → 22:00 | Cooks, mixes a drink, lays out his work. Open the bag. |
+
+Cut on purpose: the gym scene and the laptop/coding scene. The case studies carry the "can he build"
+signal, so the finale must not be compressed.
+
+## Finale
+
+Flat-lay counter (green tile). Two objects: **the bag** opens into six project cards that link to
+case-study pages, and **the glass** opens contact. A plain `/work` list exists for anyone who
+doesn't want to play.
 
 ## Creative rules
 
-- Subject's face obscured or back-turned in AI scenes; one real photo/clip only at the payoff.
-- Photoreal, not Blender/animated-looking. Warm-lit kitchen counter, green tiles, white grout,
-  cocktail-prep "crafting table" aesthetic.
-- Blur or genericise alcohol brand labels.
-- Finale carries 100% of the "can he build" signal now that the coding scene is cut: do not
-  compress it for time.
+See `docs/ASSET-BRIEFS.md`. Short version: photoreal, face obscured, native resolution, no brand
+labels.
 
 ## Open
 
-- Lock the final beat list and per-scene shot list (camera move, duration, what changes).
-- Which project(s) lead the finale (SAHN vs others), with depth on linked case-study pages.
-- Whether the "story order" (coffee then run) needs the vignette framing or reads fine as-is.
+- Door-portal transition approach (riskiest shot).
+- Whether to add the mid-story phone/stats interactive (deliberately left out; one interactive finale).
+- Final ordering of projects in the bag.
