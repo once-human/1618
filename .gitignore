@@ -39,3 +39,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# heavy source + generated media (decide CDN vs repo after measuring)
+/assets/video/*
+/assets/stills/*
+!/assets/*/.gitkeep
+/public/frames/*
