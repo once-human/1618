@@ -22,6 +22,9 @@ export interface RangeSummary {
     /** Estimated from song lengths; `known` is the share of plays with a real length. */
     minutes: number;
     known: number;
+    /** Songs and artists heard for the very first time in this stretch. */
+    newSongs: number;
+    newArtists: number;
     topTracks: { track: string; artist: string; plays: number; image: string | null; url: string | null }[];
     topArtists: { name: string; plays: number }[];
     topAlbums: { album: string; artist: string; plays: number; image: string | null }[];
@@ -40,7 +43,7 @@ export async function summarise(from: Date, to: Date): Promise<RangeSummary> {
   const fi = from.toISOString();
   const ti = to.toISOString();
 
-  const [totals, tracks, artists, albums, days, clock, pins, pinCount, code, acts, health] = await Promise.all([
+  const [totals, tracks, artists, albums, days, clock, pins, pinCount, code, acts, health, fresh] = await Promise.all([
     q<{ plays: number; songs: number; artists: number; ms: string | null; known: number | null }>("sum totals", (db) =>
       db`SELECT count(*)::int AS plays, count(DISTINCT s.track_key)::int AS songs,
                 count(DISTINCT lower(s.artist))::int AS artists,
@@ -97,6 +100,11 @@ export async function summarise(from: Date, to: Date): Promise<RangeSummary> {
                 avg((data->>'steps')::float)::int AS avg_steps, avg((data->>'sleepHours')::float)::float AS avg_sleep
          FROM health_days WHERE day >= ${fi.slice(0, 10)}::date AND day < ${ti.slice(0, 10)}::date`,
     ),
+    q<{ songs: number; artists: number }>("sum new", (db) =>
+      db`SELECT
+           (SELECT count(*)::int FROM (SELECT min(uts) AS m FROM scrobbles GROUP BY track_key) x WHERE m >= ${f} AND m < ${t}) AS songs,
+           (SELECT count(*)::int FROM (SELECT min(uts) AS m FROM scrobbles GROUP BY lower(artist)) y WHERE m >= ${f} AND m < ${t}) AS artists`,
+    ),
   ]);
 
   const tot = totals?.[0];
@@ -121,6 +129,8 @@ export async function summarise(from: Date, to: Date): Promise<RangeSummary> {
       artists: tot?.artists ?? 0,
       minutes: tot?.ms ? Math.round(Number(tot.ms) / 60000) : 0,
       known: tot?.known ?? 0,
+      newSongs: fresh?.[0]?.songs ?? 0,
+      newArtists: fresh?.[0]?.artists ?? 0,
       topTracks: (tracks ?? []).map((r) => ({ track: r.track, artist: r.artist, plays: r.plays, image: r.image, url: r.link })),
       topArtists: artists ?? [],
       topAlbums: albums ?? [],
@@ -159,7 +169,7 @@ const OFFSET = 5.5 * 3600_000;
 const puneDate = (d = new Date()) => new Date(d.getTime() + OFFSET).toISOString().slice(0, 10);
 const atPune = (ymd: string) => new Date(Date.parse(`${ymd}T00:00:00Z`) - OFFSET);
 
-export type RangeName = "week" | "month" | "year" | "all";
+export type RangeName = "today" | "week" | "month" | "year" | "all";
 
 /**
  * "week" = the last 7 days, "month" = a calendar month (default: this one),
@@ -167,6 +177,7 @@ export type RangeName = "week" | "month" | "year" | "all";
  */
 export function resolveRange(name: string, at?: string | null): { from: Date; to: Date; label: string } | null {
   const now = new Date();
+  if (name === "today") return { from: atPune(puneDate()), to: now, label: "Today" };
   if (name === "week") {
     const to = now;
     return { from: new Date(to.getTime() - 7 * 86400_000), to, label: "The last 7 days" };
@@ -279,4 +290,32 @@ export async function healthToday(): Promise<{ day: string; steps: number | null
   );
   const d = rows?.[0]?.data;
   return d ? { day, steps: d.steps ?? null, sleepHours: d.sleepHours ?? null } : null;
+}
+
+/* ---- At a glance: every period side by side ---- */
+
+export interface Overview {
+  periods: { key: RangeName; label: string; summary: RangeSummary }[];
+  generatedAt: string;
+}
+
+/** Today, the last 7 days, this month, this year and all time, together. Cached ten minutes. */
+export async function getOverview(): Promise<Overview> {
+  "use cache: remote";
+  const names: [RangeName, string][] = [
+    ["today", "Today"],
+    ["week", "7 days"],
+    ["month", "This month"],
+    ["year", "This year"],
+    ["all", "All time"],
+  ];
+  const periods = await Promise.all(
+    names.map(async ([key, label]) => {
+      const r = resolveRange(key)!;
+      return { key, label, summary: await summarise(r.from, new Date(Math.min(r.to.getTime(), Date.now()))) };
+    }),
+  );
+  const empty = !periods[4].summary.music.plays;
+  cacheLife(empty ? { stale: 60, revalidate: 300, expire: 900 } : { stale: 300, revalidate: 600, expire: 3600 });
+  return { periods, generatedAt: new Date().toISOString() };
 }

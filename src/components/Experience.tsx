@@ -17,15 +17,15 @@ import { SayHi } from "@/components/home/SayHi";
 import { Saved } from "@/components/home/Saved";
 import { Timeline } from "@/components/home/Timeline";
 import { StatusLine } from "@/components/live/StatusLine";
+import { Label } from "@/components/site/Label";
 import { PageTransition } from "@/components/site/PageTransition";
 
 gsap.registerPlugin(ScrollTrigger);
 
 /**
- * The whole day on one page. Scroll drives four things and nothing else:
+ * The whole day on one page. Scroll drives three things and nothing else:
  * photographs drift at slightly different speeds, the giant words slide
- * sideways and squeeze narrower the faster you scroll, and the clock in the
- * nav follows the day.
+ * sideways, and the clock in the nav follows the day.
  */
 export function Experience() {
   useEffect(() => {
@@ -85,30 +85,6 @@ export function Experience() {
       });
     });
 
-    // The giant words press together with scroll speed, then relax back.
-    // Archivo's width axis does the squeezing, so the letters stay real type.
-    mm.add("(prefers-reduced-motion: no-preference)", () => {
-      const root = document.documentElement;
-      const state = { w: 100 };
-      const set = () => root.style.setProperty("--wdth", `${state.w.toFixed(1)}%`);
-      const to = (w: number) =>
-        gsap.to(state, { w, duration: 0.6, ease: "power3.out", overwrite: true, onUpdate: set });
-      let rest: ReturnType<typeof setTimeout> | undefined;
-      const st = ScrollTrigger.create({
-        onUpdate: (self) => {
-          const v = Math.abs(self.getVelocity());
-          to(Math.max(70, 100 - v / 60));
-          clearTimeout(rest);
-          rest = setTimeout(() => to(100), 140);
-        },
-      });
-      return () => {
-        st.kill();
-        clearTimeout(rest);
-        root.style.removeProperty("--wdth");
-      };
-    });
-
     return () => {
       clockTriggers.forEach((t) => t.kill());
       mm.revert();
@@ -149,9 +125,13 @@ export function Experience() {
               className="mb-10 -ml-[0.04em] text-[clamp(4.5rem,17vw,17rem)]"
             />
             <span id="lately-title" className="sr-only">
-              The last 48 hours
+              Right now and the last 48 hours
             </span>
-            <StatusLine className="border-ink mb-16 border-t pt-3" />
+            <Label note="updates on its own" className="!mt-0">
+              Right now
+            </Label>
+            <StatusLine />
+            <Label note="music, code, saves and runs, grouped as they happened">The last 48 hours</Label>
             <Timeline />
           </section>
 

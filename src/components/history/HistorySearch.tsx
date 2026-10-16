@@ -65,7 +65,7 @@ export function HistorySearch() {
       </div>
 
       <div className="mb-12 flex flex-wrap items-baseline gap-x-6 gap-y-3">
-        <h2 className="text-[clamp(2rem,6vw,4.5rem)] leading-none font-semibold tracking-tight">{data?.label ?? " "}</h2>
+        <p className="text-[clamp(2rem,6vw,4.5rem)] leading-none font-extrabold tracking-[-0.04em]">{data?.label ?? " "}</p>
         {mode === "month" && (
           <span className="flex gap-4 text-quiet">
             <button type="button" onClick={() => setMonth(shiftMonth(month, -1))} className="hover:text-ink">

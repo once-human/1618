@@ -1,7 +1,7 @@
 "use client";
 
 import { useHere, useMusic, useNow, usePresence, useSaved } from "@/lib/presence/client";
-import { fmtNum, puneNow, timeAgo } from "@/lib/time";
+import { clockIn, fmtNum, hourIn, timeAgo } from "@/lib/time";
 
 type State = "active" | "around" | "away";
 
@@ -26,7 +26,8 @@ export function StatusLine({ className = "" }: { className?: string }) {
   ].filter((x): x is { at: string; what: string } => !!x);
   const latest = signals.sort((a, b) => b.at.localeCompare(a.at))[0] ?? null;
   const since = latest ? now - Date.parse(latest.at) : Infinity;
-  const pune = puneNow(new Date(now));
+  const place = presence.place ?? { city: "Pune", tz: "Asia/Kolkata" };
+  const mine = { label: clockIn(place.tz, new Date(now)), hour: hourIn(place.tz, new Date(now)) };
 
   let state: State;
   let line: React.ReactNode;
@@ -45,7 +46,7 @@ export function StatusLine({ className = "" }: { className?: string }) {
     line = <>Around. Last {latest.what}, {timeAgo(latest.at, now)}.</>;
   } else {
     state = "away";
-    const asleep = pune.hour >= 1 && pune.hour < 8;
+    const asleep = mine.hour >= 1 && mine.hour < 8;
     line = latest ? (
       <>
         {asleep ? "Probably asleep" : "Away from the screen"}. Last seen {timeAgo(latest.at, now)}.
@@ -57,7 +58,9 @@ export function StatusLine({ className = "" }: { className?: string }) {
 
   const manual = presence.status;
   const visitorZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-  const sameZone = visitorZone === "Asia/Kolkata" || visitorZone === "Asia/Calcutta";
+  const sameZone =
+    visitorZone === place.tz ||
+    (["Asia/Kolkata", "Asia/Calcutta"].includes(visitorZone) && ["Asia/Kolkata", "Asia/Calcutta"].includes(place.tz));
   const theirs = new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(new Date(now));
   const steps = presence.health?.steps;
 
@@ -77,7 +80,15 @@ export function StatusLine({ className = "" }: { className?: string }) {
         </span>
       </p>
       <p className="tnum mt-3 text-quiet md:pl-[1.6rem]">
-        {sameZone ? <>It&apos;s {pune.label} here in Pune.</> : <>It&apos;s {pune.label} in Pune, {theirs} where you are.</>}
+        {sameZone ? (
+          <>
+            It&apos;s {mine.label} here in {place.city}.
+          </>
+        ) : (
+          <>
+            It&apos;s {mine.label} in {place.city}, {theirs} where you are.
+          </>
+        )}
         {typeof steps === "number" && steps > 0 ? <> {fmtNum(steps)} steps today.</> : null}
         {here != null && here > 0 ? (
           <> {here > 1 ? `${here} people here right now, you included.` : "Just you here right now."}</>

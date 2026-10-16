@@ -95,3 +95,21 @@ export function fmtPos(ms: number): string {
   const s = Math.max(0, Math.floor(ms / 1000));
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 }
+
+/** "05:08" in any IANA time zone. */
+export function clockIn(tz: string, date = new Date()): string {
+  try {
+    return new Intl.DateTimeFormat("en-GB", { timeZone: tz, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(date);
+  } catch {
+    return puneNow(date).label;
+  }
+}
+
+/** The hour (0-23) in any IANA time zone. */
+export function hourIn(tz: string, date = new Date()): number {
+  try {
+    return Number(new Intl.DateTimeFormat("en-GB", { timeZone: tz, hour: "2-digit", hourCycle: "h23" }).format(date));
+  } catch {
+    return puneNow(date).hour;
+  }
+}

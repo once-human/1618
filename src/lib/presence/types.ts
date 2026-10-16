@@ -10,7 +10,9 @@ export interface Presence {
   } | null;
   /** Last push time per public repo, keyed by lowercase repo name. */
   repos: Record<string, string>;
-  /** Current weather in Pune (Open-Meteo). */
+  /** Where I am, roughly (city level), and its time zone. Pune unless I've said otherwise. */
+  place: { city: string; tz: string };
+  /** Current weather where I am (Open-Meteo). */
   weather: {
     tempC: number;
     label: string;

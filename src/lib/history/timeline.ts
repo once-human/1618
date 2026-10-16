@@ -4,17 +4,10 @@ import { q } from "@/lib/db";
 import { scrobbles, type Scrobble } from "@/lib/presence/lastfm";
 import { getSaved } from "@/lib/presence/pinterest";
 import type { SavedPin, TodayEvent } from "@/lib/presence/types";
+import { ghEvents } from "@/lib/presence/server";
 
 const GH_USER = "once-human";
 const HOURS = 48;
-
-interface GhEvent {
-  id: string;
-  type: string;
-  repo: { name: string };
-  created_at: string;
-  payload: { size?: number };
-}
 
 /**
  * The last 48 hours across everything: runs of music, pushes, saves, runs and
@@ -36,16 +29,7 @@ export async function getTimeline(): Promise<{ hours: number; events: TodayEvent
     q<{ track: string; artist: string; album: string | null; uts: string }>("tl plays", (db) =>
       db`SELECT track, artist, album, uts::text FROM scrobbles WHERE uts >= ${fromSec} ORDER BY uts`,
     ),
-    fetch(`https://api.github.com/users/${GH_USER}/events/public?per_page=60`, {
-      headers: {
-        Accept: "application/vnd.github+json",
-        "User-Agent": "1618-portfolio",
-        ...(process.env.GITHUB_TOKEN ? { Authorization: `Bearer ${process.env.GITHUB_TOKEN}` } : {}),
-      },
-      signal: AbortSignal.timeout(5000),
-    })
-      .then((r) => (r.ok ? (r.json() as Promise<GhEvent[]>) : null))
-      .catch(() => null),
+    ghEvents().catch(() => null),
     q<{ id: string; at: string; data: { repo: string; commits: number | null } }>("tl code", (db) =>
       db`SELECT id, at, data FROM events WHERE kind = 'code' AND at >= ${fromIso}`,
     ),

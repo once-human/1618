@@ -53,14 +53,31 @@ const ACTION: Record<string, string> = {
   PublicEvent: "Open-sourced",
 };
 
+export interface PublicEvent extends GhEvent {
+  id: string;
+  payload: GhEvent["payload"] & { size?: number; ref?: string };
+}
+
+/**
+ * My public GitHub events, fetched once every ten minutes and shared by
+ * everything that needs them (presence, the timeline, the history sync).
+ * GitHub allows 60 unauthenticated requests an hour, so sharing matters.
+ */
+export async function ghEvents(): Promise<PublicEvent[] | null> {
+  "use cache: remote";
+  cacheLife({ stale: 120, revalidate: 600, expire: 3600 });
+  cacheTag("github");
+  return getJson<PublicEvent[]>(`https://api.github.com/users/${GH_USER}/events/public?per_page=100`, ghHeaders());
+}
+
 export async function getGithub(): Promise<Pick<Presence, "github" | "repos">> {
-  "use cache";
-  cacheLife({ stale: 60, revalidate: 300, expire: 3600 });
+  "use cache: remote";
+  cacheLife({ stale: 120, revalidate: 600, expire: 3600 });
   // A GitHub webhook can mark this stale the moment I push (see /api/hooks/github).
   cacheTag("github");
 
   const [events, repos] = await Promise.all([
-    getJson<GhEvent[]>(`https://api.github.com/users/${GH_USER}/events/public?per_page=30`, ghHeaders()),
+    ghEvents(),
     getJson<{ name: string; pushed_at: string }[]>(
       `https://api.github.com/users/${GH_USER}/repos?sort=pushed&per_page=100`,
       ghHeaders(),
@@ -484,12 +501,13 @@ const WMO: [number[], string][] = [
   [[95, 96, 99], "thunderstorms"],
 ];
 
-export async function getWeather(): Promise<Presence["weather"]> {
-  "use cache";
+/** Weather at a place. Shared across every server instance; one call per place every 15 minutes. */
+export async function getWeather(lat: number, lon: number): Promise<Presence["weather"]> {
+  "use cache: remote";
   cacheLife({ stale: 300, revalidate: 900, expire: 7200 });
 
   const data = await getJson<{ current?: { temperature_2m: number; weather_code: number } }>(
-    `https://api.open-meteo.com/v1/forecast?latitude=${PUNE.lat}&longitude=${PUNE.lon}&current=temperature_2m,weather_code&timezone=Asia%2FKolkata`,
+    `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code&timezone=auto`,
   );
   const c = data?.current;
   if (!c) return null;
@@ -507,12 +525,35 @@ export async function getStatus(): Promise<ManualStatus | null> {
   return row.value;
 }
 
+export interface Place {
+  city: string;
+  lat: number;
+  lon: number;
+  tz: string;
+  setAt?: string;
+}
+
+const PUNE_PLACE: Place = { city: "Pune", lat: PUNE.lat, lon: PUNE.lon, tz: "Asia/Kolkata" };
+
+/** Where I am, at city level: set from my phone or /admin, Pune until then. */
+export async function getPlace(): Promise<Place> {
+  const row = await kvGet<Place>("location");
+  return row?.value ?? PUNE_PLACE;
+}
+
 export async function getPresence(): Promise<Presence> {
-  const [gh, weather, status, health] = await Promise.all([getGithub(), getWeather(), getStatus(), healthToday()]);
+  const place = await getPlace();
+  const [gh, weather, status, health] = await Promise.all([
+    getGithub(),
+    getWeather(place.lat, place.lon),
+    getStatus(),
+    healthToday(),
+  ]);
   const repos = Object.fromEntries(Object.entries(gh.repos).filter(([name]) => SHOWN_REPOS.has(name)));
   return {
     github: gh.github,
     repos,
+    place: { city: place.city, tz: place.tz },
     weather,
     status,
     health: health ? { steps: health.steps, sleepHours: health.sleepHours } : null,

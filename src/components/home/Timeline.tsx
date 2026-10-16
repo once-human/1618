@@ -41,6 +41,7 @@ export function Timeline({ limit = 40 }: { limit?: number }) {
                         <span className="block text-[12px] md:hidden">to {puneClock(e.until)}</span>
                       </>
                     ) : null}
+                    <span className="block text-[10px] tracking-wide uppercase md:hidden">{KIND[e.kind]}</span>
                   </span>
                   <span className="hidden text-[12px] tracking-wide text-quiet uppercase md:block">{KIND[e.kind]}</span>
                   <span className="min-w-0">

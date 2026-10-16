@@ -2,7 +2,7 @@ import "server-only";
 import { kvGet, kvSet, q } from "@/lib/db";
 import { scrobbles, trackKey, type Scrobble } from "@/lib/presence/lastfm";
 import { archivePins, getSaved } from "@/lib/presence/pinterest";
-import { appleSong } from "@/lib/presence/server";
+import { appleSong, ghEvents } from "@/lib/presence/server";
 import { stravaActivities } from "./strava";
 
 /**
@@ -13,7 +13,6 @@ import { stravaActivities } from "./strava";
  * schedule, and whenever someone visits the site (at most every few minutes).
  */
 
-const GH_USER = "once-human";
 const MIN_GAP_MS = 5 * 60_000;
 const BACKFILL_PAGES = 15; // × 200 plays per run
 
@@ -80,51 +79,30 @@ async function backfill(): Promise<{ added: number; done: boolean }> {
   return { added, done };
 }
 
-interface GhEvent {
-  id: string;
-  type: string;
-  repo: { name: string };
-  created_at: string;
-  payload: { size?: number; ref?: string };
-}
-
 /** Public pushes. GitHub only keeps 90 days of events, so the store is the long memory. */
 async function syncCode(): Promise<number> {
-  try {
-    const res = await fetch(`https://api.github.com/users/${GH_USER}/events/public?per_page=100`, {
-      headers: {
-        Accept: "application/vnd.github+json",
-        "User-Agent": "1618-portfolio",
-        ...(process.env.GITHUB_TOKEN ? { Authorization: `Bearer ${process.env.GITHUB_TOKEN}` } : {}),
-      },
-      signal: AbortSignal.timeout(6000),
-    });
-    if (!res.ok) return 0;
-    const events = ((await res.json()) as GhEvent[]).filter((e) => e.type === "PushEvent");
-    if (!events.length) return 0;
-    const rows = await q<{ n: number }>("code insert", (db) =>
-      db`WITH ins AS (
-           INSERT INTO events (id, kind, at, data)
-           SELECT * FROM unnest(
-             ${events.map((e) => `gh:${e.id}`)}::text[],
-             ${events.map(() => "code")}::text[],
-             ${events.map((e) => e.created_at)}::timestamptz[],
-             ${events.map((e) =>
-               JSON.stringify({
-                 repo: e.repo.name.split("/")[1],
-                 url: `https://github.com/${e.repo.name}`,
-                 branch: e.payload.ref?.replace("refs/heads/", "") ?? null,
-                 commits: e.payload.size ?? null,
-               }),
-             )}::jsonb[]
-           )
-           ON CONFLICT DO NOTHING RETURNING 1
-         ) SELECT count(*)::int AS n FROM ins`,
-    );
-    return rows?.[0]?.n ?? 0;
-  } catch {
-    return 0;
-  }
+  const events = ((await ghEvents().catch(() => null)) ?? []).filter((e) => e.type === "PushEvent");
+  if (!events.length) return 0;
+  const rows = await q<{ n: number }>("code insert", (db) =>
+    db`WITH ins AS (
+         INSERT INTO events (id, kind, at, data)
+         SELECT * FROM unnest(
+           ${events.map((e) => `gh:${e.id}`)}::text[],
+           ${events.map(() => "code")}::text[],
+           ${events.map((e) => e.created_at)}::timestamptz[],
+           ${events.map((e) =>
+             JSON.stringify({
+               repo: e.repo.name.split("/")[1],
+               url: `https://github.com/${e.repo.name}`,
+               branch: e.payload.ref?.replace("refs/heads/", "") ?? null,
+               commits: e.payload.size ?? null,
+             }),
+           )}::jsonb[]
+         )
+         ON CONFLICT DO NOTHING RETURNING 1
+       ) SELECT count(*)::int AS n FROM ins`,
+  );
+  return rows?.[0]?.n ?? 0;
 }
 
 async function syncActivities(): Promise<number> {

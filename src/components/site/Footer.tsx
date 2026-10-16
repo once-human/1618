@@ -2,16 +2,16 @@
 
 import Link from "next/link";
 import { useMusic, usePresence, useNow } from "@/lib/presence/client";
-import { puneNow, timeAgo } from "@/lib/time";
+import { clockIn, timeAgo } from "@/lib/time";
 import { Playing } from "@/components/live/Playing";
 import { profile } from "@/content/profile";
-import { openMenu } from "@/components/site/CommandMenu";
 
 const cell = "border-t border-ink pt-1.5";
 
 /**
  * Fixed footer. Everything on the right is live: the song playing right now
- * (or the last one and how long ago), and the real time and weather in Pune.
+ * (or the last one and how long ago), and the real time and weather wherever
+ * I am (Pune unless I've told the site otherwise).
  */
 export function Footer() {
   const now = useNow();
@@ -19,7 +19,8 @@ export function Footer() {
   const music = useMusic();
   const latest = music?.tracks?.[0];
   const weather = presence?.weather;
-  const pune = now ? puneNow(new Date(now)) : null;
+  const place = presence?.place ?? { city: "Pune", tz: "Asia/Kolkata" };
+  const clock = now ? clockIn(place.tz, new Date(now)) : null;
 
   return (
     <footer className="bg-paper fixed inset-x-0 bottom-0 z-50 grid grid-cols-2 gap-4 px-4 pt-2 pb-3 text-[13px] md:grid-cols-4">
@@ -43,15 +44,6 @@ export function Footer() {
         <Link href="/privacy" className="hover:underline">
           privacy
         </Link>
-        <span className="text-quiet">, </span>
-        <button
-          type="button"
-          onClick={openMenu}
-          className="hover:underline"
-          aria-label="Open the menu"
-        >
-          menu <kbd className="text-quiet font-[inherit]">⌘K</kbd>
-        </button>
       </p>
       <p className={`${cell} truncate ${latest ? "" : "hidden"} md:block`} aria-live="polite">
         {latest ? (
@@ -76,14 +68,14 @@ export function Footer() {
         ) : null}
       </p>
       <p className={`${cell} tnum text-right`}>
-        {pune ? (
+        {clock ? (
           <>
-            Pune, {pune.label}
+            {place.city}, {clock}
             {weather ? `, ${weather.tempC}°` : ""}
             <span className="hidden md:inline">{weather?.label ? ` ${weather.label}` : ""}</span>
           </>
         ) : (
-          "Pune"
+          place.city
         )}
       </p>
     </footer>

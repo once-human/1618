@@ -70,16 +70,18 @@ export default function Privacy() {
               <Ext href="https://vercel.com/legal/privacy-policy">Vercel privacy policy</Ext>.
             </p>
             <p>
-              Nothing is stored in your browser: no cookies, no local storage. The clock shows Pune
-              time, and your own time next to it, both worked out in your browser. The weather is
-              Pune&apos;s, fetched by the server, not based on where you are.
+              No cookies and no local storage. The clock shows the time where I am, and your own
+              time next to it, both worked out in your browser. The weather is for the town I&apos;m
+              in, fetched by the server, never based on where you are.
             </p>
             <p>
-              Two counts, nothing more: each page load adds one to a visit counter, which is a
-              single number. And while the page is open, it sends a random code every 30 seconds
-              so the site can say how many people are here right now. That code is made up fresh
-              in each tab, lives only in its memory, means nothing outside it, and is deleted from
-              the server within a day.
+              Two counts, nothing more. The visitor count adds you once a day, however often you
+              reload. And while you&apos;re looking at the page, it says &ldquo;still here&rdquo;
+              every 15 seconds so the site can show how many people are on it right now. For that,
+              the tab keeps one random code in its session storage (so a reload doesn&apos;t count
+              you twice); it disappears when you close the tab, says &ldquo;gone&rdquo; when you
+              leave, and means nothing outside it. Both counts recognise a returning visitor only
+              by the same scrambled, daily-changing code described below, never by your address.
             </p>
           </Part>
 
@@ -91,10 +93,10 @@ export default function Privacy() {
               kept.
             </p>
             <p>
-              To stop one person flooding the page, the site makes a one-way, scrambled code from
-              your IP address that changes every day. It can&apos;t be turned back into your
-              address, can&apos;t follow you from one day to the next, and is deleted within two
-              days. The same goes for 🔥 reactions, which are kept only as a count per song.
+              To count people rather than page loads, and to stop one person flooding the page,
+              the site makes a one-way, scrambled code from your IP address that changes every
+              day. It can&apos;t be turned back into your
+              address, can&apos;t follow you from one day to the next, and is deleted within a few days. The same goes for 🔥 reactions, which are kept only as a count per song.
             </p>
             <p>
               I can hide or delete any post, and I&apos;ll remove yours if you ask (see the end of

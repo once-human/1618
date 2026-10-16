@@ -29,6 +29,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         {/* Album covers and pins come from these image CDNs; open the connections early. */}
         <link rel="preconnect" href="https://is1-ssl.mzstatic.com" />
         <link rel="preconnect" href="https://i.pinimg.com" />
+        {/* Song previews stream from here, only when someone presses play. */}
+        <link rel="dns-prefetch" href="https://audio-ssl.itunes.apple.com" />
       </head>
       <body>
         {children}

@@ -39,7 +39,7 @@ export function Guestbook() {
     <div id="guestbook" className="mt-20">
       <div className="mb-6 flex items-baseline justify-between gap-4 border-t border-ink pt-1.5">
         <h3 className="font-semibold">Guestbook</h3>
-        {visits ? <span className="tnum text-quiet">{fmtNum(visits)} visits so far</span> : null}
+        {visits ? <span className="tnum text-quiet">{fmtNum(visits)} {visits === 1 ? "visitor" : "visitors"} so far</span> : null}
       </div>
       <form onSubmit={send} className="grid grid-cols-1 gap-x-4 gap-y-4 md:grid-cols-4">
         <input value={message} onChange={(e) => setMessage(e.target.value)} placeholder="Leave a line" maxLength={280} aria-label="Your message" className={`${field} md:col-span-2`} />

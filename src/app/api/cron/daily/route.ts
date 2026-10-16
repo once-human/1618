@@ -13,6 +13,14 @@ export async function GET(req: Request) {
     return new Response("Not allowed", { status: 401 });
   const sync = await runSync({ force: true });
   const issue = await publishPreviousMonth();
+  // Yesterday's visitors become a plain number; their hashes are deleted.
+  await q("fold visitors", (db) =>
+    db.transaction([
+      db`INSERT INTO counters (name, n) VALUES ('visitors_archived', (SELECT count(*) FROM visitors WHERE day < (now() AT TIME ZONE 'Asia/Kolkata')::date))
+         ON CONFLICT (name) DO UPDATE SET n = counters.n + EXCLUDED.n`,
+      db`DELETE FROM visitors WHERE day < (now() AT TIME ZONE 'Asia/Kolkata')::date`,
+    ]),
+  );
   await Promise.all([
     q("clean here", (db) => db`DELETE FROM here WHERE last_seen < now() - interval '1 day'`),
     q("clean ratelimit", (db) => db`DELETE FROM ratelimit WHERE window_start < now() - interval '2 days'`),

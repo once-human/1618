@@ -50,8 +50,6 @@ body {
   line-height: 0.78;
   white-space: nowrap;
   text-transform: lowercase;
-  /* Narrows with scroll speed on the home page (see Experience). */
-  font-stretch: var(--wdth, 100%);
 }
 
 .tnum {

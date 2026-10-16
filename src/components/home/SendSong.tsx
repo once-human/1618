@@ -5,6 +5,7 @@ import { addSubmission, useNow, useSongsSent } from "@/lib/presence/client";
 import { timeAgo } from "@/lib/time";
 import { Label } from "@/components/site/Label";
 import { Preview } from "@/components/live/Preview";
+import { Cover } from "@/components/live/Cover";
 import type { SongResult } from "@/app/api/songs/search/route";
 
 const field = "w-full border-b border-ink bg-transparent py-1.5 outline-none placeholder:text-quiet focus:border-b-2";
@@ -104,10 +105,7 @@ export function SendSong() {
                         }}
                         className="flex w-full items-center gap-3 border-b border-ink/15 py-1.5 text-left hover:bg-ink/5"
                       >
-                        {r.art ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={r.art} alt="" width={32} height={32} className="aspect-square w-8 bg-[#e6e6e6]" />
-                        ) : null}
+                        <Cover url={r.art} px={32} />
                         <span className="min-w-0 truncate">
                           {r.track} <span className="text-quiet">{r.artist}</span>
                         </span>

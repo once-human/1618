@@ -78,14 +78,16 @@ export async function checkSources(): Promise<{ checks: SourceCheck[]; checkedAt
       return `${n} items`;
     }),
     timed(async () => {
-      const d = await json<{ resources: { core: { remaining: number; limit: number } } }>("https://api.github.com/rate_limit", gh);
-      return `${d.resources.core.remaining}/${d.resources.core.limit} requests left this hour`;
+      // The rate-limit endpoint is free to call; it says whether GitHub is answering us without spending anything.
+      const d = await json<{ resources: { core: { remaining: number } } }>("https://api.github.com/rate_limit", gh);
+      if (d.resources.core.remaining <= 0) throw new Error("busy, back within the hour");
+      return "answering";
     }),
     timed(async () => {
       const d = await json<{ current?: { temperature_2m: number } }>(
         "https://api.open-meteo.com/v1/forecast?latitude=18.52&longitude=73.86&current=temperature_2m",
       );
-      return `${Math.round(d.current?.temperature_2m ?? NaN)}° in Pune`;
+      return Number.isFinite(d.current?.temperature_2m) ? "answering" : "empty answer";
     }),
     timed(async () => {
       const r = await q<{ plays: number }>("status db", (db) => db`SELECT count(*)::int AS plays FROM scrobbles`);
@@ -103,7 +105,7 @@ export async function checkSources(): Promise<{ checks: SourceCheck[]; checkedAt
     { name: "Pinterest widget", what: "pins and boards", ...pin },
     { name: "Pinterest RSS", what: "save times", ...rss },
     { name: "GitHub", what: "code activity", ...github },
-    { name: "Open-Meteo", what: "Pune weather", ...weather },
+    { name: "Open-Meteo", what: "weather where I am", ...weather },
     { name: "History store", what: "Neon Postgres", ...db },
     {
       name: "Sync",

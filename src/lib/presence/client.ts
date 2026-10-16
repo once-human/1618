@@ -3,6 +3,7 @@
 import { useEffect, useSyncExternalStore } from "react";
 import type { ListeningStats, Live, Music, Presence, Saved, Submission, TodayEvent } from "./types";
 import type { Replay, RangeSummary } from "@/lib/history/query";
+import { artSet } from "@/lib/art";
 
 /**
  * Shared pollers: every component reading the same endpoint subscribes to one
@@ -71,9 +72,14 @@ const saved = createPoller<Saved>("/api/saved", 10 * 60_000);
 const live = createPoller<Live>("/api/live", 15_000, {
   etag: true,
   onData: (d) => {
-    // New covers are fetched straight away, so they're ready before anyone scrolls to them.
+    // New covers are fetched straight away (at the size this screen will use),
+    // so they're ready before anyone scrolls to them.
     d.music.tracks?.forEach((t) => {
-      if (t.image) new Image().src = t.image;
+      if (!t.image) return;
+      const img = new Image();
+      const set = artSet(t.image, 48);
+      if (set.srcSet) img.srcset = set.srcSet;
+      img.src = set.src ?? t.image;
     });
     if (d.savedVersion && savedVersion && d.savedVersion !== savedVersion) void saved.refresh();
     savedVersion = d.savedVersion;
@@ -138,17 +144,30 @@ export async function fetchHistory(query: string): Promise<(RangeSummary & { lab
 let hereCount: number | null = null;
 const hereSubs = new Set<() => void>();
 let hereTimer: ReturnType<typeof setInterval> | null = null;
-// Lives only in this tab's memory; it means nothing outside it.
-const tabId = Math.random().toString(36).slice(2, 14) + Math.random().toString(36).slice(2, 8);
+
+/**
+ * One random id per open tab. It lives in this tab's session storage so a
+ * refresh keeps it (and doesn't count you twice), and disappears when the tab
+ * closes. It means nothing outside this tab.
+ */
+function tabId(): string {
+  const make = () => Math.random().toString(36).slice(2, 12) + Math.random().toString(36).slice(2, 12);
+  try {
+    const have = sessionStorage.getItem("here-id");
+    if (have && /^[a-z0-9]{8,40}$/i.test(have)) return have;
+    const id = make();
+    sessionStorage.setItem("here-id", id);
+    return id;
+  } catch {
+    return (memoryId ??= make());
+  }
+}
+let memoryId: string | undefined;
 
 async function beat() {
   if (document.visibilityState !== "visible") return;
   try {
-    const res = await fetch("/api/here", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: tabId }),
-    });
+    const res = await fetch("/api/here", { method: "POST", body: JSON.stringify({ id: tabId() }) });
     if (!res.ok) return;
     hereCount = ((await res.json()) as { here: number | null }).here;
     hereSubs.forEach((f) => f());
@@ -157,19 +176,32 @@ async function beat() {
   }
 }
 
+/** Closing or switching away leaves straight away, so the count never lags. */
+function leave() {
+  try {
+    navigator.sendBeacon("/api/here", JSON.stringify({ id: tabId(), leave: true }));
+  } catch {
+    /* ignore */
+  }
+}
+
+const onVis = () => (document.visibilityState === "visible" ? void beat() : leave());
+
 function subscribeHere(f: () => void) {
   hereSubs.add(f);
   if (!hereTimer) {
     void beat();
-    hereTimer = setInterval(beat, 30_000);
-    document.addEventListener("visibilitychange", beat);
+    hereTimer = setInterval(beat, 15_000);
+    document.addEventListener("visibilitychange", onVis);
+    window.addEventListener("pagehide", leave);
   }
   return () => {
     hereSubs.delete(f);
     if (!hereSubs.size && hereTimer) {
       clearInterval(hereTimer);
       hereTimer = null;
-      document.removeEventListener("visibilitychange", beat);
+      document.removeEventListener("visibilitychange", onVis);
+      window.removeEventListener("pagehide", leave);
     }
   };
 }
@@ -178,7 +210,7 @@ export function useHere(): number | null {
   return useSyncExternalStore(subscribeHere, () => hereCount, () => null);
 }
 
-/* ---- Visit counter: one per page load ---- */
+/* ---- Visitors so far: each person once a day ---- */
 
 let visits: number | null = null;
 let counted = false;

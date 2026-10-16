@@ -1,6 +1,7 @@
 "use client";
 
 import { togglePreview, usePlayer } from "@/lib/presence/client";
+import { artSet } from "@/lib/art";
 
 /**
  * A cover you can press to hear 30 seconds of the song. One clip plays at a
@@ -25,7 +26,7 @@ export function Preview({
   const active = p.key === id;
   const cover = image ? (
     // eslint-disable-next-line @next/next/no-img-element
-    <img src={image} alt="" width={size} height={size} decoding="async" className="aspect-square w-full bg-[#e6e6e6] object-cover" />
+    <img {...artSet(image, size)} alt="" width={size} height={size} decoding="async" className="aspect-square w-full bg-[#e6e6e6] object-cover" />
   ) : (
     <span aria-hidden className="block aspect-square w-full bg-[#e6e6e6]" />
   );

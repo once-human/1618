@@ -9,9 +9,9 @@ when its stamp changes. Slower parts poll their own routes: `/api/listening` (10
 
 | Signal | Source | Setup | Cache |
 | --- | --- | --- | --- |
-| Pune time, your time | Visitor's browser | none | n/a |
-| Pune weather | Open-Meteo | none | 15 min |
-| Code activity | GitHub public events + repo `pushed_at` + latest commit | none (optional `GITHUB_TOKEN`, `GITHUB_WEBHOOK_SECRET`) | 5 min, or instantly via webhook |
+| Where I am (city), my time, your time | `POST /api/location` from a Shortcut or /admin; Pune by default; browser for your time | `ADMIN_SECRET` | until changed |
+| Weather where I am | Open-Meteo (coordinates rounded to ~10 km) | none | 15 min, shared |
+| Code activity | GitHub public events (one shared fetch for presence, timeline and sync) + repo `pushed_at` + latest commit | none (optional `GITHUB_TOKEN` raises GitHub's limit from 60 to 5,000 an hour; `GITHUB_WEBHOOK_SECRET`) | 10 min, or instantly via webhook |
 | Now playing + tracklist | Last.fm `user.getrecenttracks` | `LASTFM_USER`, `LASTFM_API_KEY` | 10 s edge |
 | Covers, links, previews, song length, cover tint | iTunes Search → artist catalog → Deezer + song.link | none | weeks per song |
 | On repeat this month, when I listen, streak, new-to-me | Last.fm top tracks/artists (1 month) + last 30 days of plays | as above | 1 h |
@@ -43,6 +43,8 @@ plays per run until it reaches the first scrobble. It runs:
 
 - **`/admin?key=<ADMIN_SECRET>`**: hide or delete guestbook posts and sent songs, set my status,
   see the store's size and last sync, connect Strava, run a sync.
+- **Location**: from /admin type a city, or a Shortcut POSTs `{ "city": "Bengaluru", "lat": …, "lon": … }`
+  to `/api/location` with the admin header. City level only.
 - **Status Shortcut**: "Get contents of URL", POST to `https://www.onkaryaglewad.in/api/status`,
   header `Authorization: Bearer <ADMIN_SECRET>`, JSON `{ "text": "…", "hours": 3 }`.
 - **Health Shortcut** (personal automation, e.g. daily at 23:30): find today's step count, walking
@@ -58,8 +60,11 @@ plays per run until it reaches the first scrobble. It runs:
   away; anything can be hidden from `/admin`. Three posts an hour per visitor.
 - **Rate limits** use a salted, one-way hash of the IP that changes daily (`visitorKey` in
   `src/lib/db.ts`); no IP is ever stored.
-- **People here**: a random per-tab id sent every 30 s (`/api/here`), counted over 75 s.
-- **Visits**: one counter row.
+- **People here**: each tab keeps one random id in session storage (a reload keeps it), beats every
+  15 s while visible, and sends "gone" on close or switching away. People are counted by the daily
+  visitor hash over the last 35 s, so refreshes and extra tabs don't inflate it.
+- **Visitors**: each person once a day (`visitors` table of daily hashes); the nightly job folds
+  past days into one number and deletes the hashes.
 - **🔥**: a count per song, one per visitor per song every 10 minutes.
 
 ## Limits worth knowing

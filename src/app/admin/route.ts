@@ -1,6 +1,6 @@
 import { connection } from "next/server";
 import { isAdmin, kvGet, q } from "@/lib/db";
-import { getStatus } from "@/lib/presence/server";
+import { getPlace, getStatus } from "@/lib/presence/server";
 import { stravaConfigured } from "@/lib/history/strava";
 
 /**
@@ -16,7 +16,7 @@ export async function GET(req: Request) {
   if (!isAdmin(req)) return new Response("Not found", { status: 404 });
   const key = encodeURIComponent(new URL(req.url).searchParams.get("key") ?? "");
 
-  const [posts, counts, sync, backfill, status, strava] = await Promise.all([
+  const [posts, counts, sync, backfill, status, strava, place] = await Promise.all([
     q<{ id: number; kind: string; name: string | null; message: string | null; payload: { track?: string; artist?: string } | null; hidden: boolean; created_at: string }>(
       "admin posts",
       (db) => db`SELECT id, kind, name, message, payload, hidden, created_at FROM submissions ORDER BY created_at DESC LIMIT 100`,
@@ -32,6 +32,7 @@ export async function GET(req: Request) {
     kvGet<{ done: boolean }>("backfill:lastfm"),
     getStatus(),
     kvGet<{ expiresAt: number }>("strava:token"),
+    getPlace(),
   ]);
   const c = counts?.[0];
 
@@ -67,6 +68,13 @@ export async function GET(req: Request) {
 <form method="post" action="/api/status?key=${key}">
   <input type="text" name="text" placeholder="heads-down till 6" maxlength="80">
   <input type="number" name="hours" value="4" min="0.25" max="48" step="0.25" style="width:5em"> hours
+  <button>Set</button>
+</form>
+
+<h2>Where I am</h2>
+<p>${esc(place.city)} <span class=q>(${esc(place.tz)}${place.setAt ? `, set ${esc(new Date(place.setAt).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" }))}` : ", default"})</span></p>
+<form method="post" action="/api/location?key=${key}">
+  <input type="text" name="city" placeholder="Bengaluru" maxlength="60">
   <button>Set</button>
 </form>
 

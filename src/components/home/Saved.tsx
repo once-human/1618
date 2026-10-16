@@ -186,7 +186,16 @@ function Board({ b, now }: { b: PinterestBoard; now: number }) {
           <span className="grid aspect-square grid-cols-2 gap-px bg-paper" style={{ backgroundColor: b.color ?? "#e6e6e6" }}>
             {tiles.map((src) => (
               // eslint-disable-next-line @next/next/no-img-element
-              <img key={src} src={src} alt="" loading="lazy" decoding="async" className="aspect-square w-full object-cover" />
+              <img
+                key={src}
+                src={src}
+                srcSet={`${src} 236w, ${src.replace("/236x/", "/474x/")} 474w`}
+                sizes="(min-width: 1024px) 7vw, (min-width: 768px) 9vw, 13vw"
+                alt=""
+                loading="lazy"
+                decoding="async"
+                className="aspect-square w-full object-cover"
+              />
             ))}
           </span>
         ) : b.cover ? (
@@ -213,7 +222,7 @@ function Board({ b, now }: { b: PinterestBoard; now: number }) {
         >
           {b.mosaic.slice(0, 3).map((src) => (
             // eslint-disable-next-line @next/next/no-img-element
-            <img key={src} src={src} alt="" loading="lazy" className="aspect-[3/4] w-full bg-[#e6e6e6] object-cover" />
+            <img key={src} src={src} srcSet={`${src} 1x, ${src.replace("/236x/", "/474x/")} 2x`} alt="" loading="lazy" className="aspect-[3/4] w-full bg-[#e6e6e6] object-cover" />
           ))}
         </span>
       )}
@@ -297,6 +306,8 @@ function PinView({
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={p.image}
+          srcSet={`${p.image} 736w, ${p.image.replace("/736x/", "/originals/")} 1600w`}
+          sizes="(min-width: 768px) 560px, 92vw"
           alt={p.title ?? ""}
           className="max-h-[60svh] w-full object-contain md:max-h-[92svh]"
           style={{ backgroundColor: p.color ?? "#e6e6e6" }}
