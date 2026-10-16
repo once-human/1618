@@ -75,6 +75,7 @@ async function profilePage(): Promise<{ user: RawUser | null; boards: RawBoard[]
   let found: RawUser | null = null;
   const boards = new Map<string, RawBoard>();
   let blocks = 0;
+  const candidates: RawUser[] = [];
   for (const html of pages) {
     if (!html) continue;
     for (const m of html.matchAll(/<script[^>]*type="application\/json"[^>]*>([\s\S]*?)<\/script>/g)) {
@@ -86,8 +87,10 @@ async function profilePage(): Promise<{ user: RawUser | null; boards: RawBoard[]
       }
       blocks++;
       // Keep the richest copy of my user record (the one with the most fields).
-      for (const u of findAll<RawUser>(json, (o) => o.username === PINTEREST_USER && typeof o.follower_count === "number"))
+      for (const u of findAll<RawUser>(json, (o) => o.username === PINTEREST_USER && typeof o.follower_count === "number")) {
+        candidates.push(u);
         if (!found || Object.keys(u).length > Object.keys(found).length) found = u;
+      }
       // A board: a named object whose url is one of my board paths ("/me/board-name/").
       for (const b of findAll<RawBoard>(
         json,
@@ -102,6 +105,15 @@ async function profilePage(): Promise<{ user: RawUser | null; boards: RawBoard[]
       }
     }
   }
+  // Diagnostic: every copy of my user record and its counts, to see which one is right.
+  console.info(
+    `[saved] user records: ${candidates
+      .map((u) => {
+        const c = Object.entries(u).filter(([k, v]) => typeof v === "number" && /count|follow/i.test(k));
+        return `{keys=${Object.keys(u).length} ${c.map(([k, v]) => `${k}=${v}`).join(" ")}}`;
+      })
+      .join(" ")}`,
+  );
   const viewKeys = found ? Object.keys(found).filter((k) => /view|impression|monthly/i.test(k)) : [];
   console.info(
     `[saved] profile pages: ${blocks} data blocks, user=${found ? "yes" : "no"}, boards=${boards.size}, view fields=${viewKeys
@@ -190,7 +202,7 @@ function toPin(p: RawPin, at: string | null): SavedPin | null {
  * Pinterest serves it. (Its internal JSON endpoints answer 403 to servers, so
  * they aren't used.) Cached for 30 minutes: these change far less than saves.
  */
-async function profileData(): Promise<{ user: RawUser | null; boards: RawBoard[] }> {
+async function profileData(_v = 2): Promise<{ user: RawUser | null; boards: RawBoard[] }> {
   "use cache: remote";
   cacheLife({ stale: 300, revalidate: 1800, expire: 86400 });
   return profilePage();
@@ -258,11 +270,12 @@ async function rssPins(): Promise<RssPin[] | null> {
  * cached for 30. Whenever a source fails, the rest is built from whatever did
  * load. Secret boards never appear: none of these sources include them.
  */
-export async function getSaved(): Promise<Saved> {
+export async function getSaved(_v = 2): Promise<Saved> {
   "use cache: remote";
   cacheLife({ stale: 60, revalidate: 600, expire: 86400 });
 
-  const [w, rss, page] = await Promise.all([widget(), rssPins(), profileData()]);
+  const [w, rss, page] = await Promise.all([widget(), rssPins(), profileData(_v)]);
+  console.info(`[saved] widget user follower_count=${w?.user?.follower_count ?? "none"}`);
   const page_created: RawPin[] = []; // created pins need a logged-in API; see docs/LIVE-SIGNALS.md
   const times = new Map((rss ?? []).map((p) => [p.id, p.at]));
 
