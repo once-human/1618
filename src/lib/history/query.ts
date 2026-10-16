@@ -189,10 +189,13 @@ export function resolveRange(name: string, at?: string | null): { from: Date; to
 /** A range summary, cached: a few minutes for ranges that include now, a day for the past. */
 export async function cachedSummary(fromIso: string, toIso: string): Promise<RangeSummary> {
   "use cache: remote";
+  const s = await summarise(new Date(fromIso), new Date(Math.min(Date.parse(toIso), Date.now())));
   const live = Date.parse(toIso) > Date.now() - 3600_000;
-  if (live) cacheLife({ stale: 120, revalidate: 600, expire: 3600 });
+  const empty = !s.music.plays && !s.pins.count && !s.code.pushes;
+  // An empty answer may just mean the store hasn't caught up yet: ask again soon.
+  if (live || empty) cacheLife({ stale: 60, revalidate: empty ? 300 : 600, expire: 3600 });
   else cacheLife("days");
-  return summarise(new Date(fromIso), new Date(Math.min(Date.parse(toIso), Date.now())));
+  return s;
 }
 
 /* ---- The year so far (annual-recap style, refreshed through the day) ---- */
@@ -211,7 +214,6 @@ export interface Replay {
 
 export async function getReplay(year?: string): Promise<Replay> {
   "use cache: remote";
-  cacheLife({ stale: 1800, revalidate: 3 * 3600, expire: 86400 });
   const range = resolveRange("year", year)!;
   const y = range.label;
   const f = Math.floor(range.from.getTime() / 1000);
@@ -250,6 +252,10 @@ export async function getReplay(year?: string): Promise<Replay> {
     longest = Math.max(longest, run);
     prev = ts;
   }
+
+  // Refreshed a few times a day; an empty recap (store still filling) is retried within minutes.
+  if (summary.music.plays) cacheLife({ stale: 1800, revalidate: 3 * 3600, expire: 86400 });
+  else cacheLife({ stale: 60, revalidate: 300, expire: 900 });
 
   return {
     year: y,

@@ -82,7 +82,7 @@ export async function getTimeline(): Promise<{ hours: number; events: TodayEvent
           : top
               .slice(0, 2)
               .map(([a]) => a)
-              .join(", "),
+              .join(" · "),
       url: null,
     });
     session = [];
