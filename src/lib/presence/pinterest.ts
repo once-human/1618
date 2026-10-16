@@ -25,7 +25,7 @@ async function get(url: string, label: string): Promise<string | null> {
 const pinId = (url: string) => url.match(/\/pin\/(\d+)/)?.[1] ?? null;
 
 /** Ask Pinterest's image CDN for a crisp size of the same image. */
-const sized = (url: string, size: "474x" | "736x") => url.replace(/\/(\d+x|originals)\//, `/${size}/`);
+const sized = (url: string, size: "236x" | "474x" | "736x") => url.replace(/\/(\d+x|originals)\//, `/${size}/`);
 
 /* ---- Widget feed: images, sizes, colours and boards ---- */
 
@@ -70,27 +70,44 @@ function findAll<T>(root: unknown, test: (o: Record<string, unknown>) => boolean
 
 /** The data Pinterest embeds in the public profile page, if it serves it to us. */
 async function profilePage(): Promise<{ user: RawUser | null; boards: RawBoard[] }> {
-  const html = await get(PROFILE, "profile page");
-  if (!html) return { user: null, boards: [] };
-  const blobs = [...html.matchAll(/<script[^>]*type="application\/json"[^>]*>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
+  // The profile page and the saved tab each embed a batch of boards; together they cover more.
+  const pages = await Promise.all([get(PROFILE, "profile page"), get(`${PROFILE}_saved/`, "saved tab")]);
   let found: RawUser | null = null;
   const boards = new Map<string, RawBoard>();
-  for (const blob of blobs) {
-    let json: unknown;
-    try {
-      json = JSON.parse(blob);
-    } catch {
-      continue;
+  let blocks = 0;
+  for (const html of pages) {
+    if (!html) continue;
+    for (const m of html.matchAll(/<script[^>]*type="application\/json"[^>]*>([\s\S]*?)<\/script>/g)) {
+      let json: unknown;
+      try {
+        json = JSON.parse(m[1]);
+      } catch {
+        continue;
+      }
+      blocks++;
+      // Keep the richest copy of my user record (the one with the most fields).
+      for (const u of findAll<RawUser>(json, (o) => o.username === PINTEREST_USER && typeof o.follower_count === "number"))
+        if (!found || Object.keys(u).length > Object.keys(found).length) found = u;
+      // A board: a named object whose url is one of my board paths ("/me/board-name/").
+      for (const b of findAll<RawBoard>(
+        json,
+        (o) =>
+          typeof o.url === "string" &&
+          new RegExp(`^/${PINTEREST_USER}/[^/]+/$`).test(o.url) &&
+          typeof o.name === "string" &&
+          (o.type === "board" || "pin_count" in o || "privacy" in o),
+      )) {
+        const prev = boards.get(b.url!);
+        if (!prev || Object.keys(b).length > Object.keys(prev).length) boards.set(b.url!, b);
+      }
     }
-    found ??=
-      findAll<RawUser>(json, (o) => o.username === PINTEREST_USER && typeof o.follower_count === "number")[0] ?? null;
-    for (const b of findAll<RawBoard>(
-      json,
-      (o) => typeof o.url === "string" && o.url.startsWith(`/${PINTEREST_USER}/`) && typeof o.name === "string" && "pin_count" in o,
-    ))
-      boards.set(b.url!, b);
   }
-  console.info(`[saved] profile page: ${blobs.length} data blocks, user=${found ? "yes" : "no"}, boards=${boards.size}`);
+  const viewKeys = found ? Object.keys(found).filter((k) => /view|impression|monthly/i.test(k)) : [];
+  console.info(
+    `[saved] profile pages: ${blocks} data blocks, user=${found ? "yes" : "no"}, boards=${boards.size}, view fields=${viewKeys
+      .map((k) => `${k}=${JSON.stringify((found as Record<string, unknown>)[k])}`)
+      .join(" ") || "none"}`,
+  );
   return { user: found, boards: [...boards.values()] };
 }
 
@@ -123,6 +140,8 @@ interface RawUser {
   follower_count?: number;
   following_count?: number;
   pin_count?: number;
+  profile_views?: number;
+  monthly_views?: number;
 }
 
 interface RawBoard {
@@ -282,6 +301,7 @@ export async function getSaved(): Promise<Saved> {
     followers: u?.follower_count ?? wu?.follower_count ?? null,
     following: u?.following_count ?? null,
     pinCount: u?.pin_count ?? wu?.pin_count ?? null,
+    monthlyViews: u?.profile_views ?? u?.monthly_views ?? null,
   };
 
   // Boards: the full public list when available, else the boards seen in recent saves
@@ -310,7 +330,7 @@ export async function getSaved(): Promise<Saved> {
       name: p.board!,
       url: p.boardUrl!,
       pinCount: null,
-      cover: p.imageSmall,
+      cover: sized(p.imageSmall, "474x"),
       color: p.color,
       updated: p.at,
     }));

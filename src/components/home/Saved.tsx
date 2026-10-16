@@ -63,6 +63,7 @@ export function Saved() {
 
   const { profile, boards, created, pins } = saved;
   const stats = [
+    profile.monthlyViews != null ? `${fmt(profile.monthlyViews)} monthly views` : null,
     profile.followers != null ? plural(profile.followers, "follower", "followers") : null,
     profile.following != null ? `${fmt(profile.following)} following` : null,
     profile.pinCount != null ? plural(profile.pinCount, "pin", "pins") : null,
@@ -71,23 +72,19 @@ export function Saved() {
   return (
     <div>
       {/* Profile */}
-      <div className="grid grid-cols-2 gap-x-4 gap-y-4 border-t border-ink pt-4 md:grid-cols-4">
-        <a href={profile.url} target="_blank" rel="noopener noreferrer" className="col-span-2 flex items-start gap-4 md:col-span-2">
+      <div className="grid grid-cols-2 gap-x-4 gap-y-3 border-t border-ink pt-3 text-[13px] md:grid-cols-4">
+        <a href={profile.url} target="_blank" rel="noopener noreferrer" className="col-span-2 flex items-start gap-3 md:col-span-1">
           {profile.avatar ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={profile.avatar} alt="" width={96} height={96} className="aspect-square w-20 shrink-0 bg-[#e6e6e6] object-cover md:w-24" />
+            <img src={profile.avatar} alt="" width={48} height={48} className="aspect-square w-12 shrink-0 bg-[#e6e6e6] object-cover" />
           ) : null}
           <span>
-            <span className="block text-[17px] leading-tight font-semibold">{profile.name}</span>
+            <span className="block leading-tight font-semibold">{profile.name}</span>
             <span className="block text-quiet">@{profile.username}</span>
-            {profile.about ? <span className="mt-2 block max-w-[40ch]">{profile.about}</span> : null}
           </span>
         </a>
-        <ul className="tnum text-quiet">
-          {stats.map((s) => (
-            <li key={s}>{s}</li>
-          ))}
-        </ul>
+        {profile.about ? <p className="col-span-2 max-w-[40ch] md:col-span-1">{profile.about}</p> : <span className="hidden md:block" />}
+        <p className="tnum text-quiet">{stats.join(", ")}</p>
         <p className="md:text-right">
           <a href={profile.url} target="_blank" rel="noopener noreferrer" className="underline decoration-1 underline-offset-4 hover:decoration-2">
             Follow on Pinterest
@@ -99,7 +96,8 @@ export function Saved() {
       {boards.length > 0 && (
         <>
           <Label note={plural(boards.length, "board", "boards")}>Boards</Label>
-          <ul className="grid grid-cols-2 gap-x-4 gap-y-8 md:grid-cols-4">
+          {/* Small on purpose: an index of boards, not a gallery. */}
+          <ul className="grid grid-cols-4 gap-x-3 gap-y-5 md:grid-cols-6 lg:grid-cols-8">
             {boards.map((b) => (
               <li key={b.url}>
                 <a href={b.url} target="_blank" rel="noopener noreferrer" className="group block">
@@ -108,8 +106,8 @@ export function Saved() {
                     <img
                       src={b.cover}
                       alt=""
-                      width={474}
-                      height={474}
+                      width={236}
+                      height={236}
                       loading="lazy"
                       decoding="async"
                       className="aspect-square w-full object-cover"
@@ -118,11 +116,11 @@ export function Saved() {
                   ) : (
                     <span aria-hidden className="block aspect-square w-full bg-[#e6e6e6]" />
                   )}
-                  <span className="mt-1.5 block font-semibold group-hover:underline">{b.name}</span>
-                  <span className="block text-[13px] text-quiet">
+                  <span className="mt-1 block truncate text-[12px] leading-tight font-semibold group-hover:underline">{b.name}</span>
+                  <span className="block truncate text-[11px] leading-tight text-quiet">
                     {[
                       b.pinCount != null ? plural(b.pinCount, "pin", "pins") : null,
-                      b.updated && now ? `updated ${timeAgo(b.updated, now)}` : null,
+                      b.updated && now ? timeAgo(b.updated, now) : null,
                     ]
                       .filter(Boolean)
                       .join(", ")}

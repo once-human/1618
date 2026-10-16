@@ -63,6 +63,8 @@ export interface PinterestProfile {
   following: number | null;
   /** Total pins, when Pinterest shares it. */
   pinCount: number | null;
+  /** Monthly profile views, when Pinterest shares it. */
+  monthlyViews: number | null;
 }
 
 export interface PinterestBoard {
