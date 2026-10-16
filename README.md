@@ -15,18 +15,27 @@ After the day comes the work: a plain index of what I've built, each with its ow
 
 A few things on the page are happening right now rather than written once:
 
-- **Pune, right now.** The footer shows the actual time and weather where I am.
-- **Listening.** What I'm playing on Apple Music right now, and a tracklist of what I've played
-  before, newest first, each song once. It updates by itself every few seconds while the page is
-  open, and every song opens on Apple Music.
-- **Saved.** My Pinterest: profile, every public board with its pin count, and below it the latest
-  things I've saved, each with its board and when I saved it. New saves show up on their own.
+- **Lately.** One line that says where I am (listening, around, or probably asleep), my time next to
+  yours, how many people are here, and a diary of the last 48 hours that writes itself: listening
+  sessions, pushes, saves, runs.
+- **Listening.** What I'm playing on Apple Music right now, roughly how far into the song I am, and
+  what I played before. Press any cover to hear 30 seconds. Below it: what's on repeat this month,
+  the hours I listen at, and the year so far, recap-style, kept live. You can send me a song.
+- **Saved.** My Pinterest: profile, boards as little mosaics, the colours of what I've been saving,
+  and the latest saves, which slide in on their own.
+- **Say hi.** A guestbook. Be nice; a light filter keeps the worst out.
 - **Work.** Projects with a public repository say when they were last updated.
 
-If a live source can't be reached, that piece is simply left out. Nothing is made up.
+Everything the live parts see is also kept, so it can be looked back on: [/history](https://onkaryaglewad.in/history)
+searches any week, month or year, [/issues](https://onkaryaglewad.in/issues) is a monthly issue that
+writes itself, and [/now](https://onkaryaglewad.in/now) is what I'm up to this month.
+[/status](https://onkaryaglewad.in/status) shows whether every source is answering.
+
+If a live source can't be reached, that piece is simply left out. Nothing is made up. Press ⌘K
+anywhere to jump around.
 
 The site has no cookies, analytics or tracking. The [privacy page](https://onkaryaglewad.in/privacy)
-explains exactly what it reads and from where.
+explains exactly what it reads, what it keeps, and from where.
 
 ## What's in the work index
 
@@ -46,9 +55,10 @@ close to the real picture's colour, captioned with what it will show.
 
 ## Built with
 
-Next.js, TypeScript and Tailwind, with GSAP and Lenis for the scroll, set in Archivo. A small server
-route gathers the live pieces (GitHub, Open-Meteo, Last.fm) and caches each one on its own schedule.
-Hosted on Vercel.
+Next.js, TypeScript and Tailwind, with GSAP and Lenis for the scroll, set in Archivo (its width axis
+is what squeezes the big words when you scroll fast). Server routes gather the live pieces (Last.fm,
+Apple Music, Pinterest, GitHub, Strava, Open-Meteo) and cache each on its own schedule; a small Neon
+Postgres database keeps the history. Hosted on Vercel.
 
 ## Run it locally
 
@@ -57,5 +67,5 @@ pnpm install
 pnpm dev
 ```
 
-Then open http://localhost:3000. Everything works without setup except the tracklist, which needs
-Last.fm details (see `docs/LIVE-SIGNALS.md`).
+Then open http://localhost:3000. The day and the work index work without any setup. The live parts
+need their keys and the database; `docs/LIVE-SIGNALS.md` lists them.

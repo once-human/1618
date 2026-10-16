@@ -1,52 +1,76 @@
-# Live signals
+# Live signals and the history store
 
-Two endpoints: `GET /api/presence` (GitHub, weather) polled every 60 s, and `GET /api/music` polled every
-15 s and immediately when the tab becomes visible again. Music is cached 10 s at the edge only.
-Each source is cached separately with `"use cache"` + `cacheLife` in `src/lib/presence/server.ts`.
+The page polls one endpoint, `GET /api/live` (presence + music + a Pinterest version stamp), every
+15 s with an ETag; an unchanged answer is an empty 304. Pinterest (`/api/saved`) is refetched only
+when its stamp changes. Slower parts poll their own routes: `/api/listening` (10 min),
+`/api/timeline` (2 min), `/api/replay` (30 min), `/api/submissions` (1 min).
+
+## Sources
 
 | Signal | Source | Setup | Cache |
 | --- | --- | --- | --- |
-| Pune time + part of day | Visitor's browser, Asia/Kolkata | none | n/a |
+| Pune time, your time | Visitor's browser | none | n/a |
 | Pune weather | Open-Meteo | none | 15 min |
-| Latest public activity | Newest of GitHub `events/public` and repo `pushed_at` (events lag by hours), plus the latest commit message | none (optional `GITHUB_TOKEN`) | 5 min |
-| "Updated X ago" per project | GitHub `users/once-human/repos` `pushed_at` | set `repo` on the project in `src/content/projects.ts` | 5 min |
-| Pinterest profile + all public boards | Data embedded in the public profile page; each board's widget feed for pin counts and covers. (Pinterest's internal JSON endpoints answer 403 to servers.) | none (username in `src/lib/presence/pinterest.ts`) | 30 min shared runtime cache |
-| Latest Pinterest saves | Widget feed (images, sizes, boards) merged with the profile RSS feed (save times) by pin id | none | 10 min shared runtime cache; page checks every 5 min |
-| Now playing + tracklist (10 different songs, latest play each) | Last.fm `user.getrecenttracks` (data), iTunes Search (cover + Apple Music link) | `LASTFM_USER`, `LASTFM_API_KEY` | 10 s edge; Apple lookups cached for weeks |
+| Code activity | GitHub public events + repo `pushed_at` + latest commit | none (optional `GITHUB_TOKEN`, `GITHUB_WEBHOOK_SECRET`) | 5 min, or instantly via webhook |
+| Now playing + tracklist | Last.fm `user.getrecenttracks` | `LASTFM_USER`, `LASTFM_API_KEY` | 10 s edge |
+| Covers, links, previews, song length, cover tint | iTunes Search → artist catalog → Deezer + song.link | none | weeks per song |
+| On repeat this month, when I listen, streak, new-to-me | Last.fm top tracks/artists (1 month) + last 30 days of plays | as above | 1 h |
+| Pinterest profile, boards, mosaics | Profile page data + each board's widget feed | none | 30 min |
+| Latest saves | Widget feed + RSS (save times) | none | 10 min |
+| Runs and rides | Strava API, public activities only | `STRAVA_CLIENT_ID`, `STRAVA_CLIENT_SECRET`, then `/api/strava/connect?key=…` once | synced |
+| Steps, sleep, workouts | Apple Health via an iPhone Shortcut → `POST /api/ingest/health` | Shortcut with `ADMIN_SECRET` | per day |
+| My status | iPhone Shortcut → `POST /api/status` | Shortcut with `ADMIN_SECRET` | expires on its own |
 
-Rule: a signal is real or hidden. With no music source, the listening section says what's usually on and that the live list isn't connected.
+Rule: a signal is real or hidden.
 
-## Turning on music (Apple Music)
+## The history store
 
-Apple Music has no live "now playing" API, and its recently-played endpoint returns no play times, so
-"2 days ago" can't come from Apple directly. Instead, a scrobbler on the iPhone sends every play to
-Last.fm with a timestamp, and the site reads Last.fm.
+Neon Postgres (`DATABASE_URL`); schema in `db/schema.sql`. It keeps every scrobble, pin, push,
+Strava activity and Health day, plus song lengths for "minutes listened".
 
-1. Make a Last.fm account.
-2. On the iPhone, install a scrobbler for the stock Music app (FastScrobbler is free and scrobbles in
-   real time) and sign it in to Last.fm.
-3. Create an API key at https://www.last.fm/api/account/create.
-4. In Vercel → project 1618 → Settings → Environment Variables, add `LASTFM_USER` and
-   `LASTFM_API_KEY` (Production), then redeploy.
+**Sync** (`src/lib/history/sync.ts`) pulls only what's new and backfills older Last.fm history 3,000
+plays per run until it reaches the first scrobble. It runs:
 
-## Rate limits
+- whenever someone loads the site (at most every 5 minutes),
+- every 15 minutes from GitHub Actions (`.github/workflows/sync.yml`, no secret needed),
+- daily from Vercel cron (`/api/cron/daily`, which also freezes last month's issue and cleans up).
 
-Unauthenticated GitHub allows 60 requests per hour per IP. The 5-minute cache uses about 36 (three calls per refresh). Add a
-fine-grained `GITHUB_TOKEN` with no scopes (public data only) if that ever gets tight.
+**Reading it:** `/api/history?range=week|month|year|all&at=…` or `?from=YYYY-MM-DD&to=YYYY-MM-DD`;
+`/api/replay` (year so far); `/api/timeline` (last 48 hours, merged with live sources);
+`/api/issues`, `/api/issues/2026-10`.
 
-## Privacy
+## Things only I do
 
-Public commit messages show up in the profile ("Pushed to 1618 · 'Fix …'"). Private repos never
-appear, because only public events are read.
+- **`/admin?key=<ADMIN_SECRET>`**: hide or delete guestbook posts and sent songs, set my status,
+  see the store's size and last sync, connect Strava, run a sync.
+- **Status Shortcut**: "Get contents of URL", POST to `https://www.onkaryaglewad.in/api/status`,
+  header `Authorization: Bearer <ADMIN_SECRET>`, JSON `{ "text": "…", "hours": 3 }`.
+- **Health Shortcut** (personal automation, e.g. daily at 23:30): find today's step count, walking
+  distance, sleep and workouts, then POST JSON to `/api/ingest/health` with the same header:
+  `{ "steps": 8214, "distanceKm": 6.1, "sleepHours": 7.2, "workouts": [{ "type": "Running", "start": "…", "minutes": 31, "distanceKm": 5.2 }] }`.
+  Only send what you want shown.
+
+## Visitors
+
+- **Send me a song / guestbook**: `/api/submit`. Songs are re-looked-up on Apple by id. A light
+  filter (`src/lib/moderation.ts`, tested) refuses links, slurs, explicit words, ASCII drawings and
+  copy-paste spam, lowercases shouting, and replies like a person. Posts that pass go up straight
+  away; anything can be hidden from `/admin`. Three posts an hour per visitor.
+- **Rate limits** use a salted, one-way hash of the IP that changes daily (`visitorKey` in
+  `src/lib/db.ts`); no IP is ever stored.
+- **People here**: a random per-tab id sent every 30 s (`/api/here`), counted over 75 s.
+- **Visits**: one counter row.
+- **🔥**: a count per song, one per visitor per song every 10 minutes.
 
 ## Limits worth knowing
 
-- **Paused vs playing.** Neither Apple Music nor Last.fm reports a paused state. "Playing" means the
-  scrobbler has told Last.fm a song is on; Last.fm clears that on its own once the song's length has
-  passed. A paused song can keep showing as playing until then.
-- **Last.fm is not open source.** It's only the pipe, because Apple has no listening API. Links go to
-  Apple Music. ListenBrainz is the open-source alternative and could replace it if a scrobbler that
-  sends to it is set up on the phone.
-- **Pinterest "created" pins and following count** aren't in any public source. They would need
-  Pinterest's official API with a one-time developer app and login. The section shows them
-  automatically if they're ever provided.
+- **Paused vs playing, and song position.** Neither Apple Music nor Last.fm reports them. The start
+  is estimated (previous scrobble + its length, or when the site first saw the song), and a song still
+  "playing" a minute past its length is shown as last played.
+- **Minutes listened** are estimated from known song lengths; unknown ones count as 3½ minutes. The
+  share of real lengths grows as the sync looks them up.
+- **Pinterest**: public pages embed 10 boards and no monthly views; the official API (planned)
+  would give all boards.
+- **Apple Health** has no web API, hence the Shortcut.
+- **Vercel's free plan** runs cron once a day; GitHub Actions and visits keep the store fresh in
+  between.
