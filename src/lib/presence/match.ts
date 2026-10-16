@@ -115,7 +115,9 @@ export function matchScore(r: ItunesResult, track: string, artists: string[], al
   const theirs = splitArtists(r.artistName);
   const found = artists.filter((a) => theirs.some((b) => nameSim(a, b) >= 0.9)).length;
   if (!found) return 0;
-  const artistScore = found / artists.length;
+  // Catalogs often credit only the main artist(s), so measure against the
+  // shorter credit list: "HUGEL" alone fully covers "HUGEL & Malachiii".
+  const artistScore = found / Math.min(artists.length, Math.max(theirs.length, 1));
 
   // Album: a strong extra signal when both sides know it.
   const albumScore = album && r.collectionName ? nameSim(stripRelease(album), stripRelease(r.collectionName)) : 0.5;

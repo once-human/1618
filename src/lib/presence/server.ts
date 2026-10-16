@@ -192,36 +192,103 @@ export interface AppleSong {
 
 
 
-async function itunes(term: string, country: string, limit: number) {
+async function fetchJson<T>(url: string, label: string): Promise<{ ok: boolean; data: T | null }> {
   try {
-    const res = await fetch(
-      `https://itunes.apple.com/search?term=${encodeURIComponent(term)}&entity=song&limit=${limit}&country=${country}`,
-      { signal: AbortSignal.timeout(TIMEOUT) },
-    );
+    const res = await fetch(url, { signal: AbortSignal.timeout(TIMEOUT) });
     if (!res.ok) {
-      console.warn(`[apple] search failed ${res.status} country=${country} term="${term}"`);
-      return { ok: false, results: [] as ItunesResult[] };
+      console.warn(`[music] ${label} failed ${res.status}: ${url}`);
+      return { ok: false, data: null };
     }
-    const data = (await res.json()) as { results?: ItunesResult[] };
-    return { ok: true, results: data.results ?? [] };
+    return { ok: true, data: (await res.json()) as T };
   } catch (e) {
-    console.warn(`[apple] search error country=${country} term="${term}": ${(e as Error).message}`);
-    return { ok: false, results: [] as ItunesResult[] };
+    console.warn(`[music] ${label} error: ${(e as Error).message}`);
+    return { ok: false, data: null };
   }
 }
 
+const ITUNES = "https://itunes.apple.com";
+const appleArt = (url?: string) => url?.replace(/\/\d+x\d+bb\.(jpg|png)$/, "/96x96bb.jpg") ?? null;
+const appleLink = (url: string) => url.replace(/[?&]uo=\d+/, "");
+
+/** Apple song search. */
+async function searchSongs(term: string, country: string, limit: number) {
+  const r = await fetchJson<{ results?: ItunesResult[] }>(
+    `${ITUNES}/search?term=${encodeURIComponent(term)}&entity=song&limit=${limit}&country=${country}`,
+    "apple search",
+  );
+  return { ok: r.ok, results: r.data?.results ?? [] };
+}
+
+/** Every song Apple lists for an artist (up to 200), found by artist name. */
+async function artistSongs(name: string) {
+  const found = await fetchJson<{ results?: { artistId: number; artistName: string }[] }>(
+    `${ITUNES}/search?term=${encodeURIComponent(name)}&entity=musicArtist&limit=5&country=in`,
+    "apple artist",
+  );
+  if (!found.ok) return { ok: false, results: [] as ItunesResult[] };
+  const artist = found.data?.results?.find((a) => nameSim(a.artistName, name) >= 0.9);
+  if (!artist) return { ok: true, results: [] as ItunesResult[] };
+  const songs = await fetchJson<{ results?: (ItunesResult & { wrapperType?: string })[] }>(
+    `${ITUNES}/lookup?id=${artist.artistId}&entity=song&limit=200&country=in&sort=recent`,
+    "apple lookup",
+  );
+  return { ok: songs.ok, results: (songs.data?.results ?? []).filter((r) => r.wrapperType === "track") };
+}
+
+interface DeezerTrack {
+  title: string;
+  link: string;
+  artist: { name: string };
+  album: { title: string; cover_medium?: string };
+}
+
+/** Deezer catalog search, shaped like an Apple result so it scores the same way. */
+async function deezer(query: string) {
+  const r = await fetchJson<{ data?: DeezerTrack[] }>(
+    `https://api.deezer.com/search?q=${encodeURIComponent(query)}&limit=25`,
+    "deezer",
+  );
+  return {
+    ok: r.ok,
+    results: (r.data?.data ?? []).map((t) => ({
+      trackName: t.title,
+      artistName: t.artist.name,
+      collectionName: t.album.title,
+      // Deezer serves any size from the same path; 96px matches Apple's.
+      artworkUrl100: t.album.cover_medium?.replace(/\/\d+x\d+-/, "/96x96-"),
+      trackViewUrl: t.link,
+    })),
+  };
+}
+
+/** The Apple Music link for a song found on another service, via song.link. */
+async function appleLinkFor(url: string): Promise<string | null> {
+  const r = await fetchJson<{ linksByPlatform?: { appleMusic?: { url: string } } }>(
+    `https://api.song.link/v1-alpha.1/links?url=${encodeURIComponent(url)}&userCountry=IN`,
+    "song.link",
+  );
+  return r.data?.linksByPlatform?.appleMusic?.url ?? null;
+}
+
+type Candidate = { r: ItunesResult; score: number };
+
 /**
- * The song on Apple Music: its cover (96px, a 48px slot on retina) and its own
- * page. Runs several searches (title + artist, title + every artist, title +
- * album, title alone, then the US store), scores every candidate with
- * matchScore, and keeps the best one only if it clears ACCEPT. No cover is
- * better than the wrong cover.
+ * The song on Apple Music: its cover and its own page.
  *
- * A match is cached for weeks. A miss is cached for hours, and a failed
- * request (usually Apple rate-limiting) for only a couple of minutes.
+ * Candidates come from three places, cheapest first, and every one is scored
+ * by matchScore; the best is kept only if it clears ACCEPT, because no cover
+ * is better than the wrong cover:
+ *   1. Apple song search (title + artist, title + all artists, title + album,
+ *      title alone, then the US store)
+ *   2. Apple artist catalog: each credited artist's songs, which finds tracks
+ *      the search engine tokenises badly ("leavemealone" -> "leave me alone")
+ *   3. Deezer's catalog, turned into the Apple Music link with song.link
+ *
+ * Stored in Vercel's shared runtime cache: a match for weeks, a clean miss for
+ * hours, a failed request (usually rate-limiting) for a couple of minutes.
  */
 export async function appleSong(artist: string, track: string, album: string | null): Promise<AppleSong | null> {
-  "use cache";
+  "use cache: remote";
 
   const artists = splitArtists(artist);
   const title = baseTitle(track);
@@ -230,7 +297,21 @@ export async function appleSong(artist: string, track: string, album: string | n
     return null;
   }
 
-  const attempts: [string, string, number][] = [
+  let failed = false;
+  let best: Candidate | null = null;
+  const seen: Candidate[] = [];
+  const consider = (results: ItunesResult[]) => {
+    for (const r of results) {
+      if (!r.trackViewUrl) continue;
+      const score = matchScore(r, track, artists, album);
+      if (score > 0) seen.push({ r, score });
+      if (score >= ACCEPT && (!best || score > best.score)) best = { r, score };
+    }
+  };
+  const sure = () => (best as Candidate | null)?.score !== undefined && (best as Candidate | null)!.score >= 0.95;
+
+  // 1. Apple song search
+  const searches: [string, string, number][] = [
     [`${title} ${artists[0]}`, "in", 25],
     ...(artists.length > 1 ? [[`${title} ${artists.join(" ")}`, "in", 25] as [string, string, number]] : []),
     ...(album && norm(stripRelease(album)) !== norm(title)
@@ -239,38 +320,53 @@ export async function appleSong(artist: string, track: string, album: string | n
     [title, "in", 50],
     [`${title} ${artists[0]}`, "us", 25],
   ];
-
-  let failed = false;
-  let best: { r: ItunesResult; score: number } | null = null;
-  const seen: { r: ItunesResult; score: number }[] = []; // for diagnosing misses
-  for (const [term, country, limit] of attempts) {
-    const { ok, results } = await itunes(term, country, limit);
-    if (!ok) {
-      failed = true;
-      continue;
-    }
-    for (const r of results) {
-      if (!r.trackViewUrl) continue;
-      const score = matchScore(r, track, artists, album);
-      if (nameSim(baseTitle(r.trackName), baseTitle(track)) >= 0.85) seen.push({ r, score });
-      if (score >= ACCEPT && (!best || score > best.score)) best = { r, score };
-    }
-    if (best && best.score >= 0.95) break; // certain enough; stop searching
+  for (const [term, country, limit] of searches) {
+    const { ok, results } = await searchSongs(term, country, limit);
+    if (!ok) failed = true;
+    consider(results);
+    if (sure()) break;
   }
 
-  if (best) {
+  // 2. Apple artist catalog
+  if (!sure()) {
+    for (const name of artists.slice(0, 2)) {
+      const { ok, results } = await artistSongs(name);
+      if (!ok) failed = true;
+      consider(results);
+      if (sure()) break;
+    }
+  }
+
+  const apple = best as Candidate | null;
+  if (apple) {
     cacheLife("weeks");
+    return { art: appleArt(apple.r.artworkUrl100), link: appleLink(apple.r.trackViewUrl!) };
+  }
+
+  // 3. Deezer, then song.link for the Apple Music page
+  for (const q of [`artist:"${artists[0]}" track:"${title}"`, `${title} ${artists[0]}`]) {
+    const { ok, results } = await deezer(q);
+    if (!ok) failed = true;
+    consider(results);
+    if (best) break;
+  }
+  const dz = best as Candidate | null;
+  if (dz) {
+    const link = await appleLinkFor(dz.r.trackViewUrl!);
+    if (link) cacheLife("weeks");
+    else cacheLife({ stale: 300, revalidate: 6 * 3600, expire: 86400 });
     return {
-      art: best.r.artworkUrl100?.replace(/\/\d+x\d+bb\.(jpg|png)$/, "/96x96bb.jpg") ?? null,
-      link: best.r.trackViewUrl!.replace(/[?&]uo=\d+/, ""),
+      art: dz.r.artworkUrl100 ?? null,
+      link: link ?? `https://music.apple.com/in/search?term=${encodeURIComponent(`${artist} ${track}`)}`,
     };
   }
 
   console.info(
-    `[apple] no match for "${track}" by "${artist}" (failed=${failed}); seen: ${seen
-      .slice(0, 5)
+    `[music] no match for "${track}" by "${artist}" (failed=${failed}); closest: ${seen
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 3)
       .map((c) => `"${c.r.trackName}" by "${c.r.artistName}" = ${c.score.toFixed(2)}`)
-      .join("; ")}`,
+      .join("; ") || "none"}`,
   );
   if (failed) cacheLife({ stale: 30, revalidate: 120, expire: 600 });
   else cacheLife({ stale: 300, revalidate: 6 * 3600, expire: 86400 });
