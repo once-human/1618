@@ -10,6 +10,7 @@ Each source is cached separately with `"use cache"` + `cacheLife` in `src/lib/pr
 | Pune weather | Open-Meteo | none | 15 min |
 | Latest public activity | Newest of GitHub `events/public` and repo `pushed_at` (events lag by hours), plus the latest commit message | none (optional `GITHUB_TOKEN`) | 5 min |
 | "Updated X ago" per project | GitHub `users/once-human/repos` `pushed_at` | set `repo` on the project in `src/content/projects.ts` | 5 min |
+| Latest Pinterest saves + recent boards | Pinterest widget feed (images, sizes, boards) merged with the profile RSS feed (save times) by pin id | none (username in `src/lib/presence/pinterest.ts`) | 10 min shared runtime cache; page checks every 5 min |
 | Now playing + tracklist (10 different songs, latest play each) | Last.fm `user.getrecenttracks` (data), iTunes Search (cover + Apple Music link) | `LASTFM_USER`, `LASTFM_API_KEY` | 10 s edge; Apple lookups cached for weeks |
 
 Rule: a signal is real or hidden. With no music source, the listening section says what's usually on and that the live list isn't connected.

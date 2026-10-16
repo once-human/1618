@@ -58,6 +58,8 @@ const decode = (s: string) =>
     .replace(/&gt;/g, ">")
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'")
+    .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCodePoint(parseInt(n, 16)))
     .replace(/&amp;/g, "&");
 
 interface RssPin {
@@ -110,7 +112,7 @@ export async function getSaved(): Promise<Saved> {
           width: img.width,
           height: img.height,
           color: p.dominant_color ?? null,
-          title: (p.description ?? "").trim() || null,
+          title: decode(p.description ?? "").trim() || null,
           board: p.board?.name ?? null,
           boardUrl: p.board?.url ? `https://www.pinterest.com${p.board.url}` : null,
           at: times.get(p.id) ?? null,
