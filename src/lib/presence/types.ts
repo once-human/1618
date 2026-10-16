@@ -41,13 +41,39 @@ export interface Track {
   at: string | null;
 }
 
-/** My latest Pinterest saves. Served by /api/saved. */
+/** My Pinterest: profile, boards, created pins and the latest saves. Served by /api/saved. */
 export interface Saved {
-  profile: string;
+  profile: PinterestProfile;
+  /** Every public board, most recently updated first. */
+  boards: PinterestBoard[];
+  /** Pins I made myself (not saved from elsewhere). */
+  created: SavedPin[];
+  /** The latest saves, newest first. */
   pins: SavedPin[];
-  /** Boards I've saved to recently, newest first (derived from the pins above). */
-  boards: SavedBoard[];
   fetchedAt: string;
+}
+
+export interface PinterestProfile {
+  name: string;
+  username: string;
+  url: string;
+  avatar: string | null;
+  about: string | null;
+  followers: number | null;
+  following: number | null;
+  /** Total pins, when Pinterest shares it. */
+  pinCount: number | null;
+}
+
+export interface PinterestBoard {
+  name: string;
+  url: string;
+  pinCount: number | null;
+  cover: string | null;
+  /** Placeholder colour while the cover loads. */
+  color: string | null;
+  /** When the board last changed, when known. */
+  updated: string | null;
 }
 
 export interface SavedPin {
@@ -66,12 +92,4 @@ export interface SavedPin {
   boardUrl: string | null;
   /** When I saved it, when known. */
   at: string | null;
-}
-
-export interface SavedBoard {
-  name: string;
-  url: string;
-  /** How many of the recent saves went to this board. */
-  recent: number;
-  lastSaved: string | null;
 }
