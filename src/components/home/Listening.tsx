@@ -1,18 +1,19 @@
 "use client";
 
-import { usePresence, useNow } from "@/lib/presence/client";
+import { useMusic, useNow } from "@/lib/presence/client";
 import { timeAgo } from "@/lib/time";
 import { USUALLY_ON } from "@/content/story";
+import { Playing } from "@/components/live/Playing";
 
 /**
  * What I'm actually listening to, like the back of a record sleeve: one ruled
- * row per track, newest first. Only real plays are shown. With no live source
- * connected it says what's usually on instead, and doesn't pretend.
+ * row per song, newest first, each song once. It updates on its own while
+ * the page is open. Rows open the song on Apple Music.
  */
 export function Listening() {
-  const presence = usePresence();
+  const music = useMusic();
   const now = useNow();
-  const tracks = presence?.music ?? null;
+  const tracks = music?.tracks ?? null;
 
   if (!tracks || tracks.length === 0) {
     return (
@@ -22,29 +23,41 @@ export function Listening() {
     );
   }
 
-  const rows = tracks.slice(0, 10);
-
   return (
-    <ol>
-      {rows.map((t, i) => (
-        <li key={`${t.track}-${t.at ?? "now"}-${i}`}>
+    <ol aria-live="polite">
+      {tracks.map((t) => (
+        <li key={`${t.track}|${t.artist}`}>
           <a
             href={t.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="grid grid-cols-[3rem_1fr] items-center gap-x-4 border-t border-ink py-2.5 md:grid-cols-[3rem_1fr_1fr_1fr]"
+            className="grid grid-cols-[3rem_1fr_auto] items-center gap-x-4 border-t border-ink py-2.5 md:grid-cols-[3rem_1fr_1fr_1fr]"
           >
             {t.image ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={t.image} alt="" width={48} height={48} decoding="async" className="row-span-2 aspect-square w-12 bg-[#e6e6e6] object-cover md:row-span-1" />
+              <img
+                src={t.image}
+                alt=""
+                width={48}
+                height={48}
+                decoding="async"
+                className="row-span-2 aspect-square w-12 bg-[#e6e6e6] object-cover md:row-span-1"
+              />
             ) : (
               <span aria-hidden className="row-span-2 aspect-square w-12 bg-[#e6e6e6] md:row-span-1" />
             )}
             <span className="truncate font-semibold">{t.track}</span>
-            <span className="truncate text-quiet md:text-ink">{t.artist}</span>
-            <span className="tnum hidden text-right text-quiet md:block">
-              {t.nowPlaying ? "now playing" : t.at && now ? timeAgo(t.at, now) : ""}
+            <span className="tnum row-span-2 text-right text-quiet md:order-last md:row-span-1">
+              {t.nowPlaying ? (
+                <span className="inline-flex items-center gap-2 text-ink">
+                  <Playing />
+                  playing
+                </span>
+              ) : t.at && now ? (
+                timeAgo(t.at, now)
+              ) : null}
             </span>
+            <span className="truncate text-quiet md:text-ink">{t.artist}</span>
           </a>
         </li>
       ))}

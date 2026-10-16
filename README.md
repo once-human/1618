@@ -16,8 +16,9 @@ After the day comes the work: a plain index of what I've built, each with its ow
 A few things on the page are happening right now rather than written once:
 
 - **Pune, right now.** The footer shows the actual time and weather where I am.
-- **Listening.** A tracklist of what I've actually been playing, newest first: what's on right now,
-  what played an hour ago, what played two days ago.
+- **Listening.** What I'm playing on Apple Music right now, and a tracklist of what I've played
+  before, newest first, each song once. It updates by itself every few seconds while the page is
+  open, and every song opens on Apple Music.
 - **Work.** Projects with a public repository say when they were last updated.
 
 If a live source can't be reached, that piece is simply left out. Nothing is made up.

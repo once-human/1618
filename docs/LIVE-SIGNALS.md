@@ -1,6 +1,7 @@
 # Live signals
 
-Served by `GET /api/presence` (`src/app/api/presence/route.ts`), polled by the page every 60 s.
+Two endpoints: `GET /api/presence` (GitHub, weather) polled every 60 s, and `GET /api/music` polled every
+15 s and immediately when the tab becomes visible again. Music is cached 10 s at the edge only.
 Each source is cached separately with `"use cache"` + `cacheLife` in `src/lib/presence/server.ts`.
 
 | Signal | Source | Setup | Cache |
@@ -9,7 +10,7 @@ Each source is cached separately with `"use cache"` + `cacheLife` in `src/lib/pr
 | Pune weather | Open-Meteo | none | 15 min |
 | Latest public activity | Newest of GitHub `events/public` and repo `pushed_at` (events lag by hours), plus the latest commit message | none (optional `GITHUB_TOKEN`) | 5 min |
 | "Updated X ago" per project | GitHub `users/once-human/repos` `pushed_at` | set `repo` on the project in `src/content/projects.ts` | 5 min |
-| Now playing + tracklist (12 most recent, with play times and artwork) | Last.fm `user.getrecenttracks` | `LASTFM_USER`, `LASTFM_API_KEY` | 30 s |
+| Now playing + tracklist (10 different songs, latest play each) | Last.fm `user.getrecenttracks` (data), iTunes Search (cover + Apple Music link) | `LASTFM_USER`, `LASTFM_API_KEY` | 10 s edge; Apple lookups cached for weeks |
 
 Rule: a signal is real or hidden. With no music source, the listening section says what's usually on and that the live list isn't connected.
 
@@ -35,3 +36,12 @@ fine-grained `GITHUB_TOKEN` with no scopes (public data only) if that ever gets 
 
 Public commit messages show up in the profile ("Pushed to 1618 · 'Fix …'"). Private repos never
 appear, because only public events are read.
+
+## Limits worth knowing
+
+- **Paused vs playing.** Neither Apple Music nor Last.fm reports a paused state. "Playing" means the
+  scrobbler has told Last.fm a song is on; Last.fm clears that on its own once the song's length has
+  passed. A paused song can keep showing as playing until then.
+- **Last.fm is not open source.** It's only the pipe, because Apple has no listening API. Links go to
+  Apple Music. ListenBrainz is the open-source alternative and could replace it if a scrobbler that
+  sends to it is set up on the phone.

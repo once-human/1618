@@ -119,53 +119,54 @@ interface LfmResponse {
 /** Last.fm's grey star placeholder, served when a track has no artwork. */
 const LFM_PLACEHOLDER = "2a96cbd8b46e442fc41c2b86b821562f";
 
-export async function getMusic(): Promise<Presence["music"]> {
-  "use cache";
-  cacheLife({ stale: 30, revalidate: 30, expire: 600 });
-
+/**
+ * Recent listening, newest first, one row per song (its latest play).
+ * Deliberately not cached here: the route caches it for a few seconds at the
+ * edge, so "playing" flips over almost as soon as the song changes.
+ */
+export async function getMusic(): Promise<Track[] | null> {
   const user = process.env.LASTFM_USER;
   const key = process.env.LASTFM_API_KEY;
   if (!user || !key) return null;
 
+  // Fetch plenty of history so that, after collapsing repeats, ten different songs remain.
   const url = `https://ws.audioscrobbler.com/2.0/?method=user.getrecenttracks&user=${encodeURIComponent(
     user,
-  )}&api_key=${key}&format=json&limit=12`;
+  )}&api_key=${key}&format=json&limit=50`;
   const data = await getJson<LfmResponse>(url);
   const list = data?.recenttracks?.track;
   if (!list) return null;
 
-  let tracks = list.map((t): Track => {
-    // "large" is 174px: plenty for a 48px slot, a fraction of "extralarge".
-    const img = t.image?.find((i) => i.size === "large")?.["#text"] || "";
+  const seen = new Set<string>();
+  const unique = list.filter((t) => {
+    const id = `${norm(t.name)}|${norm(t.artist["#text"])}`;
+    if (seen.has(id)) return false;
+    seen.add(id);
+    return true;
+  });
+
+  const rows = unique.slice(0, 10);
+  const apple = await Promise.all(rows.map((t) => appleSong(t.artist["#text"], t.name)));
+
+  return rows.map((t, i): Track => {
+    // Last.fm's "large" (174px) is the fallback cover when Apple has no match.
+    const lfm = t.image?.find((x) => x.size === "large")?.["#text"] || "";
+    const artist = t.artist["#text"];
     return {
       track: t.name,
-      artist: t.artist["#text"],
+      artist,
       album: t.album?.["#text"] || null,
-      url: t.url,
-      image: img && !img.includes(LFM_PLACEHOLDER) ? img : null,
+      url:
+        apple[i]?.link ??
+        `https://music.apple.com/in/search?term=${encodeURIComponent(`${artist} ${t.name}`)}`,
+      image: apple[i]?.art ?? (lfm && !lfm.includes(LFM_PLACEHOLDER) ? lfm : null),
       nowPlaying: t["@attr"]?.nowplaying === "true",
       at: t.date ? new Date(Number(t.date.uts) * 1000).toISOString() : null,
     };
   });
-
-  // Scrobblers often log the current song before it ends, so it shows twice:
-  // once as "now playing" and once as "just now". Keep only the live one.
-  const live = tracks.find((t) => t.nowPlaying);
-  if (live) {
-    tracks = tracks.filter(
-      (t) =>
-        t === live ||
-        !(t.track === live.track && t.artist === live.artist && t.at && Date.now() - Date.parse(t.at) < 15 * 60_000),
-    );
-  }
-
-  // Prefer Apple's own artwork: it's what Apple Music shows, and it exists for
-  // tracks Last.fm has no cover for.
-  const art = await Promise.all(tracks.map((t) => appleArtwork(t.artist, t.track)));
-  return tracks.map((t, i) => ({ ...t, image: art[i] ?? t.image }));
 }
 
-/* ---------------- Apple artwork (iTunes Search, no key needed) ---------------- */
+/* ---------------- Apple Music lookup (iTunes Search, no key needed) ---------------- */
 
 const norm = (s: string) =>
   s
@@ -182,14 +183,15 @@ interface ItunesResult {
   trackName: string;
   artistName: string;
   artworkUrl100?: string;
+  trackViewUrl?: string;
 }
 
 /**
- * Cover art for a song from Apple, sized to 96px (a 48px slot on retina).
- * Only returns a match whose title and artist actually line up, so a track is
- * never shown with someone else's cover. Cached for weeks per song.
+ * The song on Apple Music: its cover (96px, a 48px slot on retina) and its page.
+ * Only accepts a result whose title and artist actually line up, so a song is
+ * never shown with someone else's cover or link. Cached for weeks per song.
  */
-export async function appleArtwork(artist: string, track: string): Promise<string | null> {
+export async function appleSong(artist: string, track: string): Promise<{ art: string | null; link: string } | null> {
   "use cache";
   cacheLife("weeks");
 
@@ -206,7 +208,12 @@ export async function appleArtwork(artist: string, track: string): Promise<strin
       const who = norm(r.artistName);
       return (title.includes(wantTitle) || wantTitle.includes(title)) && who.includes(firstArtist);
     });
-    if (hit?.artworkUrl100) return hit.artworkUrl100.replace(/\/\d+x\d+bb\.(jpg|png)$/, "/96x96bb.jpg");
+    if (hit?.trackViewUrl) {
+      return {
+        art: hit.artworkUrl100?.replace(/\/\d+x\d+bb\.(jpg|png)$/, "/96x96bb.jpg") ?? null,
+        link: hit.trackViewUrl.replace(/[?&]uo=\d+/, ""),
+      };
+    }
   }
   return null;
 }
@@ -240,7 +247,7 @@ export async function getWeather(): Promise<Presence["weather"]> {
 const SHOWN_REPOS = new Set(projects.flatMap((p) => (p.repo ? [p.repo.toLowerCase()] : [])));
 
 export async function getPresence(): Promise<Presence> {
-  const [gh, music, weather] = await Promise.all([getGithub(), getMusic(), getWeather()]);
+  const [gh, weather] = await Promise.all([getGithub(), getWeather()]);
   const repos = Object.fromEntries(Object.entries(gh.repos).filter(([name]) => SHOWN_REPOS.has(name)));
-  return { github: gh.github, repos, music, weather, fetchedAt: new Date().toISOString() };
+  return { github: gh.github, repos, weather, fetchedAt: new Date().toISOString() };
 }

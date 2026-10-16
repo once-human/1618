@@ -1,53 +1,68 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
-import type { Presence } from "./types";
+import type { Music, Presence } from "./types";
 
 /**
- * One shared poller for the whole page: every component that reads presence
- * subscribes to the same store, so there is only ever one request in flight.
+ * A shared poller: every component reading the same endpoint subscribes to one
+ * store, so there's only ever one request in flight. It refreshes on an
+ * interval while the tab is visible, and immediately when you come back to it.
  */
-let data: Presence | null = null;
-const subs = new Set<() => void>();
-let timer: ReturnType<typeof setInterval> | null = null;
+function createPoller<T>(url: string, everyMs: number, onData?: (d: T) => void) {
+  let data: T | null = null;
+  const subs = new Set<() => void>();
+  let timer: ReturnType<typeof setInterval> | null = null;
 
-async function load() {
-  try {
-    const res = await fetch("/api/presence", { cache: "no-store" });
-    if (!res.ok) return;
-    data = (await res.json()) as Presence;
-    // Warm the browser cache with album covers right away, so they're already
-    // there by the time someone scrolls down to the tracklist.
-    data.music?.forEach((t) => {
-      if (t.image) new Image().src = t.image;
-    });
-    subs.forEach((f) => f());
-  } catch {
-    /* offline or blocked: keep whatever we had */
-  }
-}
-
-function subscribe(f: () => void) {
-  subs.add(f);
-  if (!timer) {
-    void load();
-    timer = setInterval(() => document.visibilityState === "visible" && void load(), 60_000);
-  }
-  return () => {
-    subs.delete(f);
-    if (!subs.size && timer) {
-      clearInterval(timer);
-      timer = null;
+  async function load() {
+    try {
+      const res = await fetch(url, { cache: "no-store" });
+      if (!res.ok) return;
+      data = (await res.json()) as T;
+      onData?.(data);
+      subs.forEach((f) => f());
+    } catch {
+      /* offline or blocked: keep whatever we had */
     }
-  };
+  }
+
+  const onVisible = () => document.visibilityState === "visible" && void load();
+
+  function subscribe(f: () => void) {
+    subs.add(f);
+    if (!timer) {
+      void load();
+      timer = setInterval(() => document.visibilityState === "visible" && void load(), everyMs);
+      document.addEventListener("visibilitychange", onVisible);
+    }
+    return () => {
+      subs.delete(f);
+      if (!subs.size && timer) {
+        clearInterval(timer);
+        timer = null;
+        document.removeEventListener("visibilitychange", onVisible);
+      }
+    };
+  }
+
+  return { subscribe, get: () => data };
 }
+
+const presence = createPoller<Presence>("/api/presence", 60_000);
+
+// Music changes song by song, so it refreshes much more often. New covers are
+// fetched straight away, so they're ready before anyone scrolls to them.
+const music = createPoller<Music>("/api/music", 15_000, (d) => {
+  d.tracks?.forEach((t) => {
+    if (t.image) new Image().src = t.image;
+  });
+});
 
 export function usePresence(): Presence | null {
-  return useSyncExternalStore(
-    subscribe,
-    () => data,
-    () => null,
-  );
+  return useSyncExternalStore(presence.subscribe, presence.get, () => null);
+}
+
+export function useMusic(): Music | null {
+  return useSyncExternalStore(music.subscribe, music.get, () => null);
 }
 
 /* A shared clock that ticks every 20s, so every "4m ago" stays honest. */
