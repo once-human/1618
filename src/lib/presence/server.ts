@@ -281,7 +281,7 @@ type Candidate = { r: ItunesResult; score: number };
  *   1. Apple song search (title + artist, title + all artists, title + album,
  *      title alone, then the US store)
  *   2. Apple artist catalog: each credited artist's songs, which finds tracks
- *      the search engine tokenises badly ("leavemealone" -> "leave me alone")
+ *      the search engine tokenises badly (a one-word title split into several)
  *   3. Deezer's catalog, turned into the Apple Music link with song.link
  *
  * Stored in Vercel's shared runtime cache: a match for weeks, a clean miss for

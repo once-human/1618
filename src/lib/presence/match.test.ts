@@ -1,68 +1,82 @@
+/**
+ * Rules for deciding whether a catalog result is the song that was played.
+ * Every name here is invented: these describe how matching behaves in general,
+ * not any particular song.
+ */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { ACCEPT, matchScore, nameSim, splitArtists, type ItunesResult } from "./match";
 
-const r = (trackName: string, artistName: string, collectionName?: string | null): ItunesResult => ({
+type Played = [track: string, artist: string, album: string | null];
+
+const result = (trackName: string, artistName: string, collectionName?: string | null): ItunesResult => ({
   trackName,
   artistName,
   collectionName: collectionName ?? undefined,
   trackViewUrl: "https://music.apple.com/x",
 });
 
-const score = (played: [track: string, artist: string, album: string | null], result: ItunesResult) =>
-  matchScore(result, played[0], splitArtists(played[1]), played[2]);
+const score = ([track, artist, album]: Played, r: ItunesResult) => matchScore(r, track, splitArtists(artist), album);
 
-const accepts = (played: [string, string, string | null], result: ItunesResult) =>
-  assert.ok(score(played, result) >= ACCEPT, `should match: ${played[0]} / ${played[1]} -> ${result.trackName} / ${result.artistName} (score ${score(played, result).toFixed(3)})`);
+const accepts = (played: Played, r: ItunesResult) =>
+  assert.ok(score(played, r) >= ACCEPT, `expected a match: "${played[0]}" by ${played[1]} vs "${r.trackName}" by ${r.artistName} (${score(played, r).toFixed(2)})`);
 
-const rejects = (played: [string, string, string | null], result: ItunesResult) =>
-  assert.ok(score(played, result) < ACCEPT, `should NOT match: ${played[0]} / ${played[1]} -> ${result.trackName} / ${result.artistName} (score ${score(played, result).toFixed(3)})`);
+const rejects = (played: Played, r: ItunesResult) =>
+  assert.ok(score(played, r) < ACCEPT, `expected no match: "${played[0]}" by ${played[1]} vs "${r.trackName}" by ${r.artistName} (${score(played, r).toFixed(2)})`);
 
-test("names compare as whole words, never fragments", () => {
-  assert.ok(nameSim("rij", "brijesh shrestha") < 0.5);
-  assert.ok(nameSim("fred again", "fred again") === 1);
-  assert.ok(nameSim("Ultra Naté", "Ultra Nate") === 1);
-  assert.ok(nameSim("Malachiii", "Malachii") >= 0.9);
+test("names are compared as whole words, never as fragments", () => {
+  assert.ok(nameSim("ana", "banana") < 0.5);
+  assert.ok(nameSim("aj", "ajr") < 0.5);
+  assert.equal(nameSim("The Night Owls", "the night owls"), 1);
 });
 
-test("same song, artists credited in a different order", () => {
-  accepts(["Dalli", "Bhaskar, DL91 Era, Encore ABJ & RiJ", "DALLI"], r("Dalli", "DL91 Era, Bhaskar, Encore ABJ & RiJ", "DALLI - Single"));
+test("accents, case and punctuation don't matter", () => {
+  assert.equal(nameSim("Zoë Marín", "Zoe Marin"), 1);
+  assert.equal(nameSim("Mr. Bright..", "mr bright"), 1);
+  accepts(["Don't Stop Now", "Zoë Marín", null], result("Dont Stop Now", "Zoe Marin"));
 });
 
-test("same title by different artists is rejected (the Dalli bug)", () => {
-  rejects(["Dalli", "Bhaskar, DL91 Era, Encore ABJ & RiJ", "DALLI"], r("Dalli", "Brijesh Shrestha, Beyond", "Dalli - Single"));
-  rejects(["Strong", "Romy & Fred again..", "Strong - Single"], r("Strong", "One Direction", "Four"));
+test("small spelling differences in a name are tolerated", () => {
+  assert.ok(nameSim("Kalliope", "Kaliope") >= 0.9);
 });
 
-test("remix only matches that remix", () => {
-  const played: [string, string, string] = ["Chemical Light (Gravagerz REMIX)", "JIMRO!", "Chemical Light (Gravagerz REMIX) - Single"];
-  accepts(played, r("Chemical Light (Gravagerz Remix)", "JIMRO! & Gravagerz", "Chemical Light (Gravagerz Remix) - Single"));
-  rejects(played, r("Chemical Light", "JIMRO!", "Chemical Light - Single"));
-  rejects(played, r("Chemical Light (Other Guy Remix)", "JIMRO!", "Chemical Light (Remixes)"));
+test("the same credits in a different order still match", () => {
+  accepts(["Paper Boats", "Ana Lis, Dev Kade & Mirro", "Paper Boats"], result("Paper Boats", "Mirro, Ana Lis & Dev Kade", "Paper Boats - Single"));
 });
 
-test("original never matches a remix", () => {
-  rejects(["Strong", "Romy & Fred again..", "Strong - Single"], r("Strong (Extended Mix)", "Romy & Fred again..", "Strong - Single"));
+test("a catalog crediting only the main artist still matches", () => {
+  accepts(["Night Drive", "Ana Lis & Dev Kade", "Long Roads"], result("Night Drive", "Ana Lis", "Long Roads"));
+  accepts(["Night Drive", "Ana Lis feat. Dev Kade", null], result("Night Drive", "Ana Lis"));
 });
 
-test("titles with a non-version subtitle still match", () => {
-  accepts(
-    ["Delilah (pull me out of this)", "Fred again.. & Delilah Montagu", "Actual Life 3 (January 1 - September 9 2022)"],
-    r("Delilah (pull me out of this)", "Fred again.. & Delilah Montagu", "Actual Life 3 (January 1 - September 9 2022)"),
-  );
+test("the same title by a different artist is rejected", () => {
+  rejects(["Paper Boats", "Ana Lis, Dev Kade & Mirro", "Paper Boats"], result("Paper Boats", "Someone Else, Another Person", "Paper Boats - Single"));
+  rejects(["Night Drive", "Ana Lis", null], result("Night Drive", "Analise"));
 });
 
-test("spelling and punctuation differences", () => {
-  accepts(["leavemealone", "Fred Again.. & Baby Keem", "leavemealone - Single"], r("leavemealone", "Fred again.. & Baby Keem", "leavemealone - Single"));
-  accepts(["Movin' To The Sun", "HUGEL, Imael Angel & Ultra Naté", "Twenty One"], r("Movin' To the Sun", "HUGEL, Imael Angel & Ultra Nate", "Twenty One"));
-  accepts(["Stay Sexy", "HUGEL, LaBritney & Mili", "Twenty One"], r("Stay Sexy", "HUGEL, LaBritney & Mili", "Twenty One"));
+test("an artist name hidden inside another artist's name is not a match", () => {
+  rejects(["Glow", "Ken", null], result("Glow", "Kendra Moss"));
 });
 
-test("partial credit still matches when the main artists agree", () => {
-  accepts(["Playboy", "HUGEL & Malachiii", "Twenty One"], r("Playboy", "HUGEL", "Twenty One"));
+test("a remix only matches that same remix", () => {
+  const played: Played = ["Glass Hearts (Ray Vale Remix)", "Mirro", "Glass Hearts (Ray Vale Remix) - Single"];
+  accepts(played, result("Glass Hearts (Ray Vale REMIX)", "Mirro & Ray Vale", "Glass Hearts (Ray Vale Remix) - Single"));
+  rejects(played, result("Glass Hearts", "Mirro", "Glass Hearts - Single"));
+  rejects(played, result("Glass Hearts (Other Person Remix)", "Mirro", "Glass Hearts (Remixes)"));
+});
+
+test("an original never matches a remix, live or sped-up version", () => {
+  const played: Played = ["Glass Hearts", "Mirro", "Glass Hearts - Single"];
+  rejects(played, result("Glass Hearts (Extended Mix)", "Mirro"));
+  rejects(played, result("Glass Hearts (Live)", "Mirro"));
+  rejects(played, result("Glass Hearts (Sped Up)", "Mirro"));
+});
+
+test("a subtitle that isn't a version still matches", () => {
+  accepts(["Harbour (stay a while)", "Dev Kade", "Seasons"], result("Harbour (stay a while)", "Dev Kade", "Seasons"));
 });
 
 test("a different song that only shares a word is rejected", () => {
-  rejects(["Dalli", "Bhaskar", null], r("Dalli Dalli", "Bhaskar", null));
-  rejects(["Sun", "HUGEL", null], r("Movin' To the Sun", "HUGEL", null));
+  rejects(["Rain", "Mirro", null], result("Rain Rain", "Mirro"));
+  rejects(["Sun", "Ana Lis", null], result("Walking To The Sun", "Ana Lis"));
 });
