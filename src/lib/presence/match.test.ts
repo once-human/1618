@@ -2,10 +2,10 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { ACCEPT, matchScore, nameSim, splitArtists, type ItunesResult } from "./match";
 
-const r = (trackName: string, artistName: string, collectionName?: string): ItunesResult => ({
+const r = (trackName: string, artistName: string, collectionName?: string | null): ItunesResult => ({
   trackName,
   artistName,
-  collectionName,
+  collectionName: collectionName ?? undefined,
   trackViewUrl: "https://music.apple.com/x",
 });
 
