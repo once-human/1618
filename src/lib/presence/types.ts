@@ -40,3 +40,38 @@ export interface Track {
   /** When it was played; null while it's still playing. */
   at: string | null;
 }
+
+/** My latest Pinterest saves. Served by /api/saved. */
+export interface Saved {
+  profile: string;
+  pins: SavedPin[];
+  /** Boards I've saved to recently, newest first (derived from the pins above). */
+  boards: SavedBoard[];
+  fetchedAt: string;
+}
+
+export interface SavedPin {
+  id: string;
+  url: string;
+  /** 736px wide, for the grid on large screens. */
+  image: string;
+  /** 474px wide, for phones. */
+  imageSmall: string;
+  width: number;
+  height: number;
+  /** The image's dominant colour, shown while it loads. */
+  color: string | null;
+  title: string | null;
+  board: string | null;
+  boardUrl: string | null;
+  /** When I saved it, when known. */
+  at: string | null;
+}
+
+export interface SavedBoard {
+  name: string;
+  url: string;
+  /** How many of the recent saves went to this board. */
+  recent: number;
+  lastSaved: string | null;
+}

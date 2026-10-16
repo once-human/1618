@@ -14,6 +14,7 @@ import { DayChapter } from "@/components/home/DayChapter";
 import { WorkList } from "@/components/home/WorkList";
 import { Listening } from "@/components/home/Listening";
 import { SayHi } from "@/components/home/SayHi";
+import { Saved } from "@/components/home/Saved";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -99,6 +100,14 @@ export function Experience() {
             Listening
           </span>
           <Listening />
+        </section>
+
+        <section id="saved" aria-labelledby="saved-title" className="px-4 pt-[18vh]">
+          <BigWord as="h2" word="saved" className="mb-10 -ml-[0.04em] text-[clamp(4.5rem,17vw,17rem)]" />
+          <span id="saved-title" className="sr-only">
+            Saved on Pinterest
+          </span>
+          <Saved />
         </section>
 
         <section id="say-hi" aria-labelledby="say-hi-title" className="px-4 pt-[18vh] pb-[14vh]">

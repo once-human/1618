@@ -8,13 +8,14 @@ import { scrollToId } from "@/components/scroll/SmoothScroll";
 const ITEMS = [
   { id: "work", label: "work" },
   { id: "listening", label: "listening" },
+  { id: "saved", label: "saved" },
   { id: "say-hi", label: "say hi" },
 ];
 
 const cell = "border-t border-ink pt-1.5";
 
 /**
- * Four columns, a rule above each, like a contents line. On the home page the
+ * Five columns, a rule above each, like a contents line. On the home page the
  * first column is the day's clock, which moves as you scroll through it.
  * A paper strip behind it keeps it readable over any photograph.
  */
@@ -24,7 +25,7 @@ export function Nav({ home = false }: { home?: boolean }) {
   return (
     <nav
       aria-label="Main"
-      className="fixed inset-x-0 top-0 z-50 grid grid-cols-4 gap-4 bg-paper px-4 pt-3 pb-2 text-[15px]"
+      className="fixed inset-x-0 top-0 z-50 grid grid-cols-5 gap-3 bg-paper px-4 pt-3 pb-2 text-[13px] sm:gap-4 sm:text-[15px]"
     >
       {home ? (
         <a

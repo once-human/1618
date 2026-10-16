@@ -12,8 +12,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en">
       <head>
-        {/* Album covers come from Apple's image CDN; open the connection early. */}
+        {/* Album covers and pins come from these image CDNs; open the connections early. */}
         <link rel="preconnect" href="https://is1-ssl.mzstatic.com" />
+        <link rel="preconnect" href="https://i.pinimg.com" />
       </head>
       <body>{children}</body>
     </html>

@@ -10,6 +10,7 @@ export const profile = {
   tagline: "I build consumer products end to end: idea, design, code, growth.",
   links: {
     github: "https://github.com/once-human" as string | null,
+    pinterest: "https://www.pinterest.com/onkaryaglewad/" as string | null,
     email: null as string | null,
     linkedin: null as string | null,
     x: null as string | null,
@@ -19,6 +20,7 @@ export const profile = {
 
 const LABELS: Record<string, string> = {
   github: "GitHub",
+  pinterest: "Pinterest",
   email: "Email",
   linkedin: "LinkedIn",
   x: "X",

@@ -1,7 +1,7 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
-import type { Music, Presence } from "./types";
+import type { Music, Presence, Saved } from "./types";
 
 /**
  * A shared poller: every component reading the same endpoint subscribes to one
@@ -56,6 +56,13 @@ const music = createPoller<Music>("/api/music", 15_000, (d) => {
     if (t.image) new Image().src = t.image;
   });
 });
+
+// Pins change rarely; checking every five minutes is plenty.
+const saved = createPoller<Saved>("/api/saved", 5 * 60_000);
+
+export function useSaved(): Saved | null {
+  return useSyncExternalStore(saved.subscribe, saved.get, () => null);
+}
 
 export function usePresence(): Presence | null {
   return useSyncExternalStore(presence.subscribe, presence.get, () => null);
