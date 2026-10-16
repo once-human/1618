@@ -118,12 +118,13 @@ export function Saved() {
                   )}
                   <span className="mt-1 block truncate text-[12px] leading-tight font-semibold group-hover:underline">{b.name}</span>
                   <span className="block truncate text-[11px] leading-tight text-quiet">
-                    {[
-                      b.pinCount != null ? plural(b.pinCount, "pin", "pins") : null,
-                      b.updated && now ? timeAgo(b.updated, now) : null,
-                    ]
-                      .filter(Boolean)
-                      .join(", ")}
+                    {b.pinCount != null ? plural(b.pinCount, "pin", "pins") : null}
+                    {b.updated && now ? (
+                      <span className="hidden md:inline">
+                        {b.pinCount != null ? ", " : ""}
+                        {timeAgo(b.updated, now)}
+                      </span>
+                    ) : null}
                   </span>
                 </a>
               </li>
