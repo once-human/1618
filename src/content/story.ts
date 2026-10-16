@@ -1,156 +1,143 @@
 /**
- * The narrative. One source of truth for copy, pacing, time of day, colour
- * grade, and the written shot brief for each (not yet generated) still.
- *
- * COPY STATUS: first draft written from facts Onkar has stated. Edit freely;
- * see docs/CONTENT-VERIFY.md for the claims to double check.
+ * The day. One source of truth for copy, timing and the photographs each
+ * chapter needs. Frames are empty until the photos are made: each one carries
+ * a caption describing the picture it's waiting for (see docs/ASSET-BRIEFS.md).
  */
+
+export type Aspect = "portrait" | "landscape" | "square";
+
+export interface Frame {
+  /** What the photograph will be. Shown as a small caption under the frame. */
+  caption: string;
+  /** Placeholder tone, close to the real photo's average colour. */
+  tone: string;
+  aspect: Aspect;
+  /** Grid placement on desktop: start column (1-4) and span (1-2). */
+  col: 1 | 2 | 3 | 4;
+  span?: 1 | 2;
+  /** Extra space above, in rem, for the loose contact-sheet rhythm. */
+  drop?: number;
+  /** Parallax: 0 is still, positive drifts up faster than the page. */
+  speed?: number;
+}
 
 export interface Chapter {
   id: string;
-  /** Short title shown as a chapter label. */
-  title: string;
-  /** Clock minutes since midnight at the start / end of the chapter. */
+  /** The giant word for this part of the day. Lowercase. */
+  word: string;
+  /** Clock minutes since midnight at the start and end of the chapter. */
   startMin: number;
   endMin: number;
-  /** [centre glow, edge colour] of the page colour grade while in this chapter. */
-  grade: [string, string];
-  /** Lines that appear one at a time as you scroll. */
-  beats: string[];
-  /** Scroll length in viewport heights. */
-  screens: number;
-  /** Director's note standing in for the image until it's generated. */
-  brief: {
-    shot: string;
-    mood: string;
-  };
-  /** Set once real frames exist in public/frames/<id>/ (see scripts/extract-frames.sh). */
+  /** A short paragraph, in Onkar's voice. */
+  text: string[];
+  frames: Frame[];
+  /** Set once real frames exist in public/frames/<id>/ (scripts/extract-frames.sh). */
   frameCount?: number;
 }
 
 export const hm = (h: number, m = 0) => h * 60 + m;
 
-export const INTRO = {
-  clock: "06:59",
-  name: "Onkar Yaglewad",
-  line: "Product engineer. Pune.",
-  hint: "Scroll. It's a day.",
+export const HERO = {
+  word: "onkar",
+  line: "Onkar Yaglewad builds consumer products end to end, from the first idea to the last pixel. This is one ordinary day.",
+  frames: [
+    { caption: "White sheets, first light", tone: "#d9d4cb", aspect: "portrait", col: 1, drop: 2, speed: 0.15 },
+    { caption: "A café window, steam on the glass", tone: "#bca88f", aspect: "landscape", col: 2, drop: 9, speed: 0.3 },
+    { caption: "Running through tall grass", tone: "#aeb7ad", aspect: "landscape", col: 3, drop: 4, speed: 0.1 },
+    { caption: "A room full of people", tone: "#c4ad8a", aspect: "landscape", col: 4, drop: 12, speed: 0.25 },
+  ] satisfies Frame[],
 };
 
 export const CHAPTERS: Chapter[] = [
   {
-    id: "wake",
-    title: "Morning",
+    id: "morning",
+    word: "morning",
     startMin: hm(7),
     endMin: hm(7, 40),
-    grade: ["#3a2a1c", "#0d0b0a"],
-    screens: 3.2,
-    beats: [
-      "I'm Onkar.",
-      "I build consumer products from the first idea to the last pixel. Design, code, growth. I like owning the whole thing.",
-      "Today's an ordinary day. Come along.",
+    text: [
+      "I'm Onkar. I build consumer products from the first idea to the last pixel: design, code and growth. I like owning the whole thing.",
     ],
-    brief: {
-      shot: "Overhead of a white bed, morning light through a window. Subject asleep, face partly hidden. He wakes, sits upright, camera drifts behind him into a third-person view.",
-      mood: "Quiet, warm, slow. Soft dawn light. Nothing hurried.",
-    },
+    frames: [
+      { caption: "Overhead, a white bed, morning light through the window", tone: "#dcd6cc", aspect: "landscape", col: 2, span: 2, speed: 0.1 },
+      { caption: "Sitting up, seen from behind", tone: "#cfc8bd", aspect: "portrait", col: 4, drop: 10, speed: 0.3 },
+    ],
   },
   {
     id: "door",
-    title: "Threshold",
+    word: "the door",
     startMin: hm(7, 40),
     endMin: hm(8, 50),
-    grade: ["#2c2a2a", "#0b0b0c"],
-    screens: 3.6,
-    beats: [
-      "Every project I've started began the same way: walking toward a door I hadn't opened yet.",
-      "I'd rather build the whole thing myself than hand off one narrow slice of it.",
+    text: [
+      "Every project starts the same way for me: walking toward a door I haven't opened yet.",
+      "I'd rather build the whole thing than hand off one narrow slice of it.",
     ],
-    brief: {
-      shot: "Back-turned shot walking to a door; camera pushes in. The door opens and the world on the other side is a café. Outfit changes from waking clothes to day clothes during the step through.",
-      mood: "Continuous, causal, no cuts. The riskiest shot in the film: prototype it first.",
-    },
+    frames: [
+      { caption: "Walking to the bedroom door, back to camera", tone: "#c7c2bb", aspect: "portrait", col: 1, drop: 6, speed: 0.25 },
+      { caption: "The door opens onto a café", tone: "#b59c80", aspect: "landscape", col: 3, span: 2, speed: 0.05 },
+    ],
   },
   {
-    id: "cafe",
-    title: "Coffee",
+    id: "coffee",
+    word: "coffee",
     startMin: hm(9),
     endMin: hm(10, 30),
-    grade: ["#4a3320", "#0e0b09"],
-    screens: 3,
-    beats: [
-      "Coffee is an all-day thing for me. Mornings just get a head start.",
-      "A good café is where most of my ideas get their first draft.",
+    text: ["Coffee is an all-day thing for me. Mornings just get a head start."],
+    frames: [
+      { caption: "Window seat, a cup and a notebook", tone: "#a88d72", aspect: "square", col: 2, speed: 0.2 },
+      { caption: "Steam, warm wood, someone's hands", tone: "#8f7560", aspect: "portrait", col: 3, drop: 14, speed: 0.35 },
     ],
-    brief: {
-      shot: "Café interior, window seat, a cup and a notebook on the table. Subject seen from behind or in profile, face obscured. Steam, warm window light.",
-      mood: "Unhurried. Warm wood, window light, a little steam.",
-    },
   },
   {
     id: "run",
-    title: "Distance",
+    word: "distance",
     startMin: hm(11),
     endMin: hm(12, 30),
-    grade: ["#26343c", "#0a0c0e"],
-    screens: 3.4,
-    beats: [
+    text: [
       "I've run a marathon. Distance teaches you to pace, not sprint.",
-      "I work the same way: long, uninterrupted stretches, and details until they're right.",
-      "I'd rather ship it right than ship it twice.",
+      "I work the same way: long, uninterrupted stretches, and the details until they're right.",
     ],
-    brief: {
-      shot: "Running through tall grass, tracked from behind, low sun. Café-to-run transition by motion blur, not a hard cut.",
-      mood: "Open, cool daylight, forward motion. Breath and rhythm.",
-    },
+    frames: [
+      { caption: "Tall grass, low sun, tracked from behind", tone: "#a9b3a7", aspect: "landscape", col: 1, span: 2, speed: 0.1 },
+      { caption: "Shoes on a dirt track", tone: "#b8b3a6", aspect: "portrait", col: 4, drop: 6, speed: 0.3 },
+    ],
   },
   {
     id: "people",
-    title: "People",
+    word: "people",
     startMin: hm(17),
     endMin: hm(18, 30),
-    grade: ["#4d3a1f", "#0e0b08"],
-    screens: 3,
-    beats: [
-      "I organised PuneFOSS, free and open-source meetups in Pune.",
-      "PuneFOSS 3 had over 400 people in the room.",
-      "I love building things that connect people. This was that, without code.",
+    text: [
+      "I organised PuneFOSS, free and open-source meetups in Pune. The biggest one had over 400 people in the room.",
+      "I love building things that connect people. This was that, without any code.",
     ],
-    brief: {
-      shot: "A community event at golden hour: a speaker at the front, a full room, phones up, laughter. Subject on stage seen from behind or side, face obscured.",
-      mood: "Warm, social, a little loud after the quiet of the morning.",
-    },
+    frames: [
+      { caption: "On stage at golden hour, seen from the side", tone: "#c2a57c", aspect: "portrait", col: 2, drop: 4, speed: 0.2 },
+      { caption: "The crowd, phones up, laughing", tone: "#b39268", aspect: "landscape", col: 3, span: 2, drop: 16, speed: 0.05 },
+    ],
   },
   {
     id: "headphones",
-    title: "Headphones",
+    word: "headphones",
     startMin: hm(20),
     endMin: hm(21),
-    grade: ["#1d2040", "#07070d"],
-    screens: 2.6,
-    beats: [
-      "Evenings are for music. House, afro house, techno, and Fred again.. on repeat.",
-      "Then home. Time to make something with my hands.",
+    text: ["Evenings are for music: house, afro house, techno, and a lot of Fred again..", "Then home."],
+    frames: [
+      { caption: "Walking home at night, city lights blurred", tone: "#3e4152", aspect: "landscape", col: 1, span: 2, speed: 0.1 },
+      { caption: "Headphones, streetlight, from behind", tone: "#2c2e3b", aspect: "portrait", col: 4, drop: 8, speed: 0.3 },
     ],
-    brief: {
-      shot: "Night walk home, headphones on, city lights soft and blurred, seen from behind. Cut to the apartment door.",
-      mood: "Indigo dusk into night. The most cinematic stretch.",
-    },
+  },
+  {
+    id: "counter",
+    word: "the counter",
+    startMin: hm(21),
+    endMin: hm(22),
+    text: ["I cook, mix something to drink, and lay out what I've been making."],
+    frames: [
+      { caption: "Kitchen counter, green tiles, warm light", tone: "#5f6f5a", aspect: "landscape", col: 2, span: 2, speed: 0.1 },
+      { caption: "Overhead: mint, limes, a steel jigger", tone: "#6d7a62", aspect: "square", col: 1, drop: 18, speed: 0.3 },
+    ],
   },
 ];
 
-export const COUNTER = {
-  id: "counter",
-  title: "The counter",
-  startMin: hm(21),
-  endMin: hm(22),
-  grade: ["#4a3a22", "#0c0a07"] as [string, string],
-  lines: [
-    "I cook. I mix something. And I lay out what I've been making.",
-    "Open the bag.",
-  ],
-  brief: {
-    shot: "Eye-level at a warm-lit kitchen counter (green tiles, white grout), subject prepping a drink and food. Scroll rises to an overhead top view of the same counter, where the head-tracked depth effect turns on.",
-    mood: "Photoreal crafting-table feel. Mint, limes, raspberries, a steel jigger, a pink ice tray, unbranded bottles.",
-  },
-};
+/** Shown in "listening" when no live music source is connected. */
+export const USUALLY_ON = ["Fred again..", "house", "afro house", "techno"];

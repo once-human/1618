@@ -1,35 +1,68 @@
 @import "tailwindcss";
 
-/* The film is dark by design; no light/dark switching. */
+/*
+ * Paper, ink, and one quiet grey. No accent colour: the photographs and the
+ * giant type carry the page.
+ */
 :root {
-  --background: #0b0b0c;
-  --foreground: #f2efe9;
-  --muted: #8d8a84;
-  /* time-of-day grade, tweened by GSAP as you scroll */
-  --g1: #2a2018;
-  --g2: #0b0b0c;
+  --paper: #ffffff;
+  --ink: #000000;
+  --quiet: #6e6e6e;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-muted: var(--muted);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-paper: var(--paper);
+  --color-ink: var(--ink);
+  --color-quiet: var(--quiet);
+  --font-sans: "Archivo Variable", "Helvetica Neue", Helvetica, Arial, sans-serif;
 }
 
 html {
-  background: var(--background);
-  color-scheme: dark;
+  background: var(--paper);
+  color: var(--ink);
+  color-scheme: light;
+  overflow-x: clip;
 }
 
 body {
-  /* no body background: the fixed <Grade /> layer paints the page */
-  color: var(--foreground);
-  font-family: var(--font-geist-sans), system-ui, sans-serif;
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.45;
+  font-feature-settings: "tnum" 0;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: clip;
 }
 
-/* Lenis recommended base styles */
+::selection {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 3px;
+}
+
+/* The giant lowercase type: the one loud thing on the page. */
+.bigword {
+  font-weight: 800;
+  font-stretch: 100%;
+  letter-spacing: -0.045em;
+  line-height: 0.78;
+  white-space: nowrap;
+  text-transform: lowercase;
+}
+
+.tnum {
+  font-variant-numeric: tabular-nums;
+}
+
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
+/* Lenis */
 html.lenis,
 html.lenis body {
   height: auto;
@@ -42,20 +75,7 @@ html.lenis body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  html {
-    scroll-behavior: auto;
+  [class*="animate-["] {
+    animation: none !important;
   }
-}
-
-/* Living profile motion */
-@keyframes fadein {
-  from { opacity: 0; transform: translateY(4px); }
-  to { opacity: 1; transform: none; }
-}
-@keyframes pop {
-  from { opacity: 0; transform: scale(.92) translateY(8px); }
-  to { opacity: 1; transform: none; }
-}
-@media (prefers-reduced-motion: reduce) {
-  [class*="animate-["] { animation: none !important; }
 }

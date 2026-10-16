@@ -1,20 +1,17 @@
 import type { Metadata } from "next";
-import { GeistSans } from "geist/font/sans";
-import { GeistMono } from "geist/font/mono";
+import "@fontsource-variable/archivo/wdth.css";
 import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Onkar Yaglewad",
-  description: "A day in my life, and the things I build.",
+  description:
+    "Onkar Yaglewad builds consumer products end to end, from the first idea to the last pixel. This is one ordinary day.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html
-      lang="en"
-      className={`${GeistSans.variable} ${GeistMono.variable} h-full antialiased`}
-    >
-      <body className="min-h-full">{children}</body>
+    <html lang="en">
+      <body>{children}</body>
     </html>
   );
 }
