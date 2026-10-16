@@ -1,7 +1,11 @@
 import "server-only";
-import { cacheLife } from "next/cache";
+import { cacheLife, cacheTag } from "next/cache";
 import { after } from "next/server";
-import type { Presence, Track } from "./types";
+import sharp from "sharp";
+import type { ManualStatus, Presence, Track } from "./types";
+import { kvGet, kvSet, q } from "@/lib/db";
+import { firstHeard, trackKey } from "./lastfm";
+import { healthToday } from "@/lib/history/query";
 import { projects } from "@/content/projects";
 import { ACCEPT, baseTitle, matchScore, nameSim, norm, splitArtists, stripRelease, type ItunesResult } from "./match";
 
@@ -52,6 +56,8 @@ const ACTION: Record<string, string> = {
 export async function getGithub(): Promise<Pick<Presence, "github" | "repos">> {
   "use cache";
   cacheLife({ stale: 60, revalidate: 300, expire: 3600 });
+  // A GitHub webhook can mark this stale the moment I push (see /api/hooks/github).
+  cacheTag("github");
 
   const [events, repos] = await Promise.all([
     getJson<GhEvent[]>(`https://api.github.com/users/${GH_USER}/events/public?per_page=30`, ghHeaders()),
@@ -154,18 +160,23 @@ export async function getMusic(): Promise<Track[] | null> {
   // matched within the time budget finishes after the response and shows up
   // on the next refresh, so a slow lookup never holds the list back.
   const apple: (AppleSong | null | undefined)[] = new Array(rows.length);
+  const heard: (string | null | undefined)[] = new Array(rows.length);
   let next = 0;
   const worker = async () => {
     while (next < rows.length) {
       const i = next++;
-      apple[i] = await appleSong(rows[i].artist["#text"], rows[i].name, rows[i].album?.["#text"] || null);
+      const artist = rows[i].artist["#text"];
+      [apple[i], heard[i]] = await Promise.all([
+        appleSong(artist, rows[i].name, rows[i].album?.["#text"] || null, APPLE_SHAPE),
+        firstHeard(artist, rows[i].name).catch(() => null),
+      ]);
     }
   };
   const all = Promise.all([worker(), worker(), worker()]);
   await Promise.race([all, new Promise((r) => setTimeout(r, 3000))]);
   after(() => all);
 
-  return rows.map((t, i): Track => {
+  const tracks = rows.map((t, i): Track => {
     // Last.fm's "large" (174px) is the fallback cover when Apple has no match.
     const lfm = t.image?.find((x) => x.size === "large")?.["#text"] || "";
     const artist = t.artist["#text"];
@@ -177,10 +188,58 @@ export async function getMusic(): Promise<Track[] | null> {
         apple[i]?.link ??
         `https://music.apple.com/in/search?term=${encodeURIComponent(`${artist} ${t.name}`)}`,
       image: apple[i]?.art ?? (lfm && !lfm.includes(LFM_PLACEHOLDER) ? lfm : null),
+      preview: apple[i]?.preview ?? null,
+      durationMs: apple[i]?.durationMs ?? null,
+      tint: apple[i]?.tint ?? null,
       nowPlaying: t["@attr"]?.nowplaying === "true",
+      startedAt: null,
       at: t.date ? new Date(Number(t.date.uts) * 1000).toISOString() : null,
+      firstHeard: heard[i] ?? null,
+      fire: null,
     };
   });
+
+  const playing = tracks[0]?.nowPlaying ? tracks[0] : null;
+  if (playing) await trackPlaying(playing, tracks[1] ?? null);
+  return tracks;
+}
+
+/**
+ * Neither Apple Music nor Last.fm says when the current song started or
+ * whether it's paused. So the site remembers when it first saw each song
+ * playing. That gives an approximate position in the song, and once the song
+ * has run well past its own length it can't still be playing: it was paused
+ * or stopped, so it's shown as last played instead.
+ */
+async function trackPlaying(t: Track, previous: Track | null) {
+  const key = trackKey(t.artist, t.track);
+  const [seen, fire] = await Promise.all([
+    kvGet<{ key: string; since: string }>("now-playing"),
+    q<{ n: number }>("fire read", (db) => db`SELECT n FROM reactions WHERE track_key = ${key}`),
+  ]);
+  t.fire = fire?.[0]?.n ?? 0;
+
+  let since = seen?.value.key === key ? seen.value.since : null;
+  if (!since) {
+    // A scrobble's time is when that song started. If the previous song ran
+    // straight into this one, this one started when that one ended, which is
+    // closer to the truth than "now" when nobody was on the site at the time.
+    const now = Date.now();
+    const handoff =
+      previous?.at && previous.durationMs ? Date.parse(previous.at) + previous.durationMs : null;
+    const start = handoff && handoff <= now && now - handoff < 20 * 60_000 ? handoff : now;
+    since = new Date(start).toISOString();
+    const value = { key, since };
+    after(() => kvSet("now-playing", value));
+  }
+  t.startedAt = since;
+
+  const elapsed = Date.now() - Date.parse(since);
+  if (t.durationMs && elapsed > t.durationMs + 60_000) {
+    t.nowPlaying = false;
+    t.at = new Date(Date.parse(since) + t.durationMs).toISOString();
+    t.startedAt = null;
+  }
 }
 
 /* ---------------- Apple Music lookup (iTunes Search, no key needed) ---------------- */
@@ -188,6 +247,26 @@ export async function getMusic(): Promise<Track[] | null> {
 export interface AppleSong {
   art: string | null;
   link: string;
+  preview: string | null;
+  durationMs: number | null;
+  /** The cover's dominant colour. */
+  tint: string | null;
+}
+
+/** Bump when AppleSong gains fields, so weeks-old cached lookups are redone. */
+const APPLE_SHAPE = 2;
+
+/** The dominant colour of a cover image, as #rrggbb. */
+async function coverTint(url: string | null): Promise<string | null> {
+  if (!url) return null;
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(TIMEOUT) });
+    if (!res.ok) return null;
+    const { dominant } = await sharp(Buffer.from(await res.arrayBuffer())).stats();
+    return `#${[dominant.r, dominant.g, dominant.b].map((v) => v.toString(16).padStart(2, "0")).join("")}`;
+  } catch {
+    return null;
+  }
 }
 
 
@@ -238,6 +317,8 @@ async function artistSongs(name: string) {
 interface DeezerTrack {
   title: string;
   link: string;
+  preview?: string;
+  duration?: number;
   artist: { name: string };
   album: { title: string; cover_medium?: string };
 }
@@ -257,6 +338,8 @@ async function deezer(query: string) {
       // Deezer serves any size from the same path; 96px matches Apple's.
       artworkUrl100: t.album.cover_medium?.replace(/\/\d+x\d+-/, "/96x96-"),
       trackViewUrl: t.link,
+      previewUrl: t.preview || undefined,
+      trackTimeMillis: t.duration ? t.duration * 1000 : undefined,
     })),
   };
 }
@@ -287,8 +370,14 @@ type Candidate = { r: ItunesResult; score: number };
  * Stored in Vercel's shared runtime cache: a match for weeks, a clean miss for
  * hours, a failed request (usually rate-limiting) for a couple of minutes.
  */
-export async function appleSong(artist: string, track: string, album: string | null): Promise<AppleSong | null> {
+export async function appleSong(
+  artist: string,
+  track: string,
+  album: string | null,
+  shape: number,
+): Promise<AppleSong | null> {
   "use cache: remote";
+  void shape; // part of the cache key only
 
   const artists = splitArtists(artist);
   const title = baseTitle(track);
@@ -340,7 +429,14 @@ export async function appleSong(artist: string, track: string, album: string | n
   const apple = best as Candidate | null;
   if (apple) {
     cacheLife("weeks");
-    return { art: appleArt(apple.r.artworkUrl100), link: appleLink(apple.r.trackViewUrl!) };
+    const art = appleArt(apple.r.artworkUrl100);
+    return {
+      art,
+      link: appleLink(apple.r.trackViewUrl!),
+      preview: apple.r.previewUrl ?? null,
+      durationMs: apple.r.trackTimeMillis ?? null,
+      tint: await coverTint(art),
+    };
   }
 
   // 3. Deezer, then song.link for the Apple Music page
@@ -358,6 +454,9 @@ export async function appleSong(artist: string, track: string, album: string | n
     return {
       art: dz.r.artworkUrl100 ?? null,
       link: link ?? `https://music.apple.com/in/search?term=${encodeURIComponent(`${artist} ${track}`)}`,
+      preview: dz.r.previewUrl ?? null,
+      durationMs: dz.r.trackTimeMillis ?? null,
+      tint: await coverTint(dz.r.artworkUrl100 ?? null),
     };
   }
 
@@ -401,8 +500,22 @@ export async function getWeather(): Promise<Presence["weather"]> {
 /** Only the repos the site actually shows, so the response stays small. */
 const SHOWN_REPOS = new Set(projects.flatMap((p) => (p.repo ? [p.repo.toLowerCase()] : [])));
 
+/** The status I set from my phone, unless it has expired. */
+export async function getStatus(): Promise<ManualStatus | null> {
+  const row = await kvGet<ManualStatus>("status");
+  if (!row || Date.parse(row.value.until) < Date.now()) return null;
+  return row.value;
+}
+
 export async function getPresence(): Promise<Presence> {
-  const [gh, weather] = await Promise.all([getGithub(), getWeather()]);
+  const [gh, weather, status, health] = await Promise.all([getGithub(), getWeather(), getStatus(), healthToday()]);
   const repos = Object.fromEntries(Object.entries(gh.repos).filter(([name]) => SHOWN_REPOS.has(name)));
-  return { github: gh.github, repos, weather, fetchedAt: new Date().toISOString() };
+  return {
+    github: gh.github,
+    repos,
+    weather,
+    status,
+    health: health ? { steps: health.steps, sleepHours: health.sleepHours } : null,
+    fetchedAt: new Date().toISOString(),
+  };
 }

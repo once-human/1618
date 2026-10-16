@@ -21,6 +21,8 @@ export interface ItunesResult {
   collectionName?: string;
   artworkUrl100?: string;
   trackViewUrl?: string;
+  previewUrl?: string;
+  trackTimeMillis?: number;
 }
 
 /* ---- Matching: decide whether an Apple result is the same recording ---- */

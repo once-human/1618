@@ -1,6 +1,7 @@
 import "server-only";
 import { cacheLife } from "next/cache";
 import type { PinterestBoard, PinterestProfile, Saved, SavedPin } from "./types";
+import { q } from "@/lib/db";
 
 export const PINTEREST_USER = "onkaryaglewad";
 const PROFILE = `https://www.pinterest.com/${PINTEREST_USER}/`;
@@ -118,13 +119,20 @@ interface WidgetBoard {
   description?: string;
 }
 
-/** One board's own widget feed: its real pin count and cover. */
-async function boardWidget(boardPath: string): Promise<WidgetBoard | null> {
+/** One board's own widget feed: its real pin count, cover and latest pins. */
+async function boardWidget(boardPath: string): Promise<(WidgetBoard & { mosaic: string[] }) | null> {
   const text = await get(`https://widgets.pinterest.com/v3/pidgets/boards${boardPath}pins/`, "board widget");
   if (!text) return null;
   try {
-    const json = JSON.parse(text) as { data?: { board?: WidgetBoard } };
-    return json.data?.board ?? null;
+    const json = JSON.parse(text) as { data?: { board?: WidgetBoard; pins?: WidgetPin[] } };
+    if (!json.data?.board) return null;
+    const mosaic = (json.data.pins ?? [])
+      .flatMap((p) => {
+        const img = p.images?.["237x"] ?? p.images?.["236x"] ?? Object.values(p.images ?? {})[0];
+        return img?.url ? [sized(img.url, "236x")] : [];
+      })
+      .slice(0, 4);
+    return { ...json.data.board, mosaic };
   } catch {
     return null;
   }
@@ -139,6 +147,7 @@ interface RawUser {
   image_medium_url?: string;
   follower_count?: number;
   following_count?: number;
+  board_count?: number;
   /** Topics followed. Pinterest counts these inside following_count but leaves them out of the profile. */
   interest_following_count?: number;
   pin_count?: number;
@@ -198,11 +207,12 @@ async function profileData(): Promise<{ user: RawUser | null; boards: RawBoard[]
   return profilePage();
 }
 
-/** Real pin counts and covers for boards, from each board's widget feed. Cached 30 minutes. */
-async function boardDetails(paths: string[]): Promise<Record<string, WidgetBoard>> {
+/** Real pin counts, covers and mosaics for boards, from each board's widget feed. Cached 30 minutes. */
+async function boardDetails(paths: string[], shape: number): Promise<Record<string, WidgetBoard & { mosaic: string[] }>> {
   "use cache: remote";
   cacheLife({ stale: 300, revalidate: 1800, expire: 86400 });
-  const out: Record<string, WidgetBoard> = {};
+  void shape; // part of the cache key only
+  const out: Record<string, WidgetBoard & { mosaic: string[] }> = {};
   // A few at a time, to stay polite.
   for (let i = 0; i < paths.length; i += 4) {
     const batch = paths.slice(i, i + 4);
@@ -260,7 +270,7 @@ async function rssPins(): Promise<RssPin[] | null> {
  * cached for 30. Whenever a source fails, the rest is built from whatever did
  * load. Secret boards never appear: none of these sources include them.
  */
-export async function getSaved(shape = 3): Promise<Saved> {
+export async function getSaved(shape: number): Promise<Saved> {
   "use cache: remote";
   // `shape` is part of the cache key: bump it when the output changes so old copies aren't served.
   void shape;
@@ -306,6 +316,7 @@ export async function getSaved(shape = 3): Promise<Saved> {
     // Match the profile: people and boards only, not followed topics.
     following: u?.following_count != null ? Math.max(0, u.following_count - (u.interest_following_count ?? 0)) : null,
     pinCount: u?.pin_count ?? wu?.pin_count ?? null,
+    boardCount: u?.board_count ?? null,
     monthlyViews: u?.profile_views ?? u?.monthly_views ?? null,
   };
 
@@ -326,6 +337,7 @@ export async function getSaved(shape = 3): Promise<Saved> {
           url,
           pinCount: b.pin_count ?? null,
           cover: cover ? sized(cover, "474x") : null,
+          mosaic: [] as string[],
           color: recent?.color ?? null,
           updated: iso(b.last_pinned_at) ?? iso(b.board_order_modified_at) ?? recent?.at ?? null,
         };
@@ -336,18 +348,23 @@ export async function getSaved(shape = 3): Promise<Saved> {
       url: p.boardUrl!,
       pinCount: null,
       cover: sized(p.imageSmall, "474x"),
+      mosaic: [] as string[],
       color: p.color,
       updated: p.at,
     }));
   }
   // Fill in real pin counts and covers from each board's own widget feed.
-  const details = await boardDetails(boards.map((b) => new URL(b.url).pathname));
+  const details = await boardDetails(
+    boards.map((b) => new URL(b.url).pathname),
+    2,
+  );
   boards = boards.map((b) => {
     const d = details[new URL(b.url).pathname];
     return {
       ...b,
       pinCount: b.pinCount ?? d?.pin_count ?? null,
       cover: b.cover ?? (d?.image_thumbnail_url ? sized(d.image_thumbnail_url, "474x") : null),
+      mosaic: d?.mosaic ?? [],
     };
   });
   boards.sort((a, b) => (b.updated ?? "").localeCompare(a.updated ?? ""));
@@ -356,5 +373,47 @@ export async function getSaved(shape = 3): Promise<Saved> {
 
   if (!pins.length) console.warn("[saved] no recent pins from either feed");
 
-  return { profile, boards, created: created.slice(0, 8), pins: pins.slice(0, 12), fetchedAt: new Date().toISOString() };
+  // The archive remembers every save the feeds have ever shown, so the colour
+  // strip and "most saved to" can look further back than the feed's ~25 pins.
+  const archive = await q<{ data: SavedPin }>("pins read", (db) =>
+    db`SELECT data FROM pins WHERE saved_at > now() - interval '30 days' ORDER BY saved_at DESC LIMIT 300`,
+  );
+  const recent = new Map<string, SavedPin>();
+  for (const p of [...pins, ...(archive ?? []).map((r) => r.data)]) if (!recent.has(p.id)) recent.set(p.id, p);
+  const month = [...recent.values()].filter((p) => !p.at || Date.parse(p.at) > Date.now() - 30 * 86400_000);
+
+  const palette = month.flatMap((p) => (p.color ? [p.color] : [])).slice(0, 30);
+
+  const counts = new Map<string, { name: string; url: string; count: number }>();
+  for (const p of month) {
+    if (!p.board || !p.boardUrl) continue;
+    const c = counts.get(p.boardUrl) ?? { name: p.board, url: p.boardUrl, count: 0 };
+    c.count++;
+    counts.set(p.boardUrl, c);
+  }
+  const hotBoard = [...counts.values()].sort((a, b) => b.count - a.count)[0] ?? null;
+
+  return {
+    profile,
+    boards,
+    created: created.slice(0, 8),
+    pins: pins.slice(0, 12),
+    palette,
+    hotBoard: hotBoard && hotBoard.count > 1 ? hotBoard : null,
+    fetchedAt: new Date().toISOString(),
+  };
+}
+
+/** Keep every save the feeds show, so history outlives the feed's short window. */
+export async function archivePins(pins: SavedPin[]): Promise<void> {
+  if (!pins.length) return;
+  await q("pins archive", (db) =>
+    db.transaction(
+      pins.map(
+        (p) =>
+          db`INSERT INTO pins (id, data, saved_at) VALUES (${p.id}, ${JSON.stringify(p)}::jsonb, ${p.at})
+             ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data, saved_at = COALESCE(EXCLUDED.saved_at, pins.saved_at)`,
+      ),
+    ),
+  );
 }

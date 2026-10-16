@@ -5,6 +5,7 @@ import { useMusic, usePresence, useNow } from "@/lib/presence/client";
 import { puneNow, timeAgo } from "@/lib/time";
 import { Playing } from "@/components/live/Playing";
 import { profile } from "@/content/profile";
+import { openMenu } from "@/components/site/CommandMenu";
 
 const cell = "border-t border-ink pt-1.5";
 
@@ -21,7 +22,7 @@ export function Footer() {
   const pune = now ? puneNow(new Date(now)) : null;
 
   return (
-    <footer className="fixed inset-x-0 bottom-0 z-50 grid grid-cols-2 gap-4 bg-paper px-4 pt-2 pb-3 text-[13px] md:grid-cols-4">
+    <footer className="bg-paper fixed inset-x-0 bottom-0 z-50 grid grid-cols-2 gap-4 px-4 pt-2 pb-3 text-[13px] md:grid-cols-4">
       {/* On phones there's room for two cells: the music line takes the name's place. */}
       <p className={`${cell} truncate ${latest ? "hidden md:block" : ""}`}>
         {profile.name}
@@ -29,7 +30,12 @@ export function Footer() {
       </p>
       <p className={`${cell} hidden md:block`}>
         {profile.links.github && (
-          <a href={profile.links.github} target="_blank" rel="noopener noreferrer" className="hover:underline">
+          <a
+            href={profile.links.github}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:underline"
+          >
             github
           </a>
         )}
@@ -37,10 +43,24 @@ export function Footer() {
         <Link href="/privacy" className="hover:underline">
           privacy
         </Link>
+        <span className="text-quiet">, </span>
+        <button
+          type="button"
+          onClick={openMenu}
+          className="hover:underline"
+          aria-label="Open the menu"
+        >
+          menu <kbd className="text-quiet font-[inherit]">⌘K</kbd>
+        </button>
       </p>
       <p className={`${cell} truncate ${latest ? "" : "hidden"} md:block`} aria-live="polite">
         {latest ? (
-          <a href={latest.url} target="_blank" rel="noopener noreferrer" className="hover:underline">
+          <a
+            href={latest.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:underline"
+          >
             {latest.nowPlaying ? (
               <>
                 <Playing className="mr-1.5" />

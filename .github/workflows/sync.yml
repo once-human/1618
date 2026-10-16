@@ -1,0 +1,16 @@
+name: Sync history
+
+# Vercel's free plan runs scheduled jobs once a day. This nudges the history
+# store every 15 minutes instead. The endpoint only copies my own public data
+# and ignores calls that come too close together, so it needs no secret.
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - run: curl -fsS --max-time 150 https://www.onkaryaglewad.in/api/sync

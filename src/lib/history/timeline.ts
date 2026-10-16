@@ -1,0 +1,176 @@
+import "server-only";
+import { cacheLife } from "next/cache";
+import { q } from "@/lib/db";
+import { scrobbles, type Scrobble } from "@/lib/presence/lastfm";
+import { getSaved } from "@/lib/presence/pinterest";
+import type { SavedPin, TodayEvent } from "@/lib/presence/types";
+
+const GH_USER = "once-human";
+const HOURS = 48;
+
+interface GhEvent {
+  id: string;
+  type: string;
+  repo: { name: string };
+  created_at: string;
+  payload: { size?: number };
+}
+
+/**
+ * The last 48 hours across everything: runs of music, pushes, saves, runs and
+ * workouts, newest first. Songs played close together become one entry
+ * ("14 songs, mostly …") so it reads like a diary, not a log. Live sources
+ * are merged with the history store, so nothing is missed if one is slow.
+ * Cached for two minutes.
+ */
+export async function getTimeline(): Promise<{ hours: number; events: TodayEvent[] }> {
+  "use cache: remote";
+  cacheLife({ stale: 60, revalidate: 120, expire: 900 });
+
+  const now = Date.now();
+  const fromSec = Math.floor(now / 1000) - HOURS * 3600;
+  const fromIso = new Date(fromSec * 1000).toISOString();
+
+  const [livePlays, storedPlays, gh, storedCode, saved, archived, moves] = await Promise.all([
+    scrobbles(fromSec, Math.floor(now / 1000), 6),
+    q<{ track: string; artist: string; album: string | null; uts: string }>("tl plays", (db) =>
+      db`SELECT track, artist, album, uts::text FROM scrobbles WHERE uts >= ${fromSec} ORDER BY uts`,
+    ),
+    fetch(`https://api.github.com/users/${GH_USER}/events/public?per_page=60`, {
+      headers: {
+        Accept: "application/vnd.github+json",
+        "User-Agent": "1618-portfolio",
+        ...(process.env.GITHUB_TOKEN ? { Authorization: `Bearer ${process.env.GITHUB_TOKEN}` } : {}),
+      },
+      signal: AbortSignal.timeout(5000),
+    })
+      .then((r) => (r.ok ? (r.json() as Promise<GhEvent[]>) : null))
+      .catch(() => null),
+    q<{ id: string; at: string; data: { repo: string; commits: number | null } }>("tl code", (db) =>
+      db`SELECT id, at, data FROM events WHERE kind = 'code' AND at >= ${fromIso}`,
+    ),
+    getSaved(4).catch(() => null),
+    q<{ data: SavedPin }>("tl pins", (db) => db`SELECT data FROM pins WHERE saved_at >= ${fromIso}`),
+    q<{ kind: string; at: string; data: Record<string, unknown> }>("tl moves", (db) =>
+      db`SELECT kind, at, data FROM events WHERE kind IN ('activity', 'workout') AND at >= ${fromIso}`,
+    ),
+  ]);
+
+  const out: TodayEvent[] = [];
+
+  // Music: merge live and stored plays, then sessions of plays under 30 minutes apart.
+  const plays = new Map<string, Scrobble>();
+  for (const s of [...(storedPlays ?? []).map((r) => ({ ...r, uts: Number(r.uts) })), ...(livePlays ?? [])])
+    plays.set(`${s.uts}|${s.track}`, s);
+  const list = [...plays.values()].sort((a, b) => a.uts - b.uts);
+  let session: Scrobble[] = [];
+  const flush = () => {
+    if (!session.length) return;
+    const count = new Map<string, number>();
+    for (const s of session) count.set(s.artist, (count.get(s.artist) ?? 0) + 1);
+    const top = [...count.entries()].sort((a, b) => b[1] - a[1]);
+    const one = session.length === 1;
+    out.push({
+      kind: "music",
+      at: new Date(session[0].uts * 1000).toISOString(),
+      until: one ? undefined : new Date(session[session.length - 1].uts * 1000).toISOString(),
+      title: one ? `Played ${session[0].track}` : `Listened to ${session.length} songs`,
+      detail: one
+        ? session[0].artist
+        : top[0][1] > 1
+          ? `mostly ${top[0][0]}`
+          : top
+              .slice(0, 2)
+              .map(([a]) => a)
+              .join(", "),
+      url: null,
+    });
+    session = [];
+  };
+  for (const s of list) {
+    if (session.length && s.uts - session[session.length - 1].uts > 30 * 60) flush();
+    session.push(s);
+  }
+  flush();
+
+  // Code: pushes per repo, merged when within an hour of each other.
+  const pushes = new Map<string, { at: string; repo: string }>();
+  for (const e of gh ?? [])
+    if (e.type === "PushEvent" && e.created_at >= fromIso)
+      pushes.set(`gh:${e.id}`, { at: e.created_at, repo: e.repo.name.split("/")[1] });
+  for (const r of storedCode ?? []) pushes.set(r.id, { at: new Date(r.at).toISOString(), repo: r.data.repo });
+  const sortedPushes = [...pushes.values()].sort((a, b) => a.at.localeCompare(b.at));
+  const open = new Map<string, { at: string; until: string; n: number }>();
+  const closeRun = (repo: string, v: { at: string; until: string; n: number }) =>
+    out.push({
+      kind: "code",
+      at: v.at,
+      until: v.n > 1 ? v.until : undefined,
+      title: v.n > 1 ? `Pushed to ${repo} ${v.n} times` : `Pushed to ${repo}`,
+      detail: null,
+      url: `https://github.com/${GH_USER}/${repo}`,
+    });
+  for (const p of sortedPushes) {
+    const cur = open.get(p.repo);
+    if (cur && Date.parse(p.at) - Date.parse(cur.until) < 3600_000) {
+      cur.until = p.at;
+      cur.n++;
+    } else {
+      if (cur) closeRun(p.repo, cur);
+      open.set(p.repo, { at: p.at, until: p.at, n: 1 });
+    }
+  }
+  for (const [repo, v] of open) closeRun(repo, v);
+
+  // Pins: saves grouped by board and by day.
+  const seen = new Set<string>();
+  const pins = [...(saved?.pins ?? []), ...(archived ?? []).map((r) => r.data)].filter((p) => {
+    if (!p.at || seen.has(p.id) || p.at < fromIso) return false;
+    seen.add(p.id);
+    return true;
+  });
+  const groups = new Map<string, SavedPin[]>();
+  for (const p of pins) {
+    const k = `${p.board ?? ""}|${p.at!.slice(0, 10)}`;
+    groups.set(k, [...(groups.get(k) ?? []), p]);
+  }
+  for (const g of groups.values()) {
+    const s = g.sort((a, b) => a.at!.localeCompare(b.at!));
+    out.push({
+      kind: "pin",
+      at: s[0].at!,
+      until: s.length > 1 ? s[s.length - 1].at! : undefined,
+      title: s.length === 1 ? "Saved a pin" : `Saved ${s.length} pins`,
+      detail: s[0].board ? `to ${s[0].board}` : null,
+      url: s[0].boardUrl ?? s[0].url,
+      image: s[s.length - 1].imageSmall,
+    });
+  }
+
+  // Runs, rides and workouts.
+  for (const m of moves ?? []) {
+    const d = m.data;
+    const km = typeof d.distanceM === "number" ? d.distanceM / 1000 : typeof d.distanceKm === "number" ? d.distanceKm : null;
+    const mins = typeof d.movingS === "number" ? d.movingS / 60 : typeof d.minutes === "number" ? d.minutes : null;
+    const type = String(d.type ?? "Workout");
+    out.push({
+      kind: "move",
+      at: new Date(m.at).toISOString(),
+      title: km ? `${verb(type)} ${km.toFixed(1)} km` : `${type}${mins ? `, ${Math.round(mins)} min` : ""}`,
+      detail: km && mins ? `${Math.round(mins)} min${typeof d.name === "string" ? `, ${d.name}` : ""}` : null,
+      url: typeof d.url === "string" ? d.url : null,
+    });
+  }
+
+  out.sort((a, b) => (b.until ?? b.at).localeCompare(a.until ?? a.at));
+  return { hours: HOURS, events: out };
+}
+
+function verb(type: string) {
+  const t = type.toLowerCase();
+  if (t.includes("run")) return "Ran";
+  if (t.includes("ride") || t.includes("cycl")) return "Rode";
+  if (t.includes("walk") || t.includes("hike")) return "Walked";
+  if (t.includes("swim")) return "Swam";
+  return type;
+}

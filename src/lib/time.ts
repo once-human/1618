@@ -57,3 +57,41 @@ export function phaseColor(hour: number): [string, string] {
   if (hour < 17) return ["#ffd36b", "#ff8a4c"];
   return ["#ff8a4c", "#b24bff"];
 }
+
+const PUNE_MS = 5.5 * 3600_000;
+
+/** "14:32" in Pune for an ISO time. */
+export function puneClock(iso: string): string {
+  return new Date(Date.parse(iso) + PUNE_MS).toISOString().slice(11, 16);
+}
+
+/** "2026-10-17": the Pune calendar day of an ISO time. */
+export function puneDayKey(iso: string | number): string {
+  const t = typeof iso === "number" ? iso : Date.parse(iso);
+  return new Date(t + PUNE_MS).toISOString().slice(0, 10);
+}
+
+/** "Today", "Yesterday", or "Thursday 15 Oct", by Pune's calendar. */
+export function puneDayLabel(iso: string, now: number): string {
+  const day = puneDayKey(iso);
+  if (day === puneDayKey(now)) return "Today";
+  if (day === puneDayKey(now - 86400_000)) return "Yesterday";
+  return new Date(`${day}T12:00:00Z`).toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "short", timeZone: "UTC" });
+}
+
+/** 12345 -> "12,345" (Indian grouping). */
+export const fmtNum = (n: number) => new Intl.NumberFormat("en-IN").format(n);
+
+/** 95 -> "1h 35m", 40 -> "40m". */
+export function fmtMinutes(m: number): string {
+  if (m < 60) return `${Math.round(m)}m`;
+  const h = Math.floor(m / 60);
+  const r = Math.round(m % 60);
+  return r ? `${h}h ${r}m` : `${h}h`;
+}
+
+/** 0:42 style position for a song. */
+export function fmtPos(ms: number): string {
+  const s = Math.max(0, Math.floor(ms / 1000));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+}

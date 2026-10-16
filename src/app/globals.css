@@ -46,11 +46,12 @@ body {
 /* The giant lowercase type: the one loud thing on the page. */
 .bigword {
   font-weight: 800;
-  font-stretch: 100%;
   letter-spacing: -0.045em;
   line-height: 0.78;
   white-space: nowrap;
   text-transform: lowercase;
+  /* Narrows with scroll speed on the home page (see Experience). */
+  font-stretch: var(--wdth, 100%);
 }
 
 .tnum {
@@ -82,6 +83,37 @@ html.lenis body {
 
 @media (prefers-reduced-motion: reduce) {
   [class*="animate-["] {
+    animation: none !important;
+  }
+}
+
+/* A new pin sliding in while you watch */
+@keyframes arrive {
+  from { opacity: 0; transform: translateY(-14px); filter: blur(4px); }
+  to { opacity: 1; transform: none; filter: none; }
+}
+
+/* Page changes */
+::view-transition-old(.page) {
+  animation: page-out 200ms ease-in both;
+}
+::view-transition-new(.page) {
+  animation: page-in 460ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+::view-transition-group(.morph) {
+  animation-duration: 420ms;
+  animation-timing-function: cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+@keyframes page-out {
+  to { opacity: 0; transform: translateY(-10px); filter: blur(3px); }
+}
+@keyframes page-in {
+  from { opacity: 0; transform: translateY(18px); filter: blur(3px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(*),
+  ::view-transition-new(*),
+  ::view-transition-group(*) {
     animation: none !important;
   }
 }

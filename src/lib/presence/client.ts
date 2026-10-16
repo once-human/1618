@@ -1,27 +1,38 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
-import type { Music, Presence, Saved } from "./types";
+import { useEffect, useSyncExternalStore } from "react";
+import type { ListeningStats, Live, Music, Presence, Saved, Submission, TodayEvent } from "./types";
+import type { Replay, RangeSummary } from "@/lib/history/query";
 
 /**
- * A shared poller: every component reading the same endpoint subscribes to one
- * store, so there's only ever one request in flight. It refreshes on an
- * interval while the tab is visible, and immediately when you come back to it.
+ * Shared pollers: every component reading the same endpoint subscribes to one
+ * store, so there's only ever one request in flight. Each refreshes on an
+ * interval while the tab is visible, and straight away when you come back.
  */
-function createPoller<T>(url: string, everyMs: number, onData?: (d: T) => void) {
+function createPoller<T>(url: string | (() => string), everyMs: number, opts: { etag?: boolean; onData?: (d: T) => void } = {}) {
   let data: T | null = null;
+  let etag: string | null = null;
   const subs = new Set<() => void>();
   let timer: ReturnType<typeof setInterval> | null = null;
+  let inflight = false;
 
   async function load() {
+    if (inflight) return;
+    inflight = true;
     try {
-      const res = await fetch(url, { cache: "no-store" });
-      if (!res.ok) return;
+      const res = await fetch(typeof url === "function" ? url() : url, {
+        cache: "no-store",
+        headers: opts.etag && etag ? { "If-None-Match": etag } : undefined,
+      });
+      if (res.status === 304 || !res.ok) return;
+      etag = res.headers.get("etag");
       data = (await res.json()) as T;
-      onData?.(data);
+      opts.onData?.(data);
       subs.forEach((f) => f());
     } catch {
       /* offline or blocked: keep whatever we had */
+    } finally {
+      inflight = false;
     }
   }
 
@@ -44,35 +55,199 @@ function createPoller<T>(url: string, everyMs: number, onData?: (d: T) => void) 
     };
   }
 
-  return { subscribe, get: () => data };
+  return { subscribe, get: () => data, refresh: load, set: (d: T) => ((data = d), subs.forEach((f) => f())) };
 }
 
-const presence = createPoller<Presence>("/api/presence", 60_000);
+const usePoller = <T,>(p: ReturnType<typeof createPoller<T>>): T | null =>
+  useSyncExternalStore(p.subscribe, p.get, () => null);
 
-// Music changes song by song, so it refreshes much more often. New covers are
-// fetched straight away, so they're ready before anyone scrolls to them.
-const music = createPoller<Music>("/api/music", 15_000, (d) => {
-  d.tracks?.forEach((t) => {
-    if (t.image) new Image().src = t.image;
-  });
+/* ---- Pinterest: fetched once, then only when the live stamp says it changed ---- */
+
+let savedVersion: string | null = null;
+const saved = createPoller<Saved>("/api/saved", 10 * 60_000);
+
+/* ---- Everything live in one poll: presence + music (+ Pinterest's version stamp) ---- */
+
+const live = createPoller<Live>("/api/live", 15_000, {
+  etag: true,
+  onData: (d) => {
+    // New covers are fetched straight away, so they're ready before anyone scrolls to them.
+    d.music.tracks?.forEach((t) => {
+      if (t.image) new Image().src = t.image;
+    });
+    if (d.savedVersion && savedVersion && d.savedVersion !== savedVersion) void saved.refresh();
+    savedVersion = d.savedVersion;
+  },
 });
 
-// Pins change rarely; checking every five minutes is plenty.
-const saved = createPoller<Saved>("/api/saved", 5 * 60_000);
-
-export function useSaved(): Saved | null {
-  return useSyncExternalStore(saved.subscribe, saved.get, () => null);
-}
+const select = <T,>(pick: (l: Live) => T) => {
+  let last: Live | null = null;
+  let value: T | null = null;
+  return () => {
+    const l = live.get();
+    if (l !== last) {
+      last = l;
+      value = l ? pick(l) : null;
+    }
+    return value;
+  };
+};
+const getPresence = select((l) => l.presence);
+const getMusic = select((l) => l.music);
 
 export function usePresence(): Presence | null {
-  return useSyncExternalStore(presence.subscribe, presence.get, () => null);
+  return useSyncExternalStore(live.subscribe, getPresence, () => null);
 }
-
 export function useMusic(): Music | null {
-  return useSyncExternalStore(music.subscribe, music.get, () => null);
+  return useSyncExternalStore(live.subscribe, getMusic, () => null);
+}
+export const useSaved = () => usePoller(saved);
+
+/* ---- Slower things ---- */
+
+const listening = createPoller<ListeningStats>("/api/listening", 10 * 60_000);
+const timeline = createPoller<{ hours: number; events: TodayEvent[] }>("/api/timeline", 2 * 60_000);
+const replay = createPoller<Replay>("/api/replay", 30 * 60_000);
+const songs = createPoller<Submission[]>("/api/submissions?kind=song", 60_000);
+const notes = createPoller<Submission[]>("/api/submissions?kind=note", 60_000);
+
+export const useListening = () => usePoller(listening);
+export const useTimeline = () => usePoller(timeline);
+export const useReplay = () => usePoller(replay);
+export const useSongsSent = () => usePoller(songs);
+export const useGuestbook = () => usePoller(notes);
+
+/** Put a just-sent post at the top straight away, without waiting for the next poll. */
+export function addSubmission(s: Submission) {
+  const store = s.kind === "song" ? songs : notes;
+  store.set([s, ...(store.get() ?? [])]);
 }
 
-/* A shared clock that ticks every 20s, so every "4m ago" stays honest. */
+/** One range from the history store, fetched on demand. */
+export async function fetchHistory(query: string): Promise<(RangeSummary & { label: string }) | null> {
+  try {
+    const res = await fetch(`/api/history?${query}`);
+    return res.ok ? await res.json() : null;
+  } catch {
+    return null;
+  }
+}
+
+/* ---- People here right now ---- */
+
+let hereCount: number | null = null;
+const hereSubs = new Set<() => void>();
+let hereTimer: ReturnType<typeof setInterval> | null = null;
+// Lives only in this tab's memory; it means nothing outside it.
+const tabId = Math.random().toString(36).slice(2, 14) + Math.random().toString(36).slice(2, 8);
+
+async function beat() {
+  if (document.visibilityState !== "visible") return;
+  try {
+    const res = await fetch("/api/here", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: tabId }),
+    });
+    if (!res.ok) return;
+    hereCount = ((await res.json()) as { here: number | null }).here;
+    hereSubs.forEach((f) => f());
+  } catch {
+    /* ignore */
+  }
+}
+
+function subscribeHere(f: () => void) {
+  hereSubs.add(f);
+  if (!hereTimer) {
+    void beat();
+    hereTimer = setInterval(beat, 30_000);
+    document.addEventListener("visibilitychange", beat);
+  }
+  return () => {
+    hereSubs.delete(f);
+    if (!hereSubs.size && hereTimer) {
+      clearInterval(hereTimer);
+      hereTimer = null;
+      document.removeEventListener("visibilitychange", beat);
+    }
+  };
+}
+
+export function useHere(): number | null {
+  return useSyncExternalStore(subscribeHere, () => hereCount, () => null);
+}
+
+/* ---- Visit counter: one per page load ---- */
+
+let visits: number | null = null;
+let counted = false;
+const visitSubs = new Set<() => void>();
+
+export function useVisits(): number | null {
+  useEffect(() => {
+    if (counted) return;
+    counted = true;
+    fetch("/api/visit", { method: "POST" })
+      .then((r) => r.json())
+      .then((d: { visits: number | null }) => {
+        visits = d.visits;
+        visitSubs.forEach((f) => f());
+      })
+      .catch(() => {});
+  }, []);
+  return useSyncExternalStore(
+    (f) => (visitSubs.add(f), () => visitSubs.delete(f)),
+    () => visits,
+    () => null,
+  );
+}
+
+/* ---- 30-second previews: one shared player, so only one clip plays at a time ---- */
+
+interface PlayerState {
+  key: string | null;
+  playing: boolean;
+  progress: number;
+}
+let player: HTMLAudioElement | null = null;
+let pstate: PlayerState = { key: null, playing: false, progress: 0 };
+const playerSubs = new Set<() => void>();
+const emit = (s: Partial<PlayerState>) => {
+  pstate = { ...pstate, ...s };
+  playerSubs.forEach((f) => f());
+};
+
+export function togglePreview(key: string, url: string) {
+  if (!player) {
+    player = new Audio();
+    player.preload = "none";
+    player.addEventListener("timeupdate", () => player && emit({ progress: player.duration ? player.currentTime / player.duration : 0 }));
+    player.addEventListener("ended", () => emit({ playing: false, progress: 0, key: null }));
+    player.addEventListener("pause", () => emit({ playing: false }));
+    player.addEventListener("play", () => emit({ playing: true }));
+  }
+  if (pstate.key === key) {
+    if (player.paused) void player.play().catch(() => {});
+    else player.pause();
+    return;
+  }
+  player.src = url;
+  player.volume = 0.8;
+  emit({ key, progress: 0 });
+  void player.play().catch(() => emit({ playing: false }));
+}
+
+export function usePlayer(): PlayerState {
+  return useSyncExternalStore(
+    (f) => (playerSubs.add(f), () => playerSubs.delete(f)),
+    () => pstate,
+    () => pstate,
+  );
+}
+
+/* ---- A shared clock that ticks every 20s, so every "4m ago" stays honest ---- */
+
 let now = 0;
 const tickSubs = new Set<() => void>();
 let tickTimer: ReturnType<typeof setInterval> | null = null;
@@ -100,6 +275,35 @@ export function useNow(): number {
   return useSyncExternalStore(
     subscribeNow,
     () => now || Date.now(),
+    () => 0,
+  );
+}
+
+/** A faster clock (every second) for progress bars; only runs while something uses it. */
+let fast = 0;
+const fastSubs = new Set<() => void>();
+let fastTimer: ReturnType<typeof setInterval> | null = null;
+export function useSecond(active: boolean): number {
+  return useSyncExternalStore(
+    (f) => {
+      if (!active) return () => {};
+      fastSubs.add(f);
+      if (!fastTimer) {
+        fast = Date.now();
+        fastTimer = setInterval(() => {
+          fast = Date.now();
+          fastSubs.forEach((g) => g());
+        }, 1000);
+      }
+      return () => {
+        fastSubs.delete(f);
+        if (!fastSubs.size && fastTimer) {
+          clearInterval(fastTimer);
+          fastTimer = null;
+        }
+      };
+    },
+    () => (active ? fast || Date.now() : 0),
     () => 0,
   );
 }

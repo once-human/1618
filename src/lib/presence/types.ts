@@ -15,7 +15,17 @@ export interface Presence {
     tempC: number;
     label: string;
   } | null;
+  /** A status I set myself from my phone, until it expires. */
+  status: ManualStatus | null;
+  /** Today's Apple Health numbers, if my Shortcut has sent them. */
+  health: { steps: number | null; sleepHours: number | null } | null;
   fetchedAt: string;
+}
+
+export interface ManualStatus {
+  text: string;
+  setAt: string;
+  until: string;
 }
 
 /**
@@ -35,10 +45,40 @@ export interface Track {
   /** The song on Apple Music (or an Apple Music search when there's no exact match). */
   url: string;
   image: string | null;
+  /** A 30-second preview clip, when the store has one. */
+  preview: string | null;
+  durationMs: number | null;
+  /** The cover's main colour, for small accents. */
+  tint: string | null;
   /** True for the track playing right now. */
   nowPlaying: boolean;
+  /** For the playing track: when the site first saw it start. */
+  startedAt: string | null;
   /** When it was played; null while it's still playing. */
   at: string | null;
+  /** When I first ever heard it, if that was in the last two weeks. */
+  firstHeard: string | null;
+  /** 🔥 reactions from visitors (playing track only). */
+  fire: number | null;
+}
+
+/** Listening over time, from Last.fm. Served by /api/listening. */
+export interface ListeningStats {
+  /** Most played songs in the last month. */
+  onRepeat: { track: string; artist: string; plays: number; image?: string | null; url?: string; preview?: string | null }[];
+  topArtists: { name: string; plays: number }[];
+  /** Plays per hour of the day in Pune over the last `windowDays` days. */
+  clock: number[] | null;
+  windowDays: number;
+  windowPlays: number | null;
+  /** Days in a row with at least one play. */
+  streakDays: number | null;
+  /** The streak is at least as long as the window can see. */
+  streakCapped: boolean;
+  totalPlays: number | null;
+  /** When my Last.fm history starts. */
+  since: string | null;
+  fetchedAt: string;
 }
 
 /** My Pinterest: profile, boards, created pins and the latest saves. Served by /api/saved. */
@@ -50,6 +90,10 @@ export interface Saved {
   created: SavedPin[];
   /** The latest saves, newest first. */
   pins: SavedPin[];
+  /** Colours of my most recent saves, newest first. */
+  palette: string[];
+  /** The board I've saved to most in the last 30 days. */
+  hotBoard: { name: string; url: string; count: number } | null;
   fetchedAt: string;
 }
 
@@ -63,6 +107,8 @@ export interface PinterestProfile {
   following: number | null;
   /** Total pins, when Pinterest shares it. */
   pinCount: number | null;
+  /** Total boards, including any not listed below. */
+  boardCount: number | null;
   /** Monthly profile views, when Pinterest shares it. */
   monthlyViews: number | null;
 }
@@ -72,6 +118,8 @@ export interface PinterestBoard {
   url: string;
   pinCount: number | null;
   cover: string | null;
+  /** Up to four recent pins, for a mosaic cover. */
+  mosaic: string[];
   /** Placeholder colour while the cover loads. */
   color: string | null;
   /** When the board last changed, when known. */
@@ -94,4 +142,35 @@ export interface SavedPin {
   boardUrl: string | null;
   /** When I saved it, when known. */
   at: string | null;
+}
+
+/** One thing I did today, for the day's timeline. */
+export interface TodayEvent {
+  kind: "music" | "code" | "pin" | "move";
+  at: string;
+  /** For a run of songs: when it ended. */
+  until?: string;
+  title: string;
+  detail: string | null;
+  url: string | null;
+  image?: string | null;
+}
+
+/** A song or note a visitor sent, once I've approved it. */
+export interface Submission {
+  id: number;
+  kind: "song" | "note";
+  name: string | null;
+  message: string | null;
+  song: { track: string; artist: string; art: string | null; link: string; preview: string | null } | null;
+  at: string;
+}
+
+/** Everything live in one response, polled by the page. */
+export interface Live {
+  presence: Presence;
+  music: Music;
+  /** Changes whenever the Pinterest data changes, so the page knows to refetch it. */
+  savedVersion: string | null;
+  fetchedAt: string;
 }

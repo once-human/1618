@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "@fontsource-variable/archivo/wdth.css";
 import "./globals.css";
 import { SITE_URL } from "@/lib/site";
+import { CommandMenu } from "@/components/site/CommandMenu";
 
 const description =
   "Onkar Yaglewad builds consumer products end to end, from the first idea to the last pixel. This is one ordinary day.";
@@ -29,7 +30,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <link rel="preconnect" href="https://is1-ssl.mzstatic.com" />
         <link rel="preconnect" href="https://i.pinimg.com" />
       </head>
-      <body>{children}</body>
+      <body>
+        {children}
+        <CommandMenu />
+      </body>
     </html>
   );
 }
