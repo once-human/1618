@@ -9,18 +9,22 @@ Each source is cached separately with `"use cache"` + `cacheLife` in `src/lib/pr
 | Pune weather | Open-Meteo | none | 15 min |
 | Latest public activity | Newest of GitHub `events/public` and repo `pushed_at` (events lag by hours), plus the latest commit message | none (optional `GITHUB_TOKEN`) | 5 min |
 | "Updated X ago" per project | GitHub `users/once-human/repos` `pushed_at` | set `repo` on the project in `src/content/projects.ts` | 5 min |
-| Now playing / last played | Last.fm `user.getrecenttracks` | `LASTFM_USER`, `LASTFM_API_KEY` | 30 s |
+| Now playing + tracklist (12 most recent, with play times and artwork) | Last.fm `user.getrecenttracks` | `LASTFM_USER`, `LASTFM_API_KEY` | 30 s |
 
-Rules: a signal is real or hidden. Static facts live in `src/content/always.ts` under "Always" and are
-never styled as live.
+Rule: a signal is real or hidden. With no music source, the listening section says what's usually on and that the live list isn't connected.
 
-## Turning on music
+## Turning on music (Apple Music)
 
-1. Make a Last.fm account and connect Spotify to it (Last.fm settings → Applications → Spotify
-   scrobbling).
-2. Create an API key at https://www.last.fm/api/account/create.
-3. In Vercel → project 1618 → Settings → Environment Variables, add `LASTFM_USER` and
-   `LASTFM_API_KEY`, then redeploy.
+Apple Music has no live "now playing" API, and its recently-played endpoint returns no play times, so
+"2 days ago" can't come from Apple directly. Instead, a scrobbler on the iPhone sends every play to
+Last.fm with a timestamp, and the site reads Last.fm.
+
+1. Make a Last.fm account.
+2. On the iPhone, install a scrobbler for the stock Music app (FastScrobbler is free and scrobbles in
+   real time) and sign it in to Last.fm.
+3. Create an API key at https://www.last.fm/api/account/create.
+4. In Vercel → project 1618 → Settings → Environment Variables, add `LASTFM_USER` and
+   `LASTFM_API_KEY` (Production), then redeploy.
 
 ## Rate limits
 

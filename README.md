@@ -2,32 +2,27 @@
 
 My portfolio, told as one ordinary day.
 
-It opens at 06:59. As you scroll, the day moves forward: the clock in the corner ticks, the light
-changes colour, and each part of the day says something true about who I am and how I work. Morning,
-a door, coffee, a run, a room full of people, music on the walk home. The day ends at a kitchen
-counter, where a bag holds everything I've been building. Open it and the projects come out.
+It opens at 06:59 with my name running across a handful of photographs. As you scroll, the day
+moves forward: morning, a door, coffee, a run, a room full of people, music on the walk home, and
+finally the kitchen counter at night. The clock in the top corner follows along. Each part of the day
+says one true thing about who I am and how I work.
 
-If you just want the work, there's a **Skip to work** link in the corner the whole time, and a plain
-list at `/work`.
+After the day comes the work: a plain index of what I've built, each with its own page.
 
 **Live:** [1618-sooty.vercel.app](https://1618-sooty.vercel.app)
 
-## The living profile
+## Live, for real
 
-The little bubble in the bottom corner is a nod to apps like Bump, where a profile shows what
-someone is up to right now instead of a pile of old posts. Tap it and you'll see:
+A few things on the page are happening right now rather than written once:
 
-- **Live:** the actual time and weather in Pune, the last code I pushed to GitHub ("pushed to 1618 ·
-  4m ago"), and, when it's switched on, what I'm listening to or last played.
-- **Always:** the things that don't change by the minute: I've run a marathon, I drink coffee all
-  day, I ran PuneFOSS.
-- **Knock:** a way to say hi.
+- **Pune, right now.** The footer shows the actual time and weather where I am.
+- **Listening.** A tracklist of what I've actually been playing, newest first: what's on right now,
+  what played an hour ago, what played two days ago.
+- **Work.** Projects with a public repository say when they were last updated.
 
-Every project with a public repo also shows when it was last updated, so you can tell what's alive
-and what's resting. Nothing on the page is faked: if a signal can't be fetched, it simply isn't
-shown.
+If a live source can't be reached, that piece is simply left out. Nothing is made up.
 
-## What's in the bag
+## What's in the work index
 
 | Project | What it is |
 | --- | --- |
@@ -40,14 +35,14 @@ shown.
 
 ## Still being made
 
-The scenes are currently "plates": graded frames carrying a written shot brief, standing in for the
-footage. The real frames are being made shot by shot, and the counter will become a photoreal scene
-you can lean around.
+The photographs are still being shot. Until each one exists, its place on the page is a plain tone
+close to the real picture's colour, captioned with what it will show.
 
 ## Built with
 
-Next.js, TypeScript, Tailwind, GSAP ScrollTrigger and Lenis for the scroll, and a small server
-route that gathers the live signals and caches each one on its own schedule. Hosted on Vercel.
+Next.js, TypeScript and Tailwind, with GSAP and Lenis for the scroll, set in Archivo. A small server
+route gathers the live pieces (GitHub, Open-Meteo, Last.fm) and caches each one on its own schedule.
+Hosted on Vercel.
 
 ## Run it locally
 
@@ -56,5 +51,5 @@ pnpm install
 pnpm dev
 ```
 
-Then open http://localhost:3000. The live signals use public APIs and work without any setup, except
-the music signal, which needs a Last.fm account (see `docs/LIVE-SIGNALS.md`).
+Then open http://localhost:3000. Everything works without setup except the tracklist, which needs
+Last.fm details (see `docs/LIVE-SIGNALS.md`).
