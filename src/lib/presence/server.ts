@@ -1,6 +1,7 @@
 import "server-only";
 import { cacheLife } from "next/cache";
 import type { Presence, Track } from "./types";
+import { projects } from "@/content/projects";
 
 const GH_USER = "once-human";
 const TIMEOUT = 5000;
@@ -235,7 +236,11 @@ export async function getWeather(): Promise<Presence["weather"]> {
   return { tempC: Math.round(c.temperature_2m), label };
 }
 
+/** Only the repos the site actually shows, so the response stays small. */
+const SHOWN_REPOS = new Set(projects.flatMap((p) => (p.repo ? [p.repo.toLowerCase()] : [])));
+
 export async function getPresence(): Promise<Presence> {
   const [gh, music, weather] = await Promise.all([getGithub(), getMusic(), getWeather()]);
-  return { ...gh, music, weather, fetchedAt: new Date().toISOString() };
+  const repos = Object.fromEntries(Object.entries(gh.repos).filter(([name]) => SHOWN_REPOS.has(name)));
+  return { github: gh.github, repos, music, weather, fetchedAt: new Date().toISOString() };
 }
