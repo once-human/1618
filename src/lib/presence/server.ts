@@ -1,5 +1,6 @@
 import "server-only";
 import { cacheLife } from "next/cache";
+import { after } from "next/server";
 import type { Presence, Track } from "./types";
 import { projects } from "@/content/projects";
 
@@ -146,7 +147,22 @@ export async function getMusic(): Promise<Track[] | null> {
   });
 
   const rows = unique.slice(0, 10);
-  const apple = await Promise.all(rows.map((t) => appleSong(t.artist["#text"], t.name)));
+
+  // Look songs up on Apple a few at a time (Apple rate-limits bursts), newest
+  // first so the playing song is matched before anything else. Anything not
+  // matched within the time budget finishes after the response and shows up
+  // on the next refresh, so a slow lookup never holds the list back.
+  const apple: (AppleSong | null | undefined)[] = new Array(rows.length);
+  let next = 0;
+  const worker = async () => {
+    while (next < rows.length) {
+      const i = next++;
+      apple[i] = await appleSong(rows[i].artist["#text"], rows[i].name);
+    }
+  };
+  const all = Promise.all([worker(), worker(), worker()]);
+  await Promise.race([all, new Promise((r) => setTimeout(r, 3000))]);
+  after(() => all);
 
   return rows.map((t, i): Track => {
     // Last.fm's "large" (174px) is the fallback cover when Apple has no match.
@@ -186,35 +202,101 @@ interface ItunesResult {
   trackViewUrl?: string;
 }
 
-/**
- * The song on Apple Music: its cover (96px, a 48px slot on retina) and its page.
- * Only accepts a result whose title and artist actually line up, so a song is
- * never shown with someone else's cover or link. Cached for weeks per song.
- */
-export async function appleSong(artist: string, track: string): Promise<{ art: string | null; link: string } | null> {
-  "use cache";
-  cacheLife("weeks");
+export interface AppleSong {
+  art: string | null;
+  link: string;
+}
 
-  const firstArtist = norm(artist.split(/,|&| x | feat\.? | ft\.? /i)[0] ?? artist);
-  const wantTitle = norm(baseTitle(track));
-  if (!firstArtist || !wantTitle) return null;
+/** "Bhaskar, DL91 Era, Encore ABJ & RiJ" -> ["bhaskar", "dl91 era", "encore abj", "rij"]. */
+const splitArtists = (s: string) =>
+  s
+    .split(/,|&| x | feat\.? | ft\.? | with /i)
+    .map(norm)
+    .filter((a) => a.length >= 2);
 
-  for (const term of [`${artist} ${track}`, `${firstArtist} ${baseTitle(track)}`]) {
-    const data = await getJson<{ results?: ItunesResult[] }>(
-      `https://itunes.apple.com/search?term=${encodeURIComponent(term)}&entity=song&limit=5&country=in`,
+async function itunes(term: string, country: string, limit: number) {
+  try {
+    const res = await fetch(
+      `https://itunes.apple.com/search?term=${encodeURIComponent(term)}&entity=song&limit=${limit}&country=${country}`,
+      { signal: AbortSignal.timeout(TIMEOUT) },
     );
-    const hit = data?.results?.find((r) => {
-      const title = norm(baseTitle(r.trackName));
-      const who = norm(r.artistName);
-      return (title.includes(wantTitle) || wantTitle.includes(title)) && who.includes(firstArtist);
-    });
+    if (!res.ok) return { ok: false, results: [] as ItunesResult[] };
+    const data = (await res.json()) as { results?: ItunesResult[] };
+    return { ok: true, results: data.results ?? [] };
+  } catch {
+    return { ok: false, results: [] as ItunesResult[] };
+  }
+}
+
+/**
+ * The best Apple result for a song, or null. The title has to match (exactly,
+ * or one contains the other when it's long enough to be unambiguous) and at
+ * least one credited artist has to appear on both sides, in any order. Among
+ * matches, the exact full title wins, so a remix gets the remix's cover.
+ */
+function pick(results: ItunesResult[], track: string, artists: string[]) {
+  const want = norm(baseTitle(track));
+  const wantFull = norm(track);
+  let best: { r: ItunesResult; score: number } | null = null;
+  for (const r of results) {
+    const title = norm(baseTitle(r.trackName));
+    const exact = title === want;
+    const contains = Math.min(title.length, want.length) >= 5 && (title.includes(want) || want.includes(title));
+    if (!exact && !contains) continue;
+    const theirs = splitArtists(r.artistName);
+    const who = norm(r.artistName);
+    const sameArtist = artists.some((a) => who.includes(a)) || theirs.some((a) => artists.some((b) => b.includes(a)));
+    if (!sameArtist) continue;
+    const score = (exact ? 2 : 1) + (norm(r.trackName) === wantFull ? 2 : 0);
+    if (!best || score > best.score) best = { r, score };
+  }
+  return best?.r ?? null;
+}
+
+/**
+ * The song on Apple Music: its cover (96px, a 48px slot on retina) and its own
+ * page. Tries a few search forms, in Pune's store first, then the US store.
+ *
+ * A match is cached for weeks. A miss is cached for hours, and a failed
+ * request (usually Apple rate-limiting) for only a couple of minutes, so a
+ * hiccup never leaves a song without its cover for long.
+ */
+export async function appleSong(artist: string, track: string): Promise<AppleSong | null> {
+  "use cache";
+
+  const artists = splitArtists(artist);
+  const title = baseTitle(track);
+  if (!artists.length || !norm(title)) {
+    cacheLife("weeks");
+    return null;
+  }
+
+  const attempts: [string, string, number][] = [
+    [`${title} ${artists[0]}`, "in", 15],
+    ...(artists.length > 1 ? [[`${title} ${artists.slice(1).join(" ")}`, "in", 15] as [string, string, number]] : []),
+    [title, "in", 50],
+    [`${title} ${artists[0]}`, "us", 15],
+  ];
+
+  let failed = false;
+  for (const [term, country, limit] of attempts) {
+    const { ok, results } = await itunes(term, country, limit);
+    if (!ok) {
+      failed = true;
+      continue;
+    }
+    const hit = pick(results, track, artists);
     if (hit?.trackViewUrl) {
+      cacheLife("weeks");
       return {
         art: hit.artworkUrl100?.replace(/\/\d+x\d+bb\.(jpg|png)$/, "/96x96bb.jpg") ?? null,
         link: hit.trackViewUrl.replace(/[?&]uo=\d+/, ""),
       };
     }
   }
+
+  if (failed) cacheLife({ stale: 30, revalidate: 120, expire: 600 });
+  else cacheLife({ stale: 300, revalidate: 6 * 3600, expire: 86400 });
   return null;
 }
 
