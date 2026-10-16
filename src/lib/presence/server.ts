@@ -3,7 +3,7 @@ import { cacheLife } from "next/cache";
 import { after } from "next/server";
 import type { Presence, Track } from "./types";
 import { projects } from "@/content/projects";
-import { ACCEPT, baseTitle, matchScore, norm, splitArtists, stripRelease, type ItunesResult } from "./match";
+import { ACCEPT, baseTitle, matchScore, nameSim, norm, splitArtists, stripRelease, type ItunesResult } from "./match";
 
 const GH_USER = "once-human";
 const TIMEOUT = 5000;
@@ -198,10 +198,14 @@ async function itunes(term: string, country: string, limit: number) {
       `https://itunes.apple.com/search?term=${encodeURIComponent(term)}&entity=song&limit=${limit}&country=${country}`,
       { signal: AbortSignal.timeout(TIMEOUT) },
     );
-    if (!res.ok) return { ok: false, results: [] as ItunesResult[] };
+    if (!res.ok) {
+      console.warn(`[apple] search failed ${res.status} country=${country} term="${term}"`);
+      return { ok: false, results: [] as ItunesResult[] };
+    }
     const data = (await res.json()) as { results?: ItunesResult[] };
     return { ok: true, results: data.results ?? [] };
-  } catch {
+  } catch (e) {
+    console.warn(`[apple] search error country=${country} term="${term}": ${(e as Error).message}`);
     return { ok: false, results: [] as ItunesResult[] };
   }
 }
@@ -238,6 +242,7 @@ export async function appleSong(artist: string, track: string, album: string | n
 
   let failed = false;
   let best: { r: ItunesResult; score: number } | null = null;
+  const seen: { r: ItunesResult; score: number }[] = []; // for diagnosing misses
   for (const [term, country, limit] of attempts) {
     const { ok, results } = await itunes(term, country, limit);
     if (!ok) {
@@ -247,6 +252,7 @@ export async function appleSong(artist: string, track: string, album: string | n
     for (const r of results) {
       if (!r.trackViewUrl) continue;
       const score = matchScore(r, track, artists, album);
+      if (nameSim(baseTitle(r.trackName), baseTitle(track)) >= 0.85) seen.push({ r, score });
       if (score >= ACCEPT && (!best || score > best.score)) best = { r, score };
     }
     if (best && best.score >= 0.95) break; // certain enough; stop searching
@@ -260,6 +266,12 @@ export async function appleSong(artist: string, track: string, album: string | n
     };
   }
 
+  console.info(
+    `[apple] no match for "${track}" by "${artist}" (failed=${failed}); seen: ${seen
+      .slice(0, 5)
+      .map((c) => `"${c.r.trackName}" by "${c.r.artistName}" = ${c.score.toFixed(2)}`)
+      .join("; ")}`,
+  );
   if (failed) cacheLife({ stale: 30, revalidate: 120, expire: 600 });
   else cacheLife({ stale: 300, revalidate: 6 * 3600, expire: 86400 });
   return null;
