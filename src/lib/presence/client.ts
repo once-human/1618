@@ -16,6 +16,11 @@ async function load() {
     const res = await fetch("/api/presence", { cache: "no-store" });
     if (!res.ok) return;
     data = (await res.json()) as Presence;
+    // Warm the browser cache with album covers right away, so they're already
+    // there by the time someone scrolls down to the tracklist.
+    data.music?.forEach((t) => {
+      if (t.image) new Image().src = t.image;
+    });
     subs.forEach((f) => f());
   } catch {
     /* offline or blocked: keep whatever we had */

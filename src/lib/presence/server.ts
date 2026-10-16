@@ -133,8 +133,9 @@ export async function getMusic(): Promise<Presence["music"]> {
   const list = data?.recenttracks?.track;
   if (!list) return null;
 
-  return list.map((t): Track => {
-    const img = t.image?.find((i) => i.size === "extralarge")?.["#text"] || t.image?.at(-1)?.["#text"] || "";
+  let tracks = list.map((t): Track => {
+    // "large" is 174px: plenty for a 48px slot, a fraction of "extralarge".
+    const img = t.image?.find((i) => i.size === "large")?.["#text"] || "";
     return {
       track: t.name,
       artist: t.artist["#text"],
@@ -145,6 +146,68 @@ export async function getMusic(): Promise<Presence["music"]> {
       at: t.date ? new Date(Number(t.date.uts) * 1000).toISOString() : null,
     };
   });
+
+  // Scrobblers often log the current song before it ends, so it shows twice:
+  // once as "now playing" and once as "just now". Keep only the live one.
+  const live = tracks.find((t) => t.nowPlaying);
+  if (live) {
+    tracks = tracks.filter(
+      (t) =>
+        t === live ||
+        !(t.track === live.track && t.artist === live.artist && t.at && Date.now() - Date.parse(t.at) < 15 * 60_000),
+    );
+  }
+
+  // Prefer Apple's own artwork: it's what Apple Music shows, and it exists for
+  // tracks Last.fm has no cover for.
+  const art = await Promise.all(tracks.map((t) => appleArtwork(t.artist, t.track)));
+  return tracks.map((t, i) => ({ ...t, image: art[i] ?? t.image }));
+}
+
+/* ---------------- Apple artwork (iTunes Search, no key needed) ---------------- */
+
+const norm = (s: string) =>
+  s
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+/** "Chemical Light (Gravagerz REMIX)" -> "Chemical Light", "x - Remastered" -> "x". */
+const baseTitle = (s: string) => s.replace(/\s*[([].*?[)\]]/g, "").replace(/\s+-\s+.*$/, "").trim();
+
+interface ItunesResult {
+  trackName: string;
+  artistName: string;
+  artworkUrl100?: string;
+}
+
+/**
+ * Cover art for a song from Apple, sized to 96px (a 48px slot on retina).
+ * Only returns a match whose title and artist actually line up, so a track is
+ * never shown with someone else's cover. Cached for weeks per song.
+ */
+export async function appleArtwork(artist: string, track: string): Promise<string | null> {
+  "use cache";
+  cacheLife("weeks");
+
+  const firstArtist = norm(artist.split(/,|&| x | feat\.? | ft\.? /i)[0] ?? artist);
+  const wantTitle = norm(baseTitle(track));
+  if (!firstArtist || !wantTitle) return null;
+
+  for (const term of [`${artist} ${track}`, `${firstArtist} ${baseTitle(track)}`]) {
+    const data = await getJson<{ results?: ItunesResult[] }>(
+      `https://itunes.apple.com/search?term=${encodeURIComponent(term)}&entity=song&limit=5&country=in`,
+    );
+    const hit = data?.results?.find((r) => {
+      const title = norm(baseTitle(r.trackName));
+      const who = norm(r.artistName);
+      return (title.includes(wantTitle) || wantTitle.includes(title)) && who.includes(firstArtist);
+    });
+    if (hit?.artworkUrl100) return hit.artworkUrl100.replace(/\/\d+x\d+bb\.(jpg|png)$/, "/96x96bb.jpg");
+  }
+  return null;
 }
 
 /* ---------------- Weather ---------------- */

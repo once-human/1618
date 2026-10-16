@@ -36,7 +36,7 @@ export function Listening() {
           >
             {t.image ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={t.image} alt="" width={48} height={48} loading="lazy" className="row-span-2 aspect-square w-12 object-cover md:row-span-1" />
+              <img src={t.image} alt="" width={48} height={48} decoding="async" className="row-span-2 aspect-square w-12 bg-[#e6e6e6] object-cover md:row-span-1" />
             ) : (
               <span aria-hidden className="row-span-2 aspect-square w-12 bg-[#e6e6e6] md:row-span-1" />
             )}
