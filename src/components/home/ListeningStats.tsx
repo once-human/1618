@@ -28,16 +28,15 @@ export function ListeningStats() {
           <Label note="the last 30 days">On repeat this month</Label>
           <ol className="grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2 lg:grid-cols-5">
             {s.onRepeat.map((t, i) => (
-              <li key={`${t.track}|${t.artist}`} className="flex items-center gap-3 lg:block">
+              <li key={`${t.track}|${t.artist}`} className="flex min-w-0 items-center gap-3">
                 <Preview
                   id={`repeat|${t.track}|${t.artist}`}
                   url={t.preview ?? null}
                   image={t.image ?? null}
                   label={`${t.track} by ${t.artist}`}
                   size={56}
-                  className="lg:!w-full"
                 />
-                <a href={t.url} target="_blank" rel="noopener noreferrer" className="block min-w-0 hover:underline lg:mt-2">
+                <a href={t.url} target="_blank" rel="noopener noreferrer" className="block min-w-0 hover:underline">
                   <span className="block truncate font-semibold">
                     <span className="tnum mr-2 text-quiet">{i + 1}</span>
                     {t.track}

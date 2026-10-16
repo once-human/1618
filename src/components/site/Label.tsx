@@ -9,7 +9,7 @@ export function Label({
   className?: string;
 }) {
   return (
-    <div className={`mt-20 mb-6 flex items-baseline justify-between gap-4 border-t border-ink pt-1.5 first:mt-0 ${className}`}>
+    <div className={`mt-20 mb-6 flex items-baseline justify-between gap-4 border-t border-ink pt-1.5 ${className}`}>
       <h3 className="font-semibold">{children}</h3>
       {note ? <span className="text-right text-quiet">{note}</span> : null}
     </div>

@@ -33,10 +33,16 @@ export function Timeline({ limit = 40 }: { limit?: number }) {
             {g.items.map((e, i) => {
               const body = (
                 <>
-                  <span className="tnum text-quiet">
-                    {e.until ? `${puneClock(e.at)}–${puneClock(e.until)}` : puneClock(e.at)}
+                  <span className="tnum leading-tight text-quiet">
+                    {puneClock(e.at)}
+                    {e.until ? (
+                      <>
+                        <span className="hidden md:inline">–{puneClock(e.until)}</span>
+                        <span className="block text-[12px] md:hidden">to {puneClock(e.until)}</span>
+                      </>
+                    ) : null}
                   </span>
-                  <span className="text-[12px] tracking-wide text-quiet uppercase">{KIND[e.kind]}</span>
+                  <span className="hidden text-[12px] tracking-wide text-quiet uppercase md:block">{KIND[e.kind]}</span>
                   <span className="min-w-0">
                     <span className="block truncate">{e.title}</span>
                     {e.detail ? <span className="block truncate text-quiet">{e.detail}</span> : null}
@@ -49,7 +55,7 @@ export function Timeline({ limit = 40 }: { limit?: number }) {
                   )}
                 </>
               );
-              const cls = "grid grid-cols-[6.5rem_4rem_1fr_2.5rem] items-center gap-x-3 border-t border-ink/20 py-2";
+              const cls = "grid grid-cols-[3.5rem_1fr_2.5rem] items-center gap-x-3 border-t border-ink/20 py-2 md:grid-cols-[6.5rem_4rem_1fr_2.5rem]";
               return (
                 <li key={`${e.kind}${e.at}${i}`}>
                   {e.url ? (

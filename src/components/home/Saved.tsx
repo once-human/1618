@@ -93,7 +93,7 @@ export function Saved() {
       {/* The colours of what I've been saving */}
       {palette.length > 2 && (
         <div className="mt-10">
-          <div className="flex h-10 overflow-hidden" role="img" aria-label={`The colours of my last ${palette.length} saves`}>
+          <div className="flex h-10 overflow-hidden outline outline-1 -outline-offset-1 outline-ink/10" role="img" aria-label={`The colours of my last ${palette.length} saves`}>
             {palette.map((c, i) => (
               <span key={i} className="block h-full flex-1" style={{ backgroundColor: c }} title={c} />
             ))}

@@ -99,7 +99,7 @@ export function RangeView({ s }: { s: RangeSummary }) {
             <h3 className={`${cell} mb-2 font-semibold`}>Day by day</h3>
             <div className="flex h-24 items-end gap-px" role="img" aria-label="Plays per day">
               {m.byDay.map((d) => (
-                <span key={d.day} title={`${d.day}: ${d.plays} plays`} className="block min-w-px flex-1 bg-ink" style={{ height: `${Math.max(2, (d.plays / maxDay) * 100)}%` }} />
+                <span key={d.day} title={`${d.day}: ${d.plays} plays`} className="block min-w-px max-w-4 flex-1 bg-ink" style={{ height: `${Math.max(2, (d.plays / maxDay) * 100)}%` }} />
               ))}
             </div>
             <h3 className={`${cell} mt-8 mb-2 font-semibold`}>Hour by hour</h3>
