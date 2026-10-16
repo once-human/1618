@@ -19,8 +19,8 @@ A few things on the page are happening right now rather than written once:
 - **Listening.** What I'm playing on Apple Music right now, and a tracklist of what I've played
   before, newest first, each song once. It updates by itself every few seconds while the page is
   open, and every song opens on Apple Music.
-- **Saved.** The latest things I've saved on Pinterest, each with its board and when I saved it,
-  and the boards I've been saving to lately.
+- **Saved.** My Pinterest: profile, every public board with its pin count, and below it the latest
+  things I've saved, each with its board and when I saved it. New saves show up on their own.
 - **Work.** Projects with a public repository say when they were last updated.
 
 If a live source can't be reached, that piece is simply left out. Nothing is made up.
