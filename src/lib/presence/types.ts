@@ -10,18 +10,27 @@ export interface Presence {
   } | null;
   /** Last push time per public repo, keyed by lowercase repo name. */
   repos: Record<string, string>;
-  /** From Last.fm. Null unless LASTFM_USER + LASTFM_API_KEY are set. */
-  music: {
-    track: string;
-    artist: string;
-    url: string;
-    nowPlaying: boolean;
-    at: string | null;
-  } | null;
+  /**
+   * Recent listening from Last.fm (Apple Music reaches it through a scrobbler app).
+   * Newest first. Null unless LASTFM_USER + LASTFM_API_KEY are set.
+   */
+  music: Track[] | null;
   /** Current weather in Pune (Open-Meteo). */
   weather: {
     tempC: number;
     label: string;
   } | null;
   fetchedAt: string;
+}
+
+export interface Track {
+  track: string;
+  artist: string;
+  album: string | null;
+  url: string;
+  image: string | null;
+  /** True for the track playing right now. */
+  nowPlaying: boolean;
+  /** When it was played; null while it's still playing. */
+  at: string | null;
 }

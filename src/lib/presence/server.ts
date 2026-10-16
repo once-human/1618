@@ -1,6 +1,6 @@
 import "server-only";
 import { cacheLife } from "next/cache";
-import type { Presence } from "./types";
+import type { Presence, Track } from "./types";
 
 const GH_USER = "once-human";
 const TIMEOUT = 5000;
@@ -107,11 +107,16 @@ interface LfmResponse {
       name: string;
       url: string;
       artist: { "#text": string };
+      album?: { "#text": string };
+      image?: { size: string; "#text": string }[];
       date?: { uts: string };
       "@attr"?: { nowplaying?: string };
     }[];
   };
 }
+
+/** Last.fm's grey star placeholder, served when a track has no artwork. */
+const LFM_PLACEHOLDER = "2a96cbd8b46e442fc41c2b86b821562f";
 
 export async function getMusic(): Promise<Presence["music"]> {
   "use cache";
@@ -123,17 +128,23 @@ export async function getMusic(): Promise<Presence["music"]> {
 
   const url = `https://ws.audioscrobbler.com/2.0/?method=user.getrecenttracks&user=${encodeURIComponent(
     user,
-  )}&api_key=${key}&format=json&limit=1`;
+  )}&api_key=${key}&format=json&limit=12`;
   const data = await getJson<LfmResponse>(url);
-  const t = data?.recenttracks?.track?.[0];
-  if (!t) return null;
-  return {
-    track: t.name,
-    artist: t.artist["#text"],
-    url: t.url,
-    nowPlaying: t["@attr"]?.nowplaying === "true",
-    at: t.date ? new Date(Number(t.date.uts) * 1000).toISOString() : null,
-  };
+  const list = data?.recenttracks?.track;
+  if (!list) return null;
+
+  return list.map((t): Track => {
+    const img = t.image?.find((i) => i.size === "extralarge")?.["#text"] || t.image?.at(-1)?.["#text"] || "";
+    return {
+      track: t.name,
+      artist: t.artist["#text"],
+      album: t.album?.["#text"] || null,
+      url: t.url,
+      image: img && !img.includes(LFM_PLACEHOLDER) ? img : null,
+      nowPlaying: t["@attr"]?.nowplaying === "true",
+      at: t.date ? new Date(Number(t.date.uts) * 1000).toISOString() : null,
+    };
+  });
 }
 
 /* ---------------- Weather ---------------- */
