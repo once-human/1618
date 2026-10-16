@@ -59,31 +59,56 @@ async function widget(): Promise<{ pins: WidgetPin[]; user: WidgetUser | null } 
 
 /* ---- Profile page data: profile, every board, created pins ---- */
 
-/**
- * The same public JSON Pinterest's own profile page loads. Unofficial, so every
- * field is optional and every caller has a fallback.
- */
-async function resource<T>(name: string, options: Record<string, unknown>): Promise<T | null> {
-  const data = encodeURIComponent(JSON.stringify({ options, context: {} }));
-  const url = `https://www.pinterest.com/resource/${name}/get/?source_url=${encodeURIComponent(`/${PINTEREST_USER}/`)}&data=${data}`;
-  try {
-    const res = await fetch(url, {
-      headers: {
-        Accept: "application/json, text/javascript, */*; q=0.01",
-        "X-Requested-With": "XMLHttpRequest",
-        "User-Agent":
-          "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36",
-      },
-      signal: AbortSignal.timeout(TIMEOUT),
-    });
-    if (!res.ok) {
-      console.warn(`[saved] ${name} failed ${res.status}`);
-      return null;
+/** Every object anywhere inside `root` that passes `test` (Pinterest's data shapes vary). */
+function findAll<T>(root: unknown, test: (o: Record<string, unknown>) => boolean, out: T[] = [], seen = new Set<unknown>()): T[] {
+  if (!root || typeof root !== "object" || seen.has(root)) return out;
+  seen.add(root);
+  if (!Array.isArray(root) && test(root as Record<string, unknown>)) out.push(root as T);
+  for (const v of Object.values(root as Record<string, unknown>)) findAll(v, test, out, seen);
+  return out;
+}
+
+/** The data Pinterest embeds in the public profile page, if it serves it to us. */
+async function profilePage(): Promise<{ user: RawUser | null; boards: RawBoard[] }> {
+  const html = await get(PROFILE, "profile page");
+  if (!html) return { user: null, boards: [] };
+  const blobs = [...html.matchAll(/<script[^>]*type="application\/json"[^>]*>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
+  let found: RawUser | null = null;
+  const boards = new Map<string, RawBoard>();
+  for (const blob of blobs) {
+    let json: unknown;
+    try {
+      json = JSON.parse(blob);
+    } catch {
+      continue;
     }
-    const json = (await res.json()) as { resource_response?: { data?: T } };
-    return json.resource_response?.data ?? null;
-  } catch (e) {
-    console.warn(`[saved] ${name} error: ${(e as Error).message}`);
+    found ??=
+      findAll<RawUser>(json, (o) => o.username === PINTEREST_USER && typeof o.follower_count === "number")[0] ?? null;
+    for (const b of findAll<RawBoard>(
+      json,
+      (o) => typeof o.url === "string" && o.url.startsWith(`/${PINTEREST_USER}/`) && typeof o.name === "string" && "pin_count" in o,
+    ))
+      boards.set(b.url!, b);
+  }
+  console.info(`[saved] profile page: ${blobs.length} data blocks, user=${found ? "yes" : "no"}, boards=${boards.size}`);
+  return { user: found, boards: [...boards.values()] };
+}
+
+interface WidgetBoard {
+  name?: string;
+  pin_count?: number;
+  image_thumbnail_url?: string;
+  description?: string;
+}
+
+/** One board's own widget feed: its real pin count and cover. */
+async function boardWidget(boardPath: string): Promise<WidgetBoard | null> {
+  const text = await get(`https://widgets.pinterest.com/v3/pidgets/boards${boardPath}pins/`, "board widget");
+  if (!text) return null;
+  try {
+    const json = JSON.parse(text) as { data?: { board?: WidgetBoard } };
+    return json.data?.board ?? null;
+  } catch {
     return null;
   }
 }
@@ -142,28 +167,30 @@ function toPin(p: RawPin, at: string | null): SavedPin | null {
 }
 
 /**
- * Profile, every public board and created pins, from the profile page data.
- * Cached for 30 minutes: these change far less often than saves.
+ * Profile and the full public board list from the profile page, when
+ * Pinterest serves it. (Its internal JSON endpoints answer 403 to servers, so
+ * they aren't used.) Cached for 30 minutes: these change far less than saves.
  */
-async function profileData(): Promise<{ user: RawUser | null; boards: RawBoard[] | null; created: RawPin[] | null }> {
+async function profileData(): Promise<{ user: RawUser | null; boards: RawBoard[] }> {
   "use cache: remote";
   cacheLife({ stale: 300, revalidate: 1800, expire: 86400 });
+  return profilePage();
+}
 
-  const [user, boards, created] = await Promise.all([
-    resource<RawUser>("UserResource", { username: PINTEREST_USER, field_set_key: "profile" }),
-    resource<RawBoard[]>("BoardsResource", {
-      username: PINTEREST_USER,
-      page_size: 100,
-      privacy_filter: "all",
-      sort: "last_pinned_to",
-      field_set_key: "profile_grid_item",
-    }),
-    resource<RawPin[]>("UserActivityPinsResource", { username: PINTEREST_USER, field_set_key: "grid_item" }),
-  ]);
-  console.info(
-    `[saved] profile data: user=${user ? Object.keys(user).length + " fields" : "none"}, boards=${boards?.length ?? "none"}, created=${created?.length ?? "none"}`,
-  );
-  return { user, boards, created };
+/** Real pin counts and covers for boards, from each board's widget feed. Cached 30 minutes. */
+async function boardDetails(paths: string[]): Promise<Record<string, WidgetBoard>> {
+  "use cache: remote";
+  cacheLife({ stale: 300, revalidate: 1800, expire: 86400 });
+  const out: Record<string, WidgetBoard> = {};
+  // A few at a time, to stay polite.
+  for (let i = 0; i < paths.length; i += 4) {
+    const batch = paths.slice(i, i + 4);
+    const res = await Promise.all(batch.map(boardWidget));
+    batch.forEach((p, j) => {
+      if (res[j]) out[p] = res[j]!;
+    });
+  }
+  return out;
 }
 
 /* ---- RSS feed: when each pin was saved ---- */
@@ -217,6 +244,7 @@ export async function getSaved(): Promise<Saved> {
   cacheLife({ stale: 60, revalidate: 600, expire: 86400 });
 
   const [w, rss, page] = await Promise.all([widget(), rssPins(), profileData()]);
+  const page_created: RawPin[] = []; // created pins need a logged-in API; see docs/LIVE-SIGNALS.md
   const times = new Map((rss ?? []).map((p) => [p.id, p.at]));
 
   // Latest saves
@@ -248,7 +276,8 @@ export async function getSaved(): Promise<Saved> {
     name: u?.full_name || wu?.full_name || PINTEREST_USER,
     username: u?.username || PINTEREST_USER,
     url: PROFILE,
-    avatar: (u?.image_xlarge_url || u?.image_large_url || u?.image_medium_url || wu?.image_small_url) ?? null,
+    // The widget only gives a 60px avatar; Pinterest serves the same photo at 280px.
+    avatar: (u?.image_xlarge_url || u?.image_large_url || wu?.image_small_url?.replace(/\/\d+x\d+_RS\//, "/280x280_RS/")) ?? null,
     about: (u?.about || wu?.about)?.trim() || null,
     followers: u?.follower_count ?? wu?.follower_count ?? null,
     following: u?.following_count ?? null,
@@ -260,7 +289,7 @@ export async function getSaved(): Promise<Saved> {
   for (const p of pins) if (p.boardUrl && !latestIn.has(p.boardUrl)) latestIn.set(p.boardUrl, p);
 
   let boards: PinterestBoard[];
-  if (page.boards?.length) {
+  if (page.boards.length) {
     boards = page.boards
       .filter((b) => b.name && b.url && (b.privacy ?? "public") === "public")
       .map((b) => {
@@ -286,9 +315,19 @@ export async function getSaved(): Promise<Saved> {
       updated: p.at,
     }));
   }
+  // Fill in real pin counts and covers from each board's own widget feed.
+  const details = await boardDetails(boards.map((b) => new URL(b.url).pathname));
+  boards = boards.map((b) => {
+    const d = details[new URL(b.url).pathname];
+    return {
+      ...b,
+      pinCount: b.pinCount ?? d?.pin_count ?? null,
+      cover: b.cover ?? (d?.image_thumbnail_url ? sized(d.image_thumbnail_url, "474x") : null),
+    };
+  });
   boards.sort((a, b) => (b.updated ?? "").localeCompare(a.updated ?? ""));
 
-  const created = (page.created ?? []).flatMap((p) => toPin(p, iso(p.created_at)) ?? []);
+  const created = page_created.flatMap((p) => toPin(p, iso(p.created_at)) ?? []);
 
   if (!pins.length) console.warn("[saved] no recent pins from either feed");
 
