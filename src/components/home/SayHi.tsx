@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { publicLinks } from "@/content/profile";
 
 /** Contact, kept plain. */
@@ -17,6 +18,12 @@ export function SayHi() {
           </li>
         ))}
       </ul>
+      <p className="col-span-2 text-[13px] text-quiet md:col-start-3">
+        No cookies, no tracking.{" "}
+        <Link href="/privacy" className="underline decoration-1 underline-offset-4 hover:text-ink">
+          Privacy
+        </Link>
+      </p>
     </div>
   );
 }

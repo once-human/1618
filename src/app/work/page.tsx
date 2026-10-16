@@ -6,6 +6,7 @@ import { WorkList } from "@/components/home/WorkList";
 export const metadata: Metadata = {
   title: "Work, Onkar Yaglewad",
   description: "Everything Onkar Yaglewad has been making, as a plain list.",
+  alternates: { canonical: "/work" },
 };
 
 export default function WorkIndex() {

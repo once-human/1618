@@ -1,11 +1,24 @@
 import type { Metadata } from "next";
 import "@fontsource-variable/archivo/wdth.css";
 import "./globals.css";
+import { SITE_URL } from "@/lib/site";
+
+const description =
+  "Onkar Yaglewad builds consumer products end to end, from the first idea to the last pixel. This is one ordinary day.";
 
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
   title: "Onkar Yaglewad",
-  description:
-    "Onkar Yaglewad builds consumer products end to end, from the first idea to the last pixel. This is one ordinary day.",
+  description,
+  openGraph: {
+    type: "website",
+    url: SITE_URL,
+    siteName: "Onkar Yaglewad",
+    title: "Onkar Yaglewad",
+    description,
+    locale: "en_IN",
+  },
+  twitter: { card: "summary_large_image", title: "Onkar Yaglewad", description },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

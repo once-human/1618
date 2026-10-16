@@ -9,7 +9,7 @@ says one true thing about who I am and how I work.
 
 After the day comes the work: a plain index of what I've built, each with its own page.
 
-**Live:** [1618-sooty.vercel.app](https://1618-sooty.vercel.app)
+**Live:** [onkaryaglewad.in](https://onkaryaglewad.in)
 
 ## Live, for real
 
@@ -24,6 +24,9 @@ A few things on the page are happening right now rather than written once:
 - **Work.** Projects with a public repository say when they were last updated.
 
 If a live source can't be reached, that piece is simply left out. Nothing is made up.
+
+The site has no cookies, analytics or tracking. The [privacy page](https://onkaryaglewad.in/privacy)
+explains exactly what it reads and from where.
 
 ## What's in the work index
 

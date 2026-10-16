@@ -16,7 +16,7 @@ export async function generateMetadata({ params }: { params: Promise<Params> }):
   const { slug } = await params;
   const p = projectBySlug(slug);
   if (!p) return {};
-  return { title: `${p.name}, Onkar Yaglewad`, description: p.tagline };
+  return { title: `${p.name}, Onkar Yaglewad`, description: p.tagline, alternates: { canonical: `/work/${p.slug}` } };
 }
 
 const cell = "border-t border-ink pt-1.5";

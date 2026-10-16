@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMusic, usePresence, useNow } from "@/lib/presence/client";
 import { puneNow, timeAgo } from "@/lib/time";
 import { Playing } from "@/components/live/Playing";
@@ -32,6 +33,10 @@ export function Footer() {
             github
           </a>
         )}
+        <span className="text-quiet">, </span>
+        <Link href="/privacy" className="hover:underline">
+          privacy
+        </Link>
       </p>
       <p className={`${cell} truncate ${latest ? "" : "hidden"} md:block`} aria-live="polite">
         {latest ? (
