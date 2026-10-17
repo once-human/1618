@@ -17,8 +17,14 @@ import { isAdmin, q } from "@/lib/db";
  * Sending the same day again replaces its numbers, so the Shortcut can run
  * several times a day.
  */
+// Shortcuts often sends quantities with their unit attached ("6.1 km", "8,214 steps").
 const num = (v: unknown) => {
-  const n = typeof v === "string" ? Number(v.replace(/,/g, "")) : typeof v === "number" ? v : NaN;
+  const n =
+    typeof v === "number"
+      ? v
+      : typeof v === "string"
+        ? parseFloat(v.replace(/,/g, "").replace(/^[^\d.-]+/, ""))
+        : NaN;
   return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) / 100 : null;
 };
 
