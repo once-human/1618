@@ -1,7 +1,6 @@
 import "server-only";
 import { cacheLife } from "next/cache";
 import { kvGet, q } from "@/lib/db";
-import { stravaConfigured } from "./strava";
 import { HERE_KEY, HERE_URL } from "@/lib/presence/here-config";
 
 /**
@@ -124,10 +123,10 @@ export async function checkSources(): Promise<{ checks: SourceCheck[]; checkedAt
     },
     {
       name: "Strava",
-      what: "runs and rides",
-      ok: stravaConfigured() ? true : null,
+      what: "not used",
+      ok: null,
       ms: null,
-      detail: stravaConfigured() ? "connected" : "not connected yet",
+      detail: "Strava's API terms don't allow showing activities to other people, so runs come from Apple Health instead",
     },
     {
       name: "Apple Health",

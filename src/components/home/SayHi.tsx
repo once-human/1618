@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { publicLinks } from "@/content/profile";
 import { Guestbook } from "./Guestbook";
+import { Talk } from "./Talk";
 
 /** Contact, kept plain. */
 export function SayHi() {
@@ -51,6 +52,7 @@ export function SayHi() {
           </Link>
         </p>
       </div>
+      <Talk />
       <Guestbook />
     </>
   );

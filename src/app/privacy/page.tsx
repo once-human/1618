@@ -92,6 +92,19 @@ export default function Privacy() {
             </p>
           </Part>
 
+          <Part title="If you talk to me">
+            <p>
+              Messages you send through &ldquo;Talk to me&rdquo; are kept in the site&apos;s database
+              and passed to me on Telegram, along with the town your connection comes from and the
+              page you were on, so I know who I&apos;m talking to. They aren&apos;t shown to anyone
+              else. My replies are kept with them and sent back to your browser, which remembers a
+              random code for the conversation so you can pick it up later. Telegram&apos;s handling
+              is covered by the{" "}
+              <Ext href="https://telegram.org/privacy">Telegram privacy policy</Ext>. Want a
+              conversation deleted? Ask me in it, and it&apos;s gone.
+            </p>
+          </Part>
+
           <Part title="If you post something">
             <p>
               When you send me a song or sign the guestbook, the site keeps what you typed (your
@@ -154,9 +167,8 @@ export default function Privacy() {
               GitHub&apos;s public API.
             </p>
             <p>
-              My runs and rides come from Strava, read only, and only the activities I&apos;ve made
-              public. Steps, sleep and workouts come from Apple Health, sent by a shortcut on my own
-              phone, and only the numbers I choose to send.
+              Steps, distance, calories and workouts come from Apple Health, sent by a shortcut on my
+              own phone, and only the numbers I choose to send.
             </p>
             <p>
               The site keeps a copy of all of this in its own database (Neon, hosted in the United

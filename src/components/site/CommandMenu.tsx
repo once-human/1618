@@ -92,6 +92,7 @@ export function CommandMenu() {
       });
     }
     list.push(
+      { group: "Live", label: "Talk to me, live", hint: "goes to my phone", run: section("talk") },
       { group: "Live", label: "Send me a song", run: section("send-a-song") },
       { group: "Live", label: "Sign the guestbook", run: section("guestbook") },
       { group: "This page", label: "The day", run: section("top") },

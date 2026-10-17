@@ -1,11 +1,13 @@
 import { connection } from "next/server";
 import { isAdmin, kvGet, q } from "@/lib/db";
 import { getPlace, getStatus } from "@/lib/presence/server";
-import { stravaConfigured } from "@/lib/history/strava";
+import { owner, telegramConfigured } from "@/lib/talk/telegram";
+import { placeName } from "@/lib/geo";
 
 /**
  * My private control page: open /admin?key=<ADMIN_SECRET>. Hide or delete
- * posts, set my status, see how the history store is doing, connect Strava.
+ * posts, set my status, see how the history store is doing, connect
+ * Telegram for live chat, get the iPhone shortcuts.
  * Plain HTML on purpose: it only has to work.
  */
 const esc = (s: unknown) =>
@@ -16,7 +18,7 @@ export async function GET(req: Request) {
   if (!isAdmin(req)) return new Response("Not found", { status: 404 });
   const key = encodeURIComponent(new URL(req.url).searchParams.get("key") ?? "");
 
-  const [posts, counts, sync, backfill, status, strava, place, health] = await Promise.all([
+  const [posts, counts, sync, backfill, status, tgOwner, place, shortcuts, chats] = await Promise.all([
     q<{ id: number; kind: string; name: string | null; message: string | null; payload: { track?: string; artist?: string } | null; hidden: boolean; created_at: string }>(
       "admin posts",
       (db) => db`SELECT id, kind, name, message, payload, hidden, created_at FROM submissions ORDER BY created_at DESC LIMIT 100`,
@@ -31,9 +33,15 @@ export async function GET(req: Request) {
     kvGet<{ at: string }>("sync:last"),
     kvGet<{ done: boolean }>("backfill:lastfm"),
     getStatus(),
-    kvGet<{ expiresAt: number }>("strava:token"),
+    owner(),
     getPlace(),
-    q<{ n: number }>("admin shortcut", (db) => db`SELECT count(*)::int AS n FROM kv WHERE key = 'shortcut:health'`).then((r) => !!r?.[0]?.n),
+    q<{ key: string }>("admin shortcuts", (db) => db`SELECT key FROM kv WHERE key LIKE 'shortcut:%'`).then((r) => new Set((r ?? []).map((x) => x.key.slice(9)))),
+    q<{ id: string; city: string | null; country: string | null; page: string | null; last_at: string; log: { side: string; text: string; at: string }[] }>("admin chats", (db) =>
+      db`SELECT t.id, t.city, t.country, t.page, t.last_at,
+                json_agg(json_build_object('side', m.side, 'text', m.text, 'at', m.at) ORDER BY m.id) AS log
+         FROM talk_threads t JOIN talk_messages m ON m.thread = t.id
+         GROUP BY t.id ORDER BY t.last_at DESC LIMIT 20`,
+    ),
   ]);
   const c = counts?.[0];
 
@@ -84,10 +92,28 @@ export async function GET(req: Request) {
 <span class=q>Last sync ${sync ? esc(new Date(sync.value.at).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })) : "never"}. Last.fm backfill ${backfill?.value.done ? "complete" : "still running"}.</span>
 <a href="/api/sync?key=${key}">Sync now</a></p>
 
-<h2>Apple Health</h2>
-<p>${health ? "Shortcut ready." : "<span class=q>Shortcut not uploaded yet.</span>"} Open this page on your iPhone in Safari, tap <a href="/api/shortcuts/health">Get the 1618 Health shortcut</a>, then open the download. When it asks, paste your site key. Run it once from the Shortcuts app and allow Health access. Then add a Personal Automation: <b>App → Is Opened</b> (an app you open often), run immediately, and pick “1618 Health”.</p>
-<h2>Strava</h2>
-<p>${stravaConfigured() ? (strava ? "Connected." : `<a href="/api/strava/connect?key=${key}">Connect Strava</a>`) : "<span class=q>Add STRAVA_CLIENT_ID and STRAVA_CLIENT_SECRET in Vercel first.</span>"}</p>
+<h2>Talk to me (Telegram)</h2>
+<p>${
+    !telegramConfigured()
+      ? "<span class=q>Off. Make a bot with @BotFather in Telegram, add its token in Vercel as TELEGRAM_BOT_TOKEN, redeploy, then come back here.</span>"
+      : tgOwner
+        ? `On: visitors' messages go to ${esc(tgOwner.name || "you")} on Telegram. Reply to one to answer. <span class=q>(<a href="/api/telegram/connect?key=${key}">reconnect</a>)</span>`
+        : `Bot is ready. <a href="/api/telegram/connect?key=${key}"><b>Connect Telegram</b></a>, then press Start in the chat that opens. <span class=q>The link works once, for 15 minutes.</span>`
+  }</p>
+${(chats ?? [])
+  .map(
+    (t) => `<details><summary>#${esc(t.id.slice(0, 4))} · ${esc(placeName(t.city, t.country))}${t.page ? ` · ${esc(t.page)}` : ""} · ${t.log.length} messages · ${esc(new Date(t.last_at).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" }))}</summary>
+<ul>${t.log.map((m) => `<li><b>${m.side === "me" ? "me" : "them"}:</b> ${esc(m.text)}</li>`).join("")}</ul></details>`,
+  )
+  .join("")}
+
+<h2>iPhone shortcuts</h2>
+<p class=q>Open this page on your iPhone in Safari, tap one, open the download, and paste your site key when it asks. Run it once from the Shortcuts app to allow access.</p>
+<ul>
+  <li><a href="/api/shortcuts/health">1618 Health</a> ${shortcuts.has("health") ? "" : "<span class=q>(not uploaded yet)</span>"}: today's steps, distance and calories. Automate it: Shortcuts → Automation → <b>App → Is Opened</b> (an app you open often) → run immediately. Health can't be read while the phone is locked, so a time-of-day automation won't work.</li>
+  <li><a href="/api/shortcuts/location">1618 Location</a> ${shortcuts.has("location") ? "" : "<span class=q>(not uploaded yet)</span>"}: your city, for the clock and weather. Automate it: <b>Time of Day</b>, a few times a day, or <b>Arrive</b> at a place.</li>
+  <li><a href="/api/shortcuts/status">1618 Status</a> ${shortcuts.has("status") ? "" : "<span class=q>(not uploaded yet)</span>"}: set the line at the top of the site, or leave it empty to clear it. Put it on the Action Button or Back Tap.</li>
+</ul>
 
 <h2>Songs and guestbook (${(posts ?? []).length})</h2>
 <table>${rows || "<tr><td class=q>Nothing yet.</td></tr>"}</table>

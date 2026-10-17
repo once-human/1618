@@ -17,7 +17,6 @@ when its stamp changes. Slower parts poll their own routes: `/api/listening` (10
 | On repeat this month, when I listen, streak, new-to-me | Last.fm top tracks/artists (1 month) + last 30 days of plays | as above | 1 h |
 | Pinterest profile, boards, mosaics | Profile page data + each board's widget feed | none | 30 min |
 | Latest saves | Widget feed + RSS (save times) | none | 10 min |
-| Runs and rides | Strava API, public activities only | `STRAVA_CLIENT_ID`, `STRAVA_CLIENT_SECRET`, then `/api/strava/connect?key=…` once | synced |
 | Steps, sleep, workouts | Apple Health via an iPhone Shortcut → `POST /api/ingest/health` | Shortcut with `ADMIN_SECRET` | per day |
 | My status | iPhone Shortcut → `POST /api/status` | Shortcut with `ADMIN_SECRET` | expires on its own |
 
@@ -26,7 +25,7 @@ Rule: a signal is real or hidden.
 ## The history store
 
 Neon Postgres (`DATABASE_URL`); schema in `db/schema.sql`. It keeps every scrobble, pin, push,
-Strava activity and Health day, plus song lengths for "minutes listened".
+Health day, plus song lengths for "minutes listened".
 
 **Sync** (`src/lib/history/sync.ts`) pulls only what's new and backfills older Last.fm history 3,000
 plays per run until it reaches the first scrobble. It runs:
@@ -41,7 +40,7 @@ plays per run until it reaches the first scrobble. It runs:
 ## Things only I do
 
 - **`/admin?key=<ADMIN_SECRET>`**: hide or delete guestbook posts and sent songs, set my status,
-  see the store's size and last sync, connect Strava, run a sync.
+  see the store's size and last sync, connect Telegram, get the iPhone shortcuts, run a sync.
 - **Location**: from /admin type a city, or a Shortcut POSTs `{ "city": "Bengaluru", "lat": …, "lon": … }`
   to `/api/location` with the admin header. City level only.
 - **Status Shortcut**: "Get contents of URL", POST to `https://www.onkaryaglewad.in/api/status`,

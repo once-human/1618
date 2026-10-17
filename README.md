@@ -56,7 +56,7 @@ close to the real picture's colour, captioned with what it will show.
 
 Next.js, TypeScript and Tailwind, with GSAP and Lenis for the scroll, set in Archivo (its width axis
 is what squeezes the big words when you scroll fast). Server routes gather the live pieces (Last.fm,
-Apple Music, Pinterest, GitHub, Strava, Open-Meteo) and cache each on its own schedule; a small Neon
+Apple Music, Pinterest, GitHub, Apple Health, Open-Meteo) and cache each on its own schedule; a small Neon
 Postgres database keeps the history. Hosted on Vercel.
 
 ## Run it locally

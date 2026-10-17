@@ -33,3 +33,13 @@ CREATE TABLE IF NOT EXISTS artist_credits (credit text PRIMARY KEY, single boole
 -- Daily visitor hashes, folded into counters.visitors_archived each night
 CREATE TABLE IF NOT EXISTS visitors (day date NOT NULL, who text NOT NULL, PRIMARY KEY (day, who));
 ALTER TABLE here ADD COLUMN IF NOT EXISTS who text;
+
+-- Talk to me live: visitor messages go to my Telegram, my replies come back
+CREATE TABLE IF NOT EXISTS talk_threads (id text PRIMARY KEY, city text, country text, page text, created_at timestamptz NOT NULL DEFAULT now(), last_at timestamptz NOT NULL DEFAULT now());
+CREATE TABLE IF NOT EXISTS talk_messages (id bigserial PRIMARY KEY, thread text NOT NULL REFERENCES talk_threads(id) ON DELETE CASCADE, side text NOT NULL, text text NOT NULL, tg_id bigint, at timestamptz NOT NULL DEFAULT now());
+CREATE INDEX IF NOT EXISTS talk_messages_thread ON talk_messages (thread, id);
+CREATE INDEX IF NOT EXISTS talk_messages_tg ON talk_messages (tg_id) WHERE tg_id IS NOT NULL;
+-- City-level place for today's visitors map (deleted with the hashes each night)
+ALTER TABLE visitors ADD COLUMN IF NOT EXISTS city text, ADD COLUMN IF NOT EXISTS country text, ADD COLUMN IF NOT EXISTS lat real, ADD COLUMN IF NOT EXISTS lon real;
+-- A scrambled code from the sender's browser, so they can be told when I play their song
+ALTER TABLE submissions ADD COLUMN IF NOT EXISTS sender text;

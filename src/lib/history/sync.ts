@@ -3,7 +3,6 @@ import { kvGet, kvSet, q } from "@/lib/db";
 import { scrobbles, trackKey, type Scrobble } from "@/lib/presence/lastfm";
 import { archivePins, getSaved } from "@/lib/presence/pinterest";
 import { appleSong, ghEvents } from "@/lib/presence/server";
-import { stravaActivities } from "./strava";
 import { mightBeSeveral, nameKey, parseCredit, splitCredit } from "./credits";
 
 /**
@@ -24,7 +23,6 @@ export interface SyncReport {
   backfillDone?: boolean;
   pins?: number;
   code?: number;
-  activities?: number;
   lengths?: number;
   credits?: number;
   canon?: number;
@@ -198,28 +196,6 @@ async function syncCode(): Promise<number> {
   return rows?.[0]?.n ?? 0;
 }
 
-async function syncActivities(): Promise<number> {
-  const latest = await q<{ at: string | null }>("activity max", (db) =>
-    db`SELECT max(at) AS at FROM events WHERE kind = 'activity'`,
-  );
-  const after = latest?.[0]?.at ? Math.floor(Date.parse(latest[0].at) / 1000) : 0;
-  const list = await stravaActivities(after);
-  if (!list?.length) return 0;
-  const rows = await q<{ n: number }>("activity insert", (db) =>
-    db`WITH ins AS (
-         INSERT INTO events (id, kind, at, data)
-         SELECT * FROM unnest(
-           ${list.map((a) => `strava:${a.id}`)}::text[],
-           ${list.map(() => "activity")}::text[],
-           ${list.map((a) => a.start)}::timestamptz[],
-           ${list.map((a) => JSON.stringify(a))}::jsonb[]
-         )
-         ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data RETURNING 1
-       ) SELECT count(*)::int AS n FROM ins`,
-  );
-  return rows?.[0]?.n ?? 0;
-}
-
 /**
  * Song lengths, for "minutes listened". Last.fm doesn't know them, so the
  * most-played songs without one are looked up on Apple, a few per run.
@@ -256,10 +232,9 @@ export async function runSync({ force = false } = {}): Promise<SyncReport> {
   }
   await kvSet("sync:last", { at: new Date().toISOString() });
   const t0 = Date.now();
-  const [newPlays, code, activities, pins] = await Promise.all([
+  const [newPlays, code, pins] = await Promise.all([
     syncNewPlays(),
     syncCode(),
-    syncActivities(),
     getSaved(4)
       .then(async (s) => {
         await archivePins(s.pins);
@@ -276,7 +251,6 @@ export async function runSync({ force = false } = {}): Promise<SyncReport> {
     backfillDone: back.done,
     pins,
     code,
-    activities,
     lengths,
     credits,
     canon,
