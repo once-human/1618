@@ -1,14 +1,15 @@
 "use client";
 
 import { useEffect, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { useNow, usePresence } from "@/lib/presence/client";
 import { skyAt, type Sky as SkyState } from "@/lib/sky";
 import { clockIn } from "@/lib/time";
 
 /**
  * /now follows the sky where I am: the page's paper and ink shift with the
- * sun (and cloud, and rain) over my city, with stars on a clear night and
- * rain when it's raining. Put back to normal when you leave the page.
+ * sun (and cloud, and rain) over my city, and the top of the page shows
+ * what's overhead. Put back to normal when you leave the page.
  */
 export function Sky() {
   const presence = usePresence();
@@ -56,43 +57,105 @@ export function Sky() {
       <p className="text-quiet -mt-6 mb-10 max-w-[60ch]">
         This page follows the sky over {place.city} right now: {w.label.toLowerCase() || "sky"}, {w.tempC}°.{next ? ` ${next}` : ""}
       </p>
-      <div aria-hidden className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
-        {sky.stars ? <Stars /> : null}
-        {sky.rain ? <Rain /> : null}
-      </div>
+      {createPortal(<SkyLayer sky={sky} cloud={w.cloud ?? 0} />, document.body)}
     </>
   );
 }
 
-/** A fixed scatter of faint stars, the same every time. */
-function Stars() {
-  const stars = Array.from({ length: 90 }, (_, i) => {
-    const r = (n: number) => ((Math.sin(i * 12.9898 + n * 78.233) * 43758.5453) % 1 + 1) % 1;
-    return { x: r(1) * 100, y: r(2) * 70, s: r(3) < 0.85 ? 1 : 2, o: 0.25 + r(4) * 0.5, d: r(5) * 6 };
-  });
-  return (
-    <>
-      {stars.map((s, i) => (
-        <span
-          key={i}
-          className="bg-ink absolute rounded-full motion-safe:animate-pulse"
-          style={{ left: `${s.x}%`, top: `${s.y}%`, width: s.s, height: s.s, opacity: s.o, animationDelay: `${s.d}s`, animationDuration: "4s" }}
-        />
-      ))}
-    </>
-  );
-}
+// Deterministic "random": the same sky layout on every visit.
+const rnd = (i: number, n: number) => (((Math.sin(i * 12.9898 + n * 78.233) * 43758.5453) % 1) + 1) % 1;
 
-/** Thin falling streaks, faint enough to read through. */
-function Rain() {
+/**
+ * What's overhead, drawn across the top of the page and fading out as you
+ * scroll into the content: stars when it's dark (fewer behind cloud, almost
+ * none in rain), clouds as thick as the actual cloud cover, rain when it's
+ * raining, and a warm glow around sunrise and sunset.
+ */
+function SkyLayer({ sky, cloud }: { sky: SkyState; cloud: number }) {
+  const dark = Math.max(0, 1 - sky.light / 0.35); // stars fade in through dusk
+  const starCount = dark ? Math.round(170 * (1 - Math.min(cloud, 95) / 100) * (sky.rain ? 0.2 : 1)) : 0;
+  const clouds = cloud >= 10 ? Math.min(7, 2 + Math.round(cloud / 16)) : 0;
+  const night = sky.light < 0.5;
+  const cloudAlpha = (night ? 0.1 : 0.06) + (cloud / 100) * (night ? 0.1 : 0.09);
+  const glow = sky.phase === "dawn" || sky.phase === "dusk";
+
   return (
     <div
-      className="absolute inset-[-10%] opacity-[0.12] motion-safe:animate-[rain_0.7s_linear_infinite]"
-      style={{
-        backgroundImage: "repeating-linear-gradient(100deg, transparent 0 22px, var(--ink) 22px 23px)",
-        backgroundSize: "120px 60px",
-        maskImage: "repeating-linear-gradient(180deg, #000 0 18px, transparent 18px 46px)",
-      }}
-    />
+      aria-hidden
+      className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[105svh] overflow-hidden"
+      style={{ maskImage: "linear-gradient(to bottom, #000 0%, #000 45%, transparent 100%)", WebkitMaskImage: "linear-gradient(to bottom, #000 0%, #000 45%, transparent 100%)" }}
+    >
+      {glow ? (
+        <div
+          className="absolute inset-0"
+          style={{ background: `radial-gradient(ellipse 70% 60% at ${sky.phase === "dawn" ? "15%" : "85%"} 0%, rgba(255, 158, 84, ${night ? 0.28 : 0.4}), transparent 70%)` }}
+        />
+      ) : null}
+
+      {starCount ? (
+        <div className="absolute inset-0" style={{ opacity: dark }}>
+          {Array.from({ length: starCount }, (_, i) => {
+            const size = rnd(i, 3) < 0.7 ? 1.5 : rnd(i, 3) < 0.92 ? 2.5 : 3.5;
+            return (
+              <span
+                key={i}
+                className="sky-anim bg-ink absolute rounded-full"
+                style={{
+                  left: `${rnd(i, 1) * 100}%`,
+                  top: `${Math.pow(rnd(i, 2), 1.4) * 80}%`, // thicker near the top
+                  width: size,
+                  height: size,
+                  opacity: 0.45 + rnd(i, 4) * 0.55,
+                  boxShadow: size > 2 ? "0 0 6px 1px var(--ink)" : undefined,
+                  animation: `twinkle ${2.5 + rnd(i, 6) * 4}s ease-in-out ${rnd(i, 5) * -6}s infinite`,
+                }}
+              />
+            );
+          })}
+        </div>
+      ) : null}
+
+      {Array.from({ length: clouds }, (_, i) => {
+        const wide = 30 + rnd(i, 8) * 28;
+        return (
+          <div
+            key={i}
+            className="sky-anim absolute"
+            style={{
+              left: `${-12 + rnd(i, 7) * 90}%`,
+              top: `${2 + rnd(i, 9) * 32}%`,
+              width: `${wide}vw`,
+              height: `${9 + rnd(i, 10) * 9}vh`,
+              animation: `drift ${80 + rnd(i, 11) * 80}s ease-in-out ${rnd(i, 12) * -80}s infinite alternate`,
+            }}
+          >
+            {/* Three overlapping puffs make a cloud rather than a blob. */}
+            {[
+              [0, 30, 55, 70],
+              [28, 0, 45, 100],
+              [55, 25, 45, 75],
+            ].map(([l, t, wd, h], j) => (
+              <span
+                key={j}
+                className="bg-ink absolute rounded-[50%]"
+                style={{ left: `${l}%`, top: `${t}%`, width: `${wd}%`, height: `${h}%`, opacity: cloudAlpha, filter: "blur(38px)" }}
+              />
+            ))}
+          </div>
+        );
+      })}
+
+      {sky.rain ? (
+        <div
+          className="sky-anim absolute inset-[-10%] opacity-[0.22]"
+          style={{
+            animation: "rain 0.6s linear infinite",
+            backgroundImage: "repeating-linear-gradient(100deg, transparent 0 18px, var(--ink) 18px 19px)",
+            backgroundSize: "100px 60px",
+            maskImage: "repeating-linear-gradient(180deg, #000 0 18px, transparent 18px 40px)",
+          }}
+        />
+      ) : null}
+    </div>
   );
 }

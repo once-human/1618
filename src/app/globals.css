@@ -123,6 +123,17 @@ body {
     background-color 1.2s ease,
     color 1.2s ease;
 }
+@keyframes twinkle {
+  0%, 100% { transform: scale(1); filter: brightness(1); }
+  50% { transform: scale(0.6); filter: brightness(0.6); opacity: 0.25; }
+}
+@keyframes drift {
+  from { transform: translateX(-5vw); }
+  to { transform: translateX(5vw); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sky-anim { animation: none !important; }
+}
 @keyframes rain {
   from {
     transform: translate3d(0, -60px, 0);

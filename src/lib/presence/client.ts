@@ -4,6 +4,7 @@ import { useEffect, useSyncExternalStore } from "react";
 import type { ListeningStats, Live, Music, Presence, Saved, Submission, TodayEvent } from "./types";
 import type { Replay, RangeSummary } from "@/lib/history/query";
 import { artSet } from "@/lib/art";
+import { isBotBrowser, whenHuman } from "@/lib/bots";
 
 /**
  * Shared pollers: every component reading the same endpoint subscribes to one
@@ -162,11 +163,13 @@ const visitSubs = new Set<() => void>();
 
 export function useVisits(): number | null {
   useEffect(() => {
-    if (counted) return;
+    if (counted || isBotBrowser()) return;
     counted = true;
-    fetch("/api/visit", { method: "POST" })
-      .then((r) => r.json())
-      .then((d: { visits: number | null }) => {
+    // Counted on the first thing a person does, so crawlers that run the page aren't.
+    void whenHuman().then(() => fetch("/api/visit", { method: "POST" }))
+      .then((r) => r?.json())
+      .then((d: { visits: number | null } | undefined) => {
+        if (!d) return;
         visits = d.visits;
         visitSubs.forEach((f) => f());
       })

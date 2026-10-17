@@ -1,6 +1,7 @@
 import { connection } from "next/server";
 import { q, visitorKey } from "@/lib/db";
 import { geoOf } from "@/lib/geo";
+import { isBotAgent } from "@/lib/bots";
 
 /**
  * Visitors so far: each person counts once a day, however many times they
@@ -9,6 +10,8 @@ import { geoOf } from "@/lib/geo";
  * folded into a plain number and deleted.
  */
 export async function POST(req: Request) {
+  // Programs aren't visitors (the page only sends this after a person does something, but check anyway).
+  if (isBotAgent(req.headers.get("user-agent"))) return Response.json({ visits: null }, { headers: { "Cache-Control": "no-store" } });
   const who = visitorKey(req);
   const g = geoOf(req);
   const day = new Date(Date.now() + 5.5 * 3600_000).toISOString().slice(0, 10);

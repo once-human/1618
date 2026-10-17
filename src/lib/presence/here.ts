@@ -1,6 +1,7 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
+import { isBotBrowser } from "@/lib/bots";
 import type { RealtimeChannel, RealtimeClient } from "@supabase/realtime-js";
 import { HERE_KEY as KEY, HERE_URL as URL } from "./here-config";
 import { Roster, type Here } from "./roster";
@@ -240,7 +241,8 @@ function refresh() {
 }
 
 async function join() {
-  if (channel || joining) return;
+  // Automated and headless browsers aren't people; they don't count as here.
+  if (channel || joining || isBotBrowser()) return;
   joining = true;
   try {
     // The device code and the realtime library load side by side.
