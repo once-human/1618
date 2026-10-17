@@ -10,7 +10,11 @@ import { artSet } from "@/lib/art";
  * store, so there's only ever one request in flight. Each refreshes on an
  * interval while the tab is visible, and straight away when you come back.
  */
-function createPoller<T>(url: string | (() => string), everyMs: number, opts: { etag?: boolean; onData?: (d: T) => void } = {}) {
+function createPoller<T>(
+  url: string | (() => string),
+  everyMs: number,
+  opts: { etag?: boolean; onData?: (d: T) => void } = {},
+) {
   let data: T | null = null;
   let etag: string | null = null;
   const subs = new Set<() => void>();
@@ -56,10 +60,15 @@ function createPoller<T>(url: string | (() => string), everyMs: number, opts: { 
     };
   }
 
-  return { subscribe, get: () => data, refresh: load, set: (d: T) => ((data = d), subs.forEach((f) => f())) };
+  return {
+    subscribe,
+    get: () => data,
+    refresh: load,
+    set: (d: T) => ((data = d), subs.forEach((f) => f())),
+  };
 }
 
-const usePoller = <T,>(p: ReturnType<typeof createPoller<T>>): T | null =>
+const usePoller = <T>(p: ReturnType<typeof createPoller<T>>): T | null =>
   useSyncExternalStore(p.subscribe, p.get, () => null);
 
 /* ---- Pinterest: fetched once, then only when the live stamp says it changed ---- */
@@ -86,7 +95,7 @@ const live = createPoller<Live>("/api/live", 15_000, {
   },
 });
 
-const select = <T,>(pick: (l: Live) => T) => {
+const select = <T>(pick: (l: Live) => T) => {
   let last: Live | null = null;
   let value: T | null = null;
   return () => {
@@ -130,7 +139,9 @@ export function addSubmission(s: Submission) {
 }
 
 /** One range from the history store, fetched on demand. */
-export async function fetchHistory(query: string): Promise<(RangeSummary & { label: string }) | null> {
+export async function fetchHistory(
+  query: string,
+): Promise<(RangeSummary & { label: string }) | null> {
   try {
     const res = await fetch(`/api/history?${query}`);
     return res.ok ? await res.json() : null;
@@ -139,76 +150,9 @@ export async function fetchHistory(query: string): Promise<(RangeSummary & { lab
   }
 }
 
-/* ---- People here right now ---- */
+/* ---- People here right now: see ./here.ts ---- */
 
-let hereCount: number | null = null;
-const hereSubs = new Set<() => void>();
-let hereTimer: ReturnType<typeof setInterval> | null = null;
-
-/**
- * One random id per open tab. It lives in this tab's session storage so a
- * refresh keeps it (and doesn't count you twice), and disappears when the tab
- * closes. It means nothing outside this tab.
- */
-function tabId(): string {
-  const make = () => Math.random().toString(36).slice(2, 12) + Math.random().toString(36).slice(2, 12);
-  try {
-    const have = sessionStorage.getItem("here-id");
-    if (have && /^[a-z0-9]{8,40}$/i.test(have)) return have;
-    const id = make();
-    sessionStorage.setItem("here-id", id);
-    return id;
-  } catch {
-    return (memoryId ??= make());
-  }
-}
-let memoryId: string | undefined;
-
-async function beat() {
-  if (document.visibilityState !== "visible") return;
-  try {
-    const res = await fetch("/api/here", { method: "POST", body: JSON.stringify({ id: tabId() }) });
-    if (!res.ok) return;
-    hereCount = ((await res.json()) as { here: number | null }).here;
-    hereSubs.forEach((f) => f());
-  } catch {
-    /* ignore */
-  }
-}
-
-/** Closing or switching away leaves straight away, so the count never lags. */
-function leave() {
-  try {
-    navigator.sendBeacon("/api/here", JSON.stringify({ id: tabId(), leave: true }));
-  } catch {
-    /* ignore */
-  }
-}
-
-const onVis = () => (document.visibilityState === "visible" ? void beat() : leave());
-
-function subscribeHere(f: () => void) {
-  hereSubs.add(f);
-  if (!hereTimer) {
-    void beat();
-    hereTimer = setInterval(beat, 15_000);
-    document.addEventListener("visibilitychange", onVis);
-    window.addEventListener("pagehide", leave);
-  }
-  return () => {
-    hereSubs.delete(f);
-    if (!hereSubs.size && hereTimer) {
-      clearInterval(hereTimer);
-      hereTimer = null;
-      document.removeEventListener("visibilitychange", onVis);
-      window.removeEventListener("pagehide", leave);
-    }
-  };
-}
-
-export function useHere(): number | null {
-  return useSyncExternalStore(subscribeHere, () => hereCount, () => null);
-}
+export { useHere, type Here } from "./here";
 
 /* ---- Visitors so far: each person once a day ---- */
 
@@ -254,7 +198,11 @@ export function togglePreview(key: string, url: string) {
   if (!player) {
     player = new Audio();
     player.preload = "none";
-    player.addEventListener("timeupdate", () => player && emit({ progress: player.duration ? player.currentTime / player.duration : 0 }));
+    player.addEventListener(
+      "timeupdate",
+      () =>
+        player && emit({ progress: player.duration ? player.currentTime / player.duration : 0 }),
+    );
     player.addEventListener("ended", () => emit({ playing: false, progress: 0, key: null }));
     player.addEventListener("pause", () => emit({ playing: false }));
     player.addEventListener("play", () => emit({ playing: true }));

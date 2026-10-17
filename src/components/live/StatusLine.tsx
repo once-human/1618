@@ -20,9 +20,21 @@ export function StatusLine({ className = "" }: { className?: string }) {
 
   const playing = music?.tracks?.find((t) => t.nowPlaying) ?? null;
   const signals = [
-    music?.tracks?.[0]?.at ? { at: music.tracks[0].at, what: `played ${music.tracks[0].track}` } : null,
-    presence.github ? { at: presence.github.at, what: `${presence.github.action.toLowerCase()} ${presence.github.repo}` } : null,
-    saved?.pins[0]?.at ? { at: saved.pins[0].at, what: `saved a pin${saved.pins[0].board ? ` to ${saved.pins[0].board}` : ""}` } : null,
+    music?.tracks?.[0]?.at
+      ? { at: music.tracks[0].at, what: `played ${music.tracks[0].track}` }
+      : null,
+    presence.github
+      ? {
+          at: presence.github.at,
+          what: `${presence.github.action.toLowerCase()} ${presence.github.repo}`,
+        }
+      : null,
+    saved?.pins[0]?.at
+      ? {
+          at: saved.pins[0].at,
+          what: `saved a pin${saved.pins[0].board ? ` to ${saved.pins[0].board}` : ""}`,
+        }
+      : null,
   ].filter((x): x is { at: string; what: string } => !!x);
   const latest = signals.sort((a, b) => b.at.localeCompare(a.at))[0] ?? null;
   const since = latest ? now - Date.parse(latest.at) : Infinity;
@@ -35,7 +47,8 @@ export function StatusLine({ className = "" }: { className?: string }) {
     state = "active";
     line = (
       <>
-        Awake, listening to <span className="font-semibold">{playing.track}</span> by {playing.artist}.
+        Awake, listening to <span className="font-semibold">{playing.track}</span> by{" "}
+        {playing.artist}.
       </>
     );
   } else if (since < 15 * 60_000 && latest) {
@@ -43,7 +56,11 @@ export function StatusLine({ className = "" }: { className?: string }) {
     line = <>Around. Just {latest.what}.</>;
   } else if (since < 2 * 3600_000 && latest) {
     state = "around";
-    line = <>Around. Last {latest.what}, {timeAgo(latest.at, now)}.</>;
+    line = (
+      <>
+        Around. Last {latest.what}, {timeAgo(latest.at, now)}.
+      </>
+    );
   } else {
     state = "away";
     const asleep = mine.hour >= 1 && mine.hour < 8;
@@ -60,8 +77,13 @@ export function StatusLine({ className = "" }: { className?: string }) {
   const visitorZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const sameZone =
     visitorZone === place.tz ||
-    (["Asia/Kolkata", "Asia/Calcutta"].includes(visitorZone) && ["Asia/Kolkata", "Asia/Calcutta"].includes(place.tz));
-  const theirs = new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(new Date(now));
+    (["Asia/Kolkata", "Asia/Calcutta"].includes(visitorZone) &&
+      ["Asia/Kolkata", "Asia/Calcutta"].includes(place.tz));
+  const theirs = new Intl.DateTimeFormat("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).format(new Date(now));
   const steps = presence.health?.steps;
 
   return (
@@ -79,7 +101,7 @@ export function StatusLine({ className = "" }: { className?: string }) {
           )}
         </span>
       </p>
-      <p className="tnum mt-3 text-quiet md:pl-[1.6rem]">
+      <p className="tnum text-quiet mt-3 md:pl-[1.6rem]">
         {sameZone ? (
           <>
             It&apos;s {mine.label} here in {place.city}.
@@ -90,21 +112,33 @@ export function StatusLine({ className = "" }: { className?: string }) {
           </>
         )}
         {typeof steps === "number" && steps > 0 ? <> {fmtNum(steps)} steps today.</> : null}
-        {here != null && here > 0 ? (
-          <> {here > 1 ? `${here} people here right now, you included.` : "Just you here right now."}</>
-        ) : null}
+        {here && here.people > 0 ? <> {hereLine(here)}</> : null}
       </p>
     </div>
   );
 }
 
+/** "Just you here right now, in 3 tabs." / "4 people here right now, you included." */
+function hereLine({ people, mine }: { people: number; mine: number }) {
+  const tabs = mine > 1 ? `, in ${mine} tabs` : "";
+  return people === 1
+    ? `Just you here right now${tabs}.`
+    : `${people} people here right now, you included${mine > 1 ? ` (you're in ${mine} tabs)` : ""}.`;
+}
+
 function Dot({ state }: { state: State }) {
   return (
     <span aria-label={state} className="relative mt-[0.32em] inline-flex size-[0.55em] shrink-0">
-      {state === "active" ? <span className="absolute inset-0 animate-ping rounded-full bg-ink opacity-30 motion-reduce:hidden" /> : null}
+      {state === "active" ? (
+        <span className="bg-ink absolute inset-0 animate-ping rounded-full opacity-30 motion-reduce:hidden" />
+      ) : null}
       <span
-        className={`relative inline-block size-full rounded-full border-2 border-ink ${
-          state === "active" ? "bg-ink" : state === "around" ? "bg-[linear-gradient(90deg,var(--ink)_50%,transparent_50%)]" : ""
+        className={`border-ink relative inline-block size-full rounded-full border-2 ${
+          state === "active"
+            ? "bg-ink"
+            : state === "around"
+              ? "bg-[linear-gradient(90deg,var(--ink)_50%,transparent_50%)]"
+              : ""
         }`}
       />
     </span>

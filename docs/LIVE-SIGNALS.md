@@ -60,9 +60,16 @@ plays per run until it reaches the first scrobble. It runs:
   away; anything can be hidden from `/admin`. Three posts an hour per visitor.
 - **Rate limits** use a salted, one-way hash of the IP that changes daily (`visitorKey` in
   `src/lib/db.ts`); no IP is ever stored.
-- **People here**: each tab keeps one random id in session storage (a reload keeps it), beats every
-  15 s while visible, and sends "gone" on close or switching away. People are counted by the daily
-  visitor hash over the last 35 s, so refreshes and extra tabs don't inflate it.
+- **People here** (`src/lib/presence/here.ts`, `roster.ts`, tested): every tab joins one channel on
+  Supabase Realtime (a free project used for nothing else). A person is a browser: one random id
+  in local storage, so tabs count once and a private window or another device counts separately.
+  Two signals are merged: each tab broadcasts "hi"/"bye" (seen by others in ~5-400 ms), and the
+  server's presence list settles the truth ~2.5 s later and catches tabs that die without a word.
+  A reload keeps its tab id, and someone's last tab gets a 1.5 s grace, so reloads never dip.
+  Background tabs step out after a minute. No connection, no number. Measured live: arrivals
+  50-400 ms, closed tabs <20 ms, closed site 1.5 s, dead machines 1.5-4 s. Free plan: 200 open
+  tabs at once; past that, extra tabs show no count. `presence/` holds a tested self-hosted
+  alternative (one Bun file) for if that's ever outgrown.
 - **Visitors**: each person once a day (`visitors` table of daily hashes); the nightly job folds
   past days into one number and deletes the hashes.
 - **🔥**: a count per song, one per visitor per song every 10 minutes.

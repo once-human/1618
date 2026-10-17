@@ -2,6 +2,7 @@ import "server-only";
 import { cacheLife } from "next/cache";
 import { kvGet, q } from "@/lib/db";
 import { stravaConfigured } from "./strava";
+import { HERE_KEY, HERE_URL } from "@/lib/presence/here-config";
 
 /**
  * Is every live source answering? Each is asked directly (not from a cache),
@@ -44,7 +45,7 @@ export async function checkSources(): Promise<{ checks: SourceCheck[]; checkedAt
   const key = process.env.LASTFM_API_KEY;
   const gh = { headers: { "User-Agent": "1618-portfolio", Accept: "application/vnd.github+json" } };
 
-  const [lastfm, apple, deezer, pin, rss, github, weather, db, sync, health] = await Promise.all([
+  const [lastfm, apple, deezer, pin, rss, github, weather, db, sync, health, here] = await Promise.all([
     user && key
       ? timed(async () => {
           const d = await json<{ recenttracks: { track: { name: string; date?: { uts: string }; "@attr"?: { nowplaying?: string } }[] } }>(
@@ -96,6 +97,12 @@ export async function checkSources(): Promise<{ checks: SourceCheck[]; checkedAt
     }),
     kvGet<{ at: string }>("sync:last"),
     q<{ day: string }>("status health", (db) => db`SELECT max(day)::text AS day FROM health_days`),
+    timed(async () => {
+      // The realtime service that carries "N people here" sits on a small Supabase project.
+      const res = await fetch(`${HERE_URL}/auth/v1/health`, { headers: { apikey: HERE_KEY }, signal: AbortSignal.timeout(6000) });
+      if (!res.ok) throw new Error(res.status === 540 ? "paused" : `answered ${res.status}`);
+      return "answering";
+    }),
   ]);
 
   const checks: SourceCheck[] = [
@@ -107,6 +114,7 @@ export async function checkSources(): Promise<{ checks: SourceCheck[]; checkedAt
     { name: "GitHub", what: "code activity", ...github },
     { name: "Open-Meteo", what: "weather where I am", ...weather },
     { name: "History store", what: "Neon Postgres", ...db },
+    { name: "Realtime", what: "who's here right now", ...here },
     {
       name: "Sync",
       what: "copies new data into the store",

@@ -70,18 +70,22 @@ export default function Privacy() {
               <Ext href="https://vercel.com/legal/privacy-policy">Vercel privacy policy</Ext>.
             </p>
             <p>
-              No cookies and no local storage. The clock shows the time where I am, and your own
-              time next to it, both worked out in your browser. The weather is for the town I&apos;m
-              in, fetched by the server, never based on where you are.
+              No cookies. The clock shows the time where I am, and your own time next to it, both
+              worked out in your browser. The weather is for the town I&apos;m in, fetched by the
+              server, never based on where you are.
             </p>
             <p>
               Two counts, nothing more. The visitor count adds you once a day, however often you
-              reload. And while you&apos;re looking at the page, it says &ldquo;still here&rdquo;
-              every 15 seconds so the site can show how many people are on it right now. For that,
-              the tab keeps one random code in its session storage (so a reload doesn&apos;t count
-              you twice); it disappears when you close the tab, says &ldquo;gone&rdquo; when you
-              leave, and means nothing outside it. Both counts recognise a returning visitor only
-              by the same scrambled, daily-changing code described below, never by your address.
+              reload, recognising a returning visitor only by the scrambled, daily-changing code
+              described below. And to show how many people are on the site right now, your browser
+              keeps one random code in its local storage (so your tabs count as one person) and,
+              while a tab is open, holds a live connection to Supabase Realtime, which passes that
+              code around to the other people on the site and nothing else. The code isn&apos;t
+              linked to your address or anything about you, isn&apos;t stored on any server once you
+              leave, and a private window gets its own. A tab that sits in the background for a
+              minute steps out until you come back. Like any server, Supabase sees your
+              connection&apos;s address while you&apos;re connected; see the{" "}
+              <Ext href="https://supabase.com/privacy">Supabase privacy policy</Ext>.
             </p>
           </Part>
 
@@ -89,14 +93,14 @@ export default function Privacy() {
             <p>
               When you send me a song or sign the guestbook, the site keeps what you typed (your
               name, if you gave one, and your message) and the song you picked, and shows it on the
-              page for everyone. Song searches are passed to Apple Music by the server and not
-              kept.
+              page for everyone. Song searches are passed to Apple Music by the server and not kept.
             </p>
             <p>
-              To count people rather than page loads, and to stop one person flooding the page,
-              the site makes a one-way, scrambled code from your IP address that changes every
-              day. It can&apos;t be turned back into your
-              address, can&apos;t follow you from one day to the next, and is deleted within a few days. The same goes for 🔥 reactions, which are kept only as a count per song.
+              To count people rather than page loads, and to stop one person flooding the page, the
+              site makes a one-way, scrambled code from your IP address that changes every day. It
+              can&apos;t be turned back into your address, can&apos;t follow you from one day to the
+              next, and is deleted within a few days. The same goes for 🔥 reactions, which are kept
+              only as a count per song.
             </p>
             <p>
               I can hide or delete any post, and I&apos;ll remove yours if you ask (see the end of
@@ -148,8 +152,8 @@ export default function Privacy() {
             </p>
             <p>
               My runs and rides come from Strava, read only, and only the activities I&apos;ve made
-              public. Steps, sleep and workouts come from Apple Health, sent by a shortcut on my
-              own phone, and only the numbers I choose to send.
+              public. Steps, sleep and workouts come from Apple Health, sent by a shortcut on my own
+              phone, and only the numbers I choose to send.
             </p>
             <p>
               The site keeps a copy of all of this in its own database (Neon, hosted in the United
@@ -159,8 +163,8 @@ export default function Privacy() {
 
           <Part title="Children">
             <p>
-              The site isn&apos;t aimed at children, and it doesn&apos;t ask anyone, of any age,
-              for personal information.
+              The site isn&apos;t aimed at children, and it doesn&apos;t ask anyone, of any age, for
+              personal information.
             </p>
           </Part>
 

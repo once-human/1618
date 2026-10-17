@@ -14,3 +14,7 @@ jobs:
     timeout-minutes: 3
     steps:
       - run: curl -fsS --max-time 150 https://www.onkaryaglewad.in/api/sync
+      # Free Supabase projects nap after a quiet week; this keeps the one that
+      # carries "N people here" awake. The key is a public, browser-safe one.
+      - run: curl -fsS --max-time 20 -o /dev/null https://dceiyqtvejyxzpvmcnuj.supabase.co/auth/v1/health -H "apikey: sb_publishable_LHJMR1AVPMeQe6U9SeJqug_4ZYHUWsz"
+        continue-on-error: true

@@ -22,7 +22,6 @@ export async function GET(req: Request) {
     ]),
   );
   await Promise.all([
-    q("clean here", (db) => db`DELETE FROM here WHERE last_seen < now() - interval '1 day'`),
     q("clean ratelimit", (db) => db`DELETE FROM ratelimit WHERE window_start < now() - interval '2 days'`),
   ]);
   return Response.json({ sync, issue });

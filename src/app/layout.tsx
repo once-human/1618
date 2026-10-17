@@ -3,6 +3,7 @@ import "@fontsource-variable/archivo/wdth.css";
 import "./globals.css";
 import { SITE_URL } from "@/lib/site";
 import { CommandMenu } from "@/components/site/CommandMenu";
+import { HereKeeper } from "@/components/site/HereKeeper";
 
 const description =
   "Onkar Yaglewad builds consumer products end to end, from the first idea to the last pixel. This is one ordinary day.";
@@ -35,6 +36,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body>
         {children}
         <CommandMenu />
+        <HereKeeper />
       </body>
     </html>
   );
