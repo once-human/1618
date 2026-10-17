@@ -8,6 +8,9 @@ import type { SavedPin } from "@/lib/presence/types";
  * year so far in the style of an annual music recap, kept live.
  */
 
+/** Credits like "Romy & Fred again.." or "A, B feat. C" count once for each artist. */
+const SPLIT = "\\s*(?:,|&|\\s+x\\s+|\\s+feat\\.?\\s+|\\s+ft\\.?\\s+|\\s+with\\s+)\\s*";
+
 /** Songs with no known length count as 3½ minutes. */
 const DEFAULT_MS = 210_000;
 const TZ = "Asia/Kolkata";
@@ -46,7 +49,8 @@ export async function summarise(from: Date, to: Date): Promise<RangeSummary> {
   const [totals, tracks, artists, albums, days, clock, pins, pinCount, code, acts, health, fresh] = await Promise.all([
     q<{ plays: number; songs: number; artists: number; ms: string | null; known: number | null }>("sum totals", (db) =>
       db`SELECT count(*)::int AS plays, count(DISTINCT s.track_key)::int AS songs,
-                count(DISTINCT lower(s.artist))::int AS artists,
+                (SELECT count(DISTINCT lower(a))::int FROM scrobbles s2, regexp_split_to_table(s2.artist, ${SPLIT}) a
+                  WHERE s2.uts >= ${f} AND s2.uts < ${t} AND a <> '') AS artists,
                 sum(coalesce(m.duration_ms, ${DEFAULT_MS}))::text AS ms,
                 avg(CASE WHEN m.duration_ms IS NULL THEN 0 ELSE 1 END)::float AS known
          FROM scrobbles s LEFT JOIN track_meta m ON m.track_key = s.track_key
@@ -60,8 +64,10 @@ export async function summarise(from: Date, to: Date): Promise<RangeSummary> {
          GROUP BY s.track_key ORDER BY plays DESC, max(s.uts) DESC LIMIT 10`,
     ),
     q<{ name: string; plays: number }>("sum artists", (db) =>
-      db`SELECT min(artist) AS name, count(*)::int AS plays FROM scrobbles
-         WHERE uts >= ${f} AND uts < ${t} GROUP BY lower(artist) ORDER BY plays DESC LIMIT 10`,
+      db`SELECT mode() WITHIN GROUP (ORDER BY a) AS name, count(*)::int AS plays
+         FROM scrobbles s, regexp_split_to_table(s.artist, ${SPLIT}) a
+         WHERE s.uts >= ${f} AND s.uts < ${t} AND a <> ''
+         GROUP BY lower(a) ORDER BY plays DESC, max(s.uts) DESC LIMIT 10`,
     ),
     q<{ album: string; artist: string; plays: number; image: string | null }>("sum albums", (db) =>
       db`SELECT min(s.album) AS album, min(s.artist) AS artist, count(*)::int AS plays, max(m.image) AS image
@@ -103,7 +109,8 @@ export async function summarise(from: Date, to: Date): Promise<RangeSummary> {
     q<{ songs: number; artists: number }>("sum new", (db) =>
       db`SELECT
            (SELECT count(*)::int FROM (SELECT min(uts) AS m FROM scrobbles GROUP BY track_key) x WHERE m >= ${f} AND m < ${t}) AS songs,
-           (SELECT count(*)::int FROM (SELECT min(uts) AS m FROM scrobbles GROUP BY lower(artist)) y WHERE m >= ${f} AND m < ${t}) AS artists`,
+           (SELECT count(*)::int FROM (SELECT min(s.uts) AS m FROM scrobbles s, regexp_split_to_table(s.artist, ${SPLIT}) a
+              WHERE a <> '' GROUP BY lower(a)) y WHERE m >= ${f} AND m < ${t}) AS artists`,
     ),
   ]);
 
@@ -141,7 +148,7 @@ export async function summarise(from: Date, to: Date): Promise<RangeSummary> {
       count: pinCount?.[0]?.n ?? 0,
       palette: pinList.flatMap((p) => (p.color ? [p.color] : [])).slice(0, 48),
       boards: [...boards.values()].sort((a, b) => b.count - a.count).slice(0, 6),
-      picks: pinList.slice(0, 8),
+      picks: pinList.slice(0, 8).map((p) => ({ ...p, title: p.title ? p.title.slice(0, 140) : null })),
     },
     code: {
       pushes: (code ?? []).reduce((s, r) => s + r.pushes, 0),
