@@ -26,8 +26,12 @@ A few things on the page are happening right now rather than written once:
   next time you visit it'll tell you if I played it.
 - **Saved.** My Pinterest: profile, boards as little mosaics, the colours of what I've been saving,
   and the latest saves, which slide in on their own.
-- **Talk to me.** Write, and it lands on my phone; when I reply, it shows up on your screen while
-  you're still there. There's a guestbook too. Be nice; a light filter keeps the worst out.
+- **Talk to me.** On [/talk](https://onkaryaglewad.in/talk), write to me, under your name or
+  anonymously. It lands on my phone, and when I reply it shows up on your screen while you're still
+  there (or waits for you on any page if you've left). Your chat stays in your browser; open it on
+  another device with its link, or delete it. Code blocks work, and so does a terminal:
+  `curl -L -d "text=hi&name=YourName" onkaryaglewad.in/talk`. There's a guestbook too. Be nice; a
+  light filter keeps the worst out.
 - **Work.** Projects with a public repository say when they were last updated, and what I was
   listening to while I built them.
 
@@ -35,7 +39,8 @@ Everything the live parts see is also kept, so it can be looked back on: [/histo
 searches any week, month or year, and [/now](https://onkaryaglewad.in/now) is what I'm up to this month,
 with a map of who came by today. Its colours follow the sky over wherever I am: white by day, warm
 at sunset, dark at night, with rain when it rains.
-[/status](https://onkaryaglewad.in/status) shows whether every source is answering.
+[/status](https://onkaryaglewad.in/status) lists everything the site does, where to find it, and
+whether it's working right now.
 
 If a live source can't be reached, that piece is simply left out. Nothing is made up. Press ⌘K
 anywhere to jump around. In a terminal, try:

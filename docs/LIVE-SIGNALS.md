@@ -76,10 +76,23 @@ plays per run until it reaches the first scrobble. It runs:
 - **Visitors**: each person once a day (`visitors` table of daily hashes); the nightly job folds
   past days into one number and deletes the hashes.
 - **🔥**: a count per song, one per visitor per song every 10 minutes.
-- **Talk to me** (`/api/talk`, `/api/telegram`, `src/lib/talk/`): messages are kept and sent to my
-  bot with the visitor's town and page; my replies are pushed to that visitor over a realtime channel
-  only their browser knows (~0.5 s), with a 20 s poll as backup. Links allowed (it's private),
-  slurs and floods filtered, 20 messages per 10 minutes.
+- **Talk to me** (`/talk`, `/api/talk`, `/api/talk/cli`, `/api/telegram`, `src/lib/talk/`): one chat
+  per browser, under a name or anonymous (everyone is asked first; a new name starts a fresh chat).
+  Messages are kept and sent to my bot with the name, town, device and page; my replies (from
+  Telegram or /admin) are pushed to that visitor over a realtime channel only their browser knows
+  (~0.5 s), with a 20 s poll as backup. A chat is a 128-bit code: the only key to it. Visitors can
+  open it elsewhere with its link or delete it (my Telegram copies stay). Terminal:
+  `curl -L -d "text=hi&name=Ana" onkaryaglewad.in/talk`, then `curl -L onkaryaglewad.in/talk/<code>`.
+  Against floods (`src/lib/talk/server.ts`): at most 5 in a row until I reply; no new chat while 5
+  are waiting from that network, and at most 10 unanswered across its chats; 3 new chats an hour and
+  6 a day per network; 20 messages per 10 minutes, or 120 once I've replied in the last 2 hours;
+  the same message twice within 30 s is dropped. Each chat keeps salted one-way codes for its
+  network and device (never the address), so `/block` (Telegram) or Block (/admin) shuts out that
+  network until unblocked.
+- **/admin**: login with the site key (a 30-day HttpOnly, SameSite=Strict cookie signed with it;
+  5 tries per network per 15 minutes; origin-checked; "log out everywhere"). Shows who's on the
+  site and where, chats (read/unread, replies, block, delete), posts, status, place (search, recent,
+  "where I am now", hold), health, sources, Telegram, shortcuts with QR codes, recent logins.
 - **Who's here and where**: towns come from Vercel's IP headers (city level), travel with presence,
   and read as "you, two people in Berlin and someone in Mumbai" (`words.ts`, tested). Scroll
   positions are broadcast at most once a second while 2-8 people are on the site, for the dots.
@@ -91,6 +104,11 @@ plays per run until it reaches the first scrobble. It runs:
   listening history began, grouped into sittings (`sessions.ts`, tested), against what played.
 - **Sky on /now** (`src/lib/sky.ts`, tested for contrast at every 5 minutes in any weather).
 - **`curl -L onkaryaglewad.in`**: terminal clients get `/api/curl` (rewrite in `next.config.ts`).
+- **Bots don't count** (`src/lib/bots.ts`, tested): crawlers, link previewers and automated or
+  headless browsers are left out of who's here, the visitor count and today's map, and a visit only
+  counts after a person moves, touches, scrolls or types.
+- **Sent with the page**: each page streams a cached snapshot of its live data (`src/lib/seed.ts`,
+  `<Seed>`), so it shows as soon as the page starts rather than after another request.
 
 ## Limits worth knowing
 
