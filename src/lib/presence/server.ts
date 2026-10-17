@@ -509,14 +509,27 @@ export async function getWeather(lat: number, lon: number): Promise<Presence["we
   "use cache: remote";
   cacheLife({ stale: 300, revalidate: 900, expire: 7200 });
 
-  const data = await getJson<{
+  type Forecast = {
     current?: { temperature_2m: number; weather_code: number; cloud_cover?: number; precipitation?: number };
     daily?: { sunrise?: number[]; sunset?: number[] };
-  }>(
-    `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code,cloud_cover,precipitation&daily=sunrise,sunset&forecast_days=2&timezone=auto&timeformat=unixtime`,
-  );
+  };
+  const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code,cloud_cover,precipitation&daily=sunrise,sunset&forecast_days=2&timezone=auto&timeformat=unixtime`;
+  let data: Forecast | null = null;
+  for (let attempt = 0; attempt < 2 && !data?.current; attempt++) {
+    try {
+      const res = await fetch(url, { signal: AbortSignal.timeout(TIMEOUT) });
+      if (res.ok) data = (await res.json()) as Forecast;
+      else console.warn(`[weather] Open-Meteo answered ${res.status}`);
+    } catch (e) {
+      console.warn(`[weather] ${(e as Error).message}`);
+    }
+  }
   const c = data?.current;
-  if (!c) return null;
+  if (!c) {
+    // A miss is only remembered for a minute, so one bad moment can't blank the weather for hours.
+    cacheLife({ stale: 30, revalidate: 60, expire: 120 });
+    return null;
+  }
   const label = WMO.find(([codes]) => codes.includes(c.weather_code))?.[1] ?? "";
   const code = c.weather_code;
   return {

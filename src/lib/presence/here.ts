@@ -96,7 +96,8 @@ async function personKey(): Promise<string> {
   if (deviceCache?.day === today) return deviceCache.key;
   try {
     const kept = JSON.parse(sessionStorage.getItem("here-device") ?? "null");
-    if (kept?.day === today && ID.test(kept.key)) {
+    // (Codes saved before towns existed have no "city" field: fetch a fresh one.)
+    if (kept?.day === today && ID.test(kept.key) && "city" in kept) {
       deviceCache = kept;
       myPlace = { city: kept.city ?? null, country: kept.country ?? null };
       return kept.key;
