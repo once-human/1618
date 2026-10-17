@@ -14,7 +14,7 @@
   --color-paper: var(--paper);
   --color-ink: var(--ink);
   --color-quiet: var(--quiet);
-  --font-sans: "Archivo Variable", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --font-sans: var(--font-archivo), "Helvetica Neue", Helvetica, Arial, sans-serif;
 }
 
 html {

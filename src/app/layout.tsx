@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
-import "@fontsource-variable/archivo/wdth.css";
+import localFont from "next/font/local";
 import "./globals.css";
 import { SITE_URL } from "@/lib/site";
 import { profile } from "@/content/profile";
@@ -29,6 +29,20 @@ export const metadata: Metadata = {
   twitter: { card: "summary_large_image", title: "Onkar Yaglewad", description },
 };
 
+/**
+ * Archivo, served with the page: preloaded, and with a fallback sized to
+ * match it exactly, so text doesn't reflow (and the page doesn't jump) when
+ * the real font arrives. Weight 100-900 and width 62-125%, one file.
+ */
+const archivo = localFont({
+  src: "../../node_modules/@fontsource-variable/archivo/files/archivo-latin-wdth-normal.woff2",
+  variable: "--font-archivo",
+  weight: "100 900",
+  display: "swap",
+  declarations: [{ prop: "font-stretch", value: "62% 125%" }],
+  adjustFontFallback: "Arial",
+});
+
 /** Who this site is about, for search engines (schema.org). */
 const identity = {
   "@context": "https://schema.org",
@@ -49,7 +63,7 @@ const identity = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en">
+    <html lang="en" className={archivo.variable}>
       <head>
         {/* Album covers and pins come from these image CDNs; open the connections early. */}
         <link rel="preconnect" href="https://is1-ssl.mzstatic.com" />

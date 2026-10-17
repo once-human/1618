@@ -78,7 +78,8 @@ export function NowPage() {
         </section>
       )}
 
-      {!presence ? <div className="min-h-[7.5rem]" aria-hidden /> : null}
+      {/* Room for the grid below while it loads: one column on phones, six on wide screens. */}
+      {!presence ? <div className="min-h-[26rem] sm:min-h-[15rem] lg:min-h-[10rem] xl:min-h-[6rem]" aria-hidden /> : null}
       {parts.length > 0 && (
         <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
           {parts.map((p) => (
