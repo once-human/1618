@@ -79,7 +79,7 @@ export function VisitorsMap() {
           return (
             <g key={`${p.city}|${p.country}`}>
               <circle cx={x} cy={y} r={r} className="fill-ink" />
-              <circle cx={x} cy={y} r={r} className="stroke-ink animate-ping fill-none motion-reduce:hidden" strokeWidth={0.2} style={{ transformOrigin: `${x}px ${y}px`, animationDuration: "3s" }} />
+              <circle cx={x} cy={y} r={r} className="stroke-ink animate-ping fill-none motion-reduce:hidden" strokeWidth={0.2} style={{ transformBox: "fill-box", transformOrigin: "center", animationDuration: "3s" }} />
               {mine ? <circle cx={x} cy={y} r={r + 1.1} className="stroke-ink fill-none" strokeWidth={0.25} /> : null}
               <title>{`${placeName(p.city, p.country)}: ${p.n}`}</title>
             </g>
