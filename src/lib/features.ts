@@ -99,7 +99,7 @@ export async function checkFeatures(): Promise<Feature[]> {
       id: "talk",
       group: "With you, live",
       name: "Talk to me",
-      what: "Write to me from the site. My reply shows up on your screen while you're there, or waits for you on any page if you've left.",
+      what: "Write to me from the site or a terminal (curl -L -d \"hi\" onkaryaglewad.in/talk). As many chats as you like, each under any name; rename, delete for good, or carry one to another device. My reply shows up on your screen while you're there, or waits for you on any page if you've left.",
       where: [
         { href: "/talk", label: "/talk" },
         { href: "/#talk", label: "end of the day" },
