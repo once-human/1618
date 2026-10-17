@@ -6,8 +6,7 @@ import { SITE_URL } from "@/lib/site";
  * Talk from a terminal. Terminals asking for /talk or /talk/<code> land here
  * (see next.config.ts).
  *
- *   curl -L -d "hey, loved the site" onkaryaglewad.in/talk              start a chat
- *   curl -L -d "text=hi&name=Ana" onkaryaglewad.in/talk                  with a name
+ *   curl -L -d "text=hey, loved the site&name=Ana" onkaryaglewad.in/talk  start a chat (a name is required)
  *   curl -L onkaryaglewad.in/talk/<code>                                 read it, with my replies
  *   curl -L -d "one more thing" onkaryaglewad.in/talk/<code>             keep going
  */
@@ -18,8 +17,7 @@ const text = (s: string, status = 200) =>
 const HELP = `
   Talk to Onkar from your terminal. It goes to his phone.
 
-    curl -L -d "hey, loved the site" ${host}/talk
-    curl -L -d "text=hi there&name=Ana" ${host}/talk
+    curl -L -d "text=hey, loved the site&name=YourName" ${host}/talk
 
   You'll get a code back. Then:
 

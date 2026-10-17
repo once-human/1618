@@ -172,7 +172,8 @@ export async function send(text: string): Promise<Result> {
     const res = await fetch("/api/talk", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ thread: c?.id, text, name: c ? undefined : state.name.trim(), page: location.pathname }),
+      // The name goes with the first message (or with the next one, for a chat from before names were asked for).
+      body: JSON.stringify({ thread: c?.id, text, name: c?.name ? undefined : state.name.trim(), page: location.pathname }),
     });
     const d = (await res.json()) as { ok: boolean; reason?: string; thread?: string; delivered?: boolean; live?: boolean; name?: string | null; message?: TalkMessage };
     if (!d.ok || !d.thread || !d.message) {
@@ -181,7 +182,7 @@ export async function send(text: string): Promise<Result> {
       return { ok: false, reason: d.reason ?? "that didn't go through. try again?" };
     }
     const msg = d.message;
-    if (c) set({ chat: { ...c, messages: [...(state.chat?.messages ?? []).filter((m) => m.id !== temp.id), msg] } });
+    if (c) set({ chat: { ...c, name: c.name ?? d.name ?? null, messages: [...(state.chat?.messages ?? []).filter((m) => m.id !== temp.id), msg] } });
     else {
       set({ chat: { id: d.thread, name: d.name ?? null, messages: [msg], seen: 0 } });
       void listen();

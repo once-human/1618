@@ -11,7 +11,8 @@ import { owner, push, telegramConfigured, tg } from "./telegram";
  * can read, write, rename or delete that one conversation, and nothing else.
  *
  * Keeping it open without letting it become a spam pipe to my phone:
- * - one chat per browser, under one name: a new name means a new chat (the old one is deleted)
+ * - every chat has a name: one chat per browser, under one name; a new name means a new chat
+ *   (the old one is deleted). Chats from before names were asked for get to add one, once.
  * - per network: 20 messages / 10 min; 3 new chats an hour and 6 a day (which also caps name changes); 10 deletes an hour
  * - everyone together: 300 messages and 60 new chats an hour reach my phone at most
  * - the same message twice in a row is dropped; bots that fill the hidden field are dropped
@@ -38,6 +39,8 @@ export const isLive = async () => telegramConfigured() && !!(await owner());
 
 type Fail = { ok: false; reason: string; status: number };
 const fail = (reason: string, status = 400): Fail => ({ ok: false, reason, status });
+
+const currentNameOf = (rows: { name: string | null }[] | null) => rows?.[0]?.name ?? null;
 
 export async function readThreads(want: { id: string; after: number }[]): Promise<Record<string, ThreadView>> {
   const ids = want.map((w) => w.id).filter((id) => THREAD.test(id)).slice(0, 20);
@@ -80,6 +83,7 @@ export async function postMessage(
   const nameIn = typeof input.name === "string" ? input.name : null;
   const name = nameIn === null ? null : moderateName(nameIn);
   if (name && !name.ok) return fail(name.reason);
+  const given = name?.ok && name.text.trim().length >= 2 ? name.text.trim() : null;
 
   const who = visitorKey(req);
   let thread = typeof input.thread === "string" && THREAD.test(input.thread) ? input.thread : null;
@@ -92,6 +96,8 @@ export async function postMessage(
 
   const isNew = !thread;
   let currentName = known?.[0]?.name ?? null; // fixed once the chat starts
+  // Everyone tells me who they are: a chat can't start (or carry on, if it never had one) without a name.
+  if (!given && (isNew || !currentNameOf(known))) return fail(via === "terminal" ? "tell me your name: add &name=YourName" : "tell me your name first 🙂", 400);
   if (isNew) {
     if (!(await allow(`talk-new:${who}`, 3, 3600)) || !(await allow(`talk-new-day:${who}`, 6, 86400)))
       return fail("you've started a few chats already. give it a while before starting another?", 429);
@@ -99,7 +105,7 @@ export async function postMessage(
     thread = randomBytes(16).toString("hex");
     const geo = geoOf(req);
     const page = typeof input.page === "string" ? input.page.slice(0, 80) : null;
-    currentName = name?.ok && name.text ? name.text : null;
+    currentName = given;
     const made = await q("talk new", (db) =>
       db`INSERT INTO talk_threads (id, city, country, page, name, who, via) VALUES (${thread}, ${geo.city}, ${geo.country}, ${page}, ${currentName}, ${who}, ${via})`,
     );
@@ -120,6 +126,12 @@ export async function postMessage(
   const info = await q<{ city: string | null; country: string | null; page: string | null }>("talk touch", (db) =>
     db`UPDATE talk_threads SET last_at = now() WHERE id = ${thread} RETURNING city, country, page`,
   );
+
+  // A chat from before names were asked for: the name is added (once; after that it's fixed).
+  if (!isNew && !currentName && given) {
+    await q("talk name", (db) => db`UPDATE talk_threads SET name = ${given} WHERE id = ${thread} AND name IS NULL`);
+    currentName = given;
+  }
 
   const me = telegramConfigured() ? await owner() : null;
   let delivered = false;

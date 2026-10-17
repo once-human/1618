@@ -42,7 +42,7 @@ export function Talk({ page = false }: { page?: boolean }) {
   return (
     <div id={page ? undefined : "talk"} ref={root} className={page ? "max-w-[46rem]" : "mt-20 max-w-[46rem] scroll-mt-24"}>
       <Availability live={t.live} />
-      {!t.ready ? <div className="min-h-[30vh]" aria-hidden /> : t.chat ? <Conversation key={t.chat.id} chat={t.chat} /> : <NewChat name={t.name} />}
+      {!t.ready ? <div className="min-h-[30vh]" aria-hidden /> : t.chat ? <Conversation key={t.chat.id} chat={t.chat} name={t.name} /> : <NewChat name={t.name} />}
       {page ? <Terminal /> : null}
     </div>
   );
@@ -93,10 +93,7 @@ function NewChat({ name }: { name: string }) {
   return (
     <section aria-label="Start a chat">
       <p className="mb-5 text-[17px] leading-snug">Say hi, ask something, pitch me an idea. No email, no sign-up.</p>
-      <label className="text-quiet mb-5 block max-w-[22rem] text-[13px]">
-        Your name (optional, and it stays with this chat)
-        <input value={name} onChange={(e) => setName(e.target.value)} maxLength={40} placeholder="Anonymous is fine" className={`${field} text-ink text-[16px]`} autoComplete="nickname" />
-      </label>
+      <NameField name={name} label="Your name" note="It stays with this chat." />
       <div className="mb-4 flex flex-wrap gap-2" aria-label="Ways to start">
         {STARTERS.map((s) => (
           <button key={s} type="button" onClick={() => setDraft(s)} className="border-ink/25 hover:border-ink rounded-full border px-3 py-1 text-[13px]">
@@ -104,14 +101,24 @@ function NewChat({ name }: { name: string }) {
           </button>
         ))}
       </div>
-      <Composer value={draft} onChange={setDraft} placeholder="Write to me" />
+      <Composer value={draft} onChange={setDraft} placeholder="Write to me" needName={name.trim().length < 2} />
     </section>
+  );
+}
+
+/** Everyone tells me who they are. */
+function NameField({ name, label, note }: { name: string; label: string; note: string }) {
+  return (
+    <label className="mb-5 block max-w-[22rem] text-[13px]">
+      <span className="font-semibold">{label}</span> <span className="text-quiet">{note}</span>
+      <input value={name} onChange={(e) => setName(e.target.value)} maxLength={40} placeholder="What should I call you?" required className={`${field} text-ink text-[16px]`} autoComplete="name" />
+    </label>
   );
 }
 
 /* ---- the chat ---- */
 
-function Conversation({ chat }: { chat: Chat }) {
+function Conversation({ chat, name }: { chat: Chat; name: string }) {
   const list = useRef<HTMLOListElement>(null);
   const [draft, setDraft] = useState("");
   const count = chat.messages.length;
@@ -132,7 +139,8 @@ function Conversation({ chat }: { chat: Chat }) {
       ) : (
         <p className="text-quiet mb-5">Loading your chat…</p>
       )}
-      <Composer value={draft} onChange={setDraft} placeholder="Write back" />
+      {chat.name ? null : <NameField name={name} label="Before you carry on, what should I call you?" note="It stays with this chat." />}
+      <Composer value={draft} onChange={setDraft} placeholder="Write back" needName={!chat.name && name.trim().length < 2} />
     </section>
   );
 }
@@ -236,15 +244,21 @@ function ChatHeader({ chat }: { chat: Chat }) {
         </div>
       ) : (
         <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-          <p>
-            <span className="text-quiet">You&apos;re </span>
-            <span className="font-semibold">{chat.name || "nameless"}</span>
-            <span className="text-quiet"> here</span>
-          </p>
+          {chat.name ? (
+            <p>
+              <span className="text-quiet">You&apos;re </span>
+              <span className="font-semibold">{chat.name}</span>
+              <span className="text-quiet"> here</span>
+            </p>
+          ) : (
+            <p className="text-quiet">You haven&apos;t told me your name yet.</p>
+          )}
           <p className="text-quiet flex gap-4 text-[13px]">
-            <button type="button" className={btn} onClick={() => (setNameDraft(""), setNote(null), setMode("name"))}>
-              Change name
-            </button>
+            {chat.name ? (
+              <button type="button" className={btn} onClick={() => (setNameDraft(""), setNote(null), setMode("name"))}>
+                Change name
+              </button>
+            ) : null}
             <button type="button" className={btn} onClick={copyLink}>
               Copy link
             </button>
@@ -265,7 +279,7 @@ function ChatHeader({ chat }: { chat: Chat }) {
 
 /* ---- writing ---- */
 
-function Composer({ value, onChange, placeholder }: { value: string; onChange: (v: string) => void; placeholder: string }) {
+function Composer({ value, onChange, placeholder, needName = false }: { value: string; onChange: (v: string) => void; placeholder: string; needName?: boolean }) {
   const box = useRef<HTMLTextAreaElement>(null);
   const [state, setState] = useState<{ kind: "idle" | "sending" | "error" | "note"; text?: string }>({ kind: "idle" });
   const [website, setWebsite] = useState("");
@@ -285,6 +299,7 @@ function Composer({ value, onChange, placeholder }: { value: string; onChange: (
     e?.preventDefault();
     const text = value.trim();
     if (!text || state.kind === "sending" || website) return;
+    if (needName) return setState({ kind: "error", text: "Tell me your name first 🙂" });
     setState({ kind: "sending" });
     const r = await send(text);
     if (!r.ok) return setState({ kind: "error", text: r.reason });
@@ -319,7 +334,7 @@ function Composer({ value, onChange, placeholder }: { value: string; onChange: (
           aria-label="Your message"
           className={`${field} min-h-[2.4rem] flex-1 resize-none text-[16px] leading-snug`}
         />
-        <button type="submit" disabled={!value.trim() || state.kind === "sending"} className="border-ink disabled:text-quiet shrink-0 border-t pt-1.5 font-semibold">
+        <button type="submit" disabled={!value.trim() || needName || state.kind === "sending"} title={needName ? "Tell me your name first" : undefined} className="border-ink disabled:text-quiet shrink-0 border-t pt-1.5 font-semibold">
           {state.kind === "sending" ? "Sending…" : "Send"}
         </button>
       </div>
@@ -348,8 +363,7 @@ function Composer({ value, onChange, placeholder }: { value: string; onChange: (
 
 const HOST = "onkaryaglewad.in";
 const CMDS: [string, string][] = [
-  [`curl -L -d "hey, loved the site" ${HOST}/talk`, "start a chat (you get a code back)"],
-  [`curl -L -d "text=hi&name=Ana" ${HOST}/talk`, "with a name"],
+  [`curl -L -d "text=hey, loved the site&name=YourName" ${HOST}/talk`, "start a chat (you get a code back)"],
   [`curl -L ${HOST}/talk/<code>`, "read it, with my replies"],
   [`curl -L -d "one more thing" ${HOST}/talk/<code>`, "keep going"],
 ];
