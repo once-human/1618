@@ -1,34 +1,38 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
-import { markRead, sendTalk, useTalk } from "@/lib/talk/client";
-import { useNow, usePresence } from "@/lib/presence/client";
-import { clockIn, timeAgo } from "@/lib/time";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { adopt, markRead, newChat, open, remove, rename, send, setName, useTalk, type Chat, type TalkMessage } from "@/lib/talk/client";
+import { useMusic, useNow, usePresence } from "@/lib/presence/client";
+import { clockIn, hourIn, timeAgo } from "@/lib/time";
+import { Rich } from "@/components/talk/Rich";
 
+const MAX = 2000;
 const field = "w-full border-b border-ink bg-transparent py-1.5 outline-none placeholder:text-quiet focus:border-b-2";
+const STARTERS = ["Hey! Loved the site 👋", "I'm building something and want your take", "Are you open to work?", "Feedback on the site:"];
 
 /**
- * Talk to me. What you write lands on my phone (when Telegram is hooked up)
- * and my reply shows up here while you're still on the page; otherwise it
- * waits for me, and the reply shows up the next time you're on the site.
- * Always open, here and on /talk.
+ * Talk to me. On /talk: all your chats down the side, each under whatever
+ * name you like, which you can rename, delete, or carry to another device.
+ * On the home page: just the open chat. Messages land on my phone (when
+ * Telegram is hooked up); my replies show up here, live.
  */
 export function Talk({ page = false }: { page?: boolean }) {
-  const talk = useTalk();
-  const presence = usePresence();
-  const now = useNow();
-  const [text, setText] = useState("");
-  const [name, setName] = useState("");
-  const [state, setState] = useState<{ kind: "idle" | "sending" | "error" | "note"; text?: string }>({ kind: "idle" });
-  const box = useRef<HTMLDivElement>(null);
-  const list = useRef<HTMLOListElement>(null);
+  const t = useTalk();
+  const root = useRef<HTMLDivElement>(null);
 
-  // While the conversation is on screen, replies count as read.
+  // …/talk#<code>: a chat opened from a link, say on another device.
   useEffect(() => {
-    const el = box.current;
+    if (!page) return;
+    const code = location.hash.slice(1);
+    if (adopt(code)) history.replaceState(null, "", location.pathname);
+  }, [page]);
+
+  // While the chat is on screen, my replies count as read.
+  useEffect(() => {
+    const el = root.current;
     if (!el) return;
-    const io = new IntersectionObserver(([e]) => markRead(e.isIntersecting), { threshold: 0.3 });
+    const io = new IntersectionObserver(([e]) => markRead(e.isIntersecting), { threshold: 0.2 });
     io.observe(el);
     return () => {
       io.disconnect();
@@ -36,22 +40,322 @@ export function Talk({ page = false }: { page?: boolean }) {
     };
   }, []);
 
-  useEffect(() => {
-    list.current?.scrollTo({ top: list.current.scrollHeight, behavior: "smooth" });
-  }, [talk.messages.length]);
+  const chat = t.chats.find((c) => c.id === t.active) ?? null;
 
+  return (
+    <div id={page ? undefined : "talk"} ref={root} className={page ? "" : "mt-20 scroll-mt-24"}>
+      <Availability live={t.live} page={page} />
+
+      {!t.ready ? (
+        <div className="min-h-[40vh]" aria-hidden />
+      ) : page ? (
+        <div className="grid grid-cols-1 gap-x-8 gap-y-6 md:grid-cols-[15rem_1fr]">
+          <Chats chats={t.chats} active={t.active} />
+          {chat ? <Conversation key={chat.id} chat={chat} /> : <NewChat name={t.name} hasOthers={t.chats.length > 0} />}
+        </div>
+      ) : (
+        <>
+          {chat ? <Conversation key={chat.id} chat={chat} /> : <NewChat name={t.name} hasOthers={t.chats.length > 0} />}
+          <p className="text-quiet mt-4 text-[13px]">
+            <Link href="/talk" className="hover:text-ink underline decoration-1 underline-offset-4">
+              {t.chats.length > 1 ? `All ${t.chats.length} of your chats, new chats, names and more →` : "Open /talk for more: several chats, names, a terminal →"}
+            </Link>
+          </p>
+        </>
+      )}
+
+      {page ? <Terminal /> : null}
+    </div>
+  );
+}
+
+/* ---- whether I'm around ---- */
+
+function Availability({ live, page }: { live: boolean | null; page: boolean }) {
+  const presence = usePresence();
+  const music = useMusic();
+  const now = useNow();
   const place = presence?.place ?? { city: "Pune", tz: "Asia/Kolkata" };
-  const clock = now ? clockIn(place.tz, new Date(now)) : null;
-  const started = talk.messages.length > 0;
-  const live = talk.live === true;
+  const last = [music?.tracks?.[0]?.at, presence?.github?.at].filter(Boolean).sort().at(-1) as string | undefined;
+  const playing = !!music?.tracks?.find((x) => x.nowPlaying);
+  const since = last && now ? now - Date.parse(last) : Infinity;
+  const hour = now ? hourIn(place.tz, new Date(now)) : 12;
+  const around = playing || since < 20 * 60_000;
+  const state = presence?.status
+    ? `“${presence.status.text}”`
+    : around
+      ? "I'm around right now"
+      : hour >= 1 && hour < 8
+        ? "Probably asleep. I'll see it in the morning"
+        : "Away from the screen. I'll see it soon";
 
-  async function send(e?: React.FormEvent) {
+  return (
+    <div className="border-ink mb-8 grid grid-cols-1 gap-x-8 gap-y-1 border-t pt-2 md:grid-cols-[15rem_1fr]">
+      <p className="flex items-center gap-2 font-semibold">
+        <span className="relative inline-flex size-2">
+          {live && around ? <span className="bg-ink absolute inset-0 animate-ping rounded-full opacity-30 motion-reduce:hidden" /> : null}
+          <span className={`relative size-2 rounded-full ${around ? "bg-ink" : "border-ink border"}`} />
+        </span>
+        {page ? "Talk to me" : live ? "Talk to me, live" : "Talk to me"}
+      </p>
+      <p className="text-quiet">
+        {state}
+        {now ? `. It's ${clockIn(place.tz, new Date(now))} in ${place.city}.` : "."}{" "}
+        {live ? "Messages go straight to my phone; my replies show up right here." : "I reply right here. If you've left, my reply waits for you on any page of the site."}
+      </p>
+    </div>
+  );
+}
+
+/* ---- the list of your chats ---- */
+
+function Chats({ chats, active }: { chats: Chat[]; active: string | null }) {
+  const now = useNow();
+  return (
+    <nav aria-label="Your chats" className="min-w-0">
+      <div className="mb-2 flex items-baseline justify-between gap-3">
+        <h2 className="font-semibold">
+          Your chats {chats.length ? <span className="text-quiet font-normal">{chats.length}</span> : null}
+        </h2>
+        <button type="button" onClick={newChat} className={`underline decoration-1 underline-offset-4 hover:decoration-2 ${active === null ? "font-semibold" : ""}`}>
+          + New chat
+        </button>
+      </div>
+      {chats.length ? (
+        <ul className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 md:mx-0 md:block md:px-0">
+          {chats.map((c) => {
+            const last = c.messages.filter((m) => !m.failed).at(-1);
+            const unread = c.messages.filter((m) => m.side === "me").length - c.seen;
+            const on = c.id === active;
+            return (
+              <li key={c.id} className="shrink-0 md:shrink">
+                <button
+                  type="button"
+                  onClick={() => open(c.id)}
+                  aria-current={on ? "true" : undefined}
+                  className={`border-ink/20 block w-56 border-t py-2 text-left md:w-full ${on ? "border-ink border-t-2" : "hover:border-ink"}`}
+                >
+                  <span className="flex items-baseline justify-between gap-2">
+                    <span className={`truncate ${on || unread > 0 ? "font-semibold" : ""}`}>{c.name || "No name"}</span>
+                    <span className="text-quiet shrink-0 text-[12px]">{last && now ? timeAgo(last.at, now) : ""}</span>
+                  </span>
+                  <span className="text-quiet flex items-center gap-2 text-[13px]">
+                    {unread > 0 ? <span className="bg-ink size-1.5 shrink-0 rounded-full" aria-label={`${unread} new`} /> : null}
+                    <span className="truncate">{last ? `${last.side === "me" ? "Onkar: " : "You: "}${last.text.replace(/\s+/g, " ")}` : "Loading…"}</span>
+                  </span>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      ) : (
+        <p className="text-quiet text-[14px] leading-snug">None yet. Your chats are kept in this browser, and only you and I can read them.</p>
+      )}
+    </nav>
+  );
+}
+
+/* ---- starting one ---- */
+
+function NewChat({ name, hasOthers }: { name: string; hasOthers: boolean }) {
+  const [draft, setDraft] = useState("");
+  return (
+    <section aria-label="New chat" className="min-w-0">
+      <p className="mb-5 max-w-[56ch] text-[17px] leading-snug">
+        {hasOthers ? "A new chat, under any name you like." : "Say hi, ask something, pitch me an idea."} No email, no sign-up.
+      </p>
+      <label className="text-quiet mb-5 block max-w-[22rem] text-[13px]">
+        Your name, for this chat (optional)
+        <input value={name} onChange={(e) => setName(e.target.value)} maxLength={40} placeholder="Anonymous is fine" className={`${field} text-ink text-[16px]`} autoComplete="nickname" />
+      </label>
+      <div className="mb-4 flex flex-wrap gap-2" aria-label="Ways to start">
+        {STARTERS.map((s) => (
+          <button key={s} type="button" onClick={() => setDraft(s)} className="border-ink/25 hover:border-ink rounded-full border px-3 py-1 text-[13px]">
+            {s}
+          </button>
+        ))}
+      </div>
+      <Composer value={draft} onChange={setDraft} placeholder="Write to me" />
+    </section>
+  );
+}
+
+/* ---- a chat ---- */
+
+function Conversation({ chat }: { chat: Chat }) {
+  const list = useRef<HTMLOListElement>(null);
+  const [draft, setDraft] = useState("");
+  const count = chat.messages.length;
+
+  useLayoutEffect(() => {
+    list.current?.scrollTo({ top: list.current.scrollHeight });
+  }, [count]);
+
+  return (
+    <section aria-label={`Chat as ${chat.name || "no name"}`} className="min-w-0">
+      <ChatHeader chat={chat} />
+      {count ? (
+        <ol ref={list} className="mb-5 max-h-[55vh] space-y-3 overflow-y-auto pr-1" aria-live="polite">
+          {chat.messages.map((m, i) => (
+            <Message key={m.id} m={m} name={chat.name} dayBreak={i === 0 || day(m.at) !== day(chat.messages[i - 1].at)} />
+          ))}
+        </ol>
+      ) : (
+        <p className="text-quiet mb-5">Loading this chat…</p>
+      )}
+      <Composer value={draft} onChange={setDraft} placeholder="Write back" />
+    </section>
+  );
+}
+
+const day = (iso: string) => new Date(iso).toDateString();
+function dayLabel(iso: string) {
+  const d = new Date(iso);
+  const today = new Date();
+  const y = new Date(Date.now() - 86400_000);
+  if (d.toDateString() === today.toDateString()) return "Today";
+  if (d.toDateString() === y.toDateString()) return "Yesterday";
+  return d.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" });
+}
+
+function Message({ m, name, dayBreak }: { m: TalkMessage; name: string | null; dayBreak: boolean }) {
+  const mine = m.side === "visitor";
+  const time = new Date(m.at).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+  return (
+    <>
+      {dayBreak ? (
+        <li aria-hidden className="text-quiet flex items-center gap-3 pt-2 text-[12px]">
+          <span className="bg-ink/15 h-px flex-1" />
+          {dayLabel(m.at)}
+          <span className="bg-ink/15 h-px flex-1" />
+        </li>
+      ) : null}
+      <li className={`flex ${mine ? "justify-end" : "justify-start"}`}>
+        <div className={`max-w-[min(46ch,88%)] ${mine ? "bg-ink/[0.06] rounded-[6px] px-3 py-2" : "border-ink border-l-2 py-0.5 pl-3"} ${m.pending ? "opacity-60" : ""}`}>
+          <div className="text-[16px] leading-snug">
+            <Rich text={m.text} />
+          </div>
+          <p className="text-quiet mt-1 text-[11.5px]">
+            {mine ? name || "You" : "Onkar"} · {m.pending ? "sending…" : time}
+          </p>
+        </div>
+      </li>
+    </>
+  );
+}
+
+function ChatHeader({ chat }: { chat: Chat }) {
+  const [mode, setMode] = useState<"idle" | "rename" | "delete">("idle");
+  const [name, setNameDraft] = useState(chat.name ?? "");
+  const [note, setNote] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function doRename(e?: React.FormEvent) {
     e?.preventDefault();
-    if (!text.trim() || state.kind === "sending") return;
+    setBusy(true);
+    const r = await rename(chat.id, name);
+    setBusy(false);
+    if (!r.ok) return setNote(r.reason);
+    setMode("idle");
+    setNote(null);
+  }
+  async function doDelete() {
+    setBusy(true);
+    const r = await remove(chat.id);
+    setBusy(false);
+    if (!r.ok) setNote(r.reason);
+  }
+  async function copyLink() {
+    const url = `${location.origin}/talk#${chat.id}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setNote("Link copied. Open it on another device to carry on there. Anyone with the link can read this chat, so keep it to yourself.");
+    } catch {
+      setNote(url);
+    }
+  }
+
+  const btn = "underline decoration-1 underline-offset-4 hover:decoration-2 disabled:opacity-50";
+  return (
+    <div className="border-ink/20 mb-4 border-b pb-3">
+      {mode === "rename" ? (
+        <form onSubmit={doRename} className="flex flex-wrap items-baseline gap-3">
+          <label className="sr-only" htmlFor={`n-${chat.id}`}>
+            Your name in this chat
+          </label>
+          <input id={`n-${chat.id}`} value={name} onChange={(e) => setNameDraft(e.target.value)} maxLength={40} placeholder="Your name" autoFocus className={`${field} max-w-[16rem] flex-1 text-[16px]`} />
+          <button className={`${btn} font-semibold`} disabled={busy}>
+            Save
+          </button>
+          <button type="button" className={btn} onClick={() => (setMode("idle"), setNote(null))}>
+            Cancel
+          </button>
+        </form>
+      ) : mode === "delete" ? (
+        <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+          <span>Delete this chat for good? It goes from here and from my phone.</span>
+          <button type="button" className={`${btn} font-semibold text-[#c22]`} onClick={doDelete} disabled={busy}>
+            {busy ? "Deleting…" : "Delete"}
+          </button>
+          <button type="button" className={btn} onClick={() => setMode("idle")}>
+            Keep it
+          </button>
+        </div>
+      ) : (
+        <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+          <p>
+            <span className="text-quiet">You&apos;re </span>
+            <span className="font-semibold">{chat.name || "nameless"}</span>
+            <span className="text-quiet"> here</span>
+          </p>
+          <p className="text-quiet flex gap-4 text-[13px]">
+            <button type="button" className={btn} onClick={() => (setNameDraft(chat.name ?? ""), setMode("rename"))}>
+              Rename
+            </button>
+            <button type="button" className={btn} onClick={copyLink}>
+              Copy link
+            </button>
+            <button type="button" className={btn} onClick={() => setMode("delete")}>
+              Delete
+            </button>
+          </p>
+        </div>
+      )}
+      {note ? (
+        <p className="text-quiet mt-2 text-[13px] [overflow-wrap:anywhere]" role="status">
+          {note}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+/* ---- writing ---- */
+
+function Composer({ value, onChange, placeholder }: { value: string; onChange: (v: string) => void; placeholder: string }) {
+  const box = useRef<HTMLTextAreaElement>(null);
+  const [state, setState] = useState<{ kind: "idle" | "sending" | "error" | "note"; text?: string }>({ kind: "idle" });
+  const [website, setWebsite] = useState("");
+
+  // Grow with the text, up to about ten lines.
+  useLayoutEffect(() => {
+    const el = box.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 260)}px`;
+  }, [value]);
+  useEffect(() => {
+    if (value) box.current?.focus();
+  }, [value]);
+
+  async function submit(e?: React.FormEvent) {
+    e?.preventDefault();
+    const text = value.trim();
+    if (!text || state.kind === "sending" || website) return;
     setState({ kind: "sending" });
-    const r = await sendTalk(text, name);
+    const r = await send(text);
     if (!r.ok) return setState({ kind: "error", text: r.reason });
-    setText("");
+    onChange("");
     setState(
       r.delivered
         ? { kind: "idle" }
@@ -61,92 +365,112 @@ export function Talk({ page = false }: { page?: boolean }) {
     );
   }
 
+  const left = MAX - value.length;
   return (
-    <div id={page ? undefined : "talk"} ref={box} className={page ? "" : "mt-20 scroll-mt-24"}>
-      <div className="border-ink mb-6 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-t pt-1.5">
-        <h3 className="flex items-center gap-2 font-semibold">
-          <span className="relative inline-flex size-2">
-            {live ? <span className="bg-ink absolute inset-0 animate-ping rounded-full opacity-30 motion-reduce:hidden" /> : null}
-            <span className={`relative size-2 rounded-full ${live ? "bg-ink" : "border-ink border"}`} />
-          </span>
-          {live ? "Talk to me, live" : "Talk to me"}
-        </h3>
-        <span className="text-quiet">
-          {live
-            ? "It goes straight to my phone, and my reply shows up right here."
-            : "I read these and reply right here. If you've left by then, my reply waits for you on any page of the site."}
-          {clock ? ` It's ${clock} in ${place.city}.` : ""}
-        </span>
-      </div>
-
-      {started ? (
-        <ol ref={list} className="mb-6 max-h-[50vh] space-y-3 overflow-y-auto pr-1" aria-live="polite">
-          {talk.messages.map((m) => (
-            <li key={m.id} className={m.side === "me" ? "max-w-[46ch]" : "ml-auto max-w-[46ch] text-right"}>
-              <p className={`text-[17px] leading-snug whitespace-pre-wrap ${m.side === "me" ? "" : "text-quiet"}`}>
-                {m.text}
-              </p>
-              <p className="text-quiet mt-0.5 text-[12px]">
-                {m.side === "me" ? "Onkar" : "you"}
-                {now ? `, ${timeAgo(m.at, now)}` : ""}
-              </p>
-            </li>
-          ))}
-        </ol>
-      ) : (
-        <p className="mb-6 max-w-[52ch] text-[17px] leading-snug">
-          Say hi, ask something, pitch me an idea.{" "}
-          {live ? "If I'm awake, I'll answer while you're still here." : "No email or sign-up needed: this browser keeps the conversation."}
-        </p>
-      )}
-
-      <form onSubmit={send} className="grid grid-cols-1 gap-x-4 gap-y-4 md:grid-cols-4">
+    <form onSubmit={submit}>
+      {/* Only bots fill this in. */}
+      <input value={website} onChange={(e) => setWebsite(e.target.value)} tabIndex={-1} autoComplete="off" aria-hidden className="absolute -left-[9999px] size-px opacity-0" name="website" />
+      <div className="flex items-end gap-4">
         <textarea
-          value={text}
-          onChange={(e) => setText(e.target.value)}
+          ref={box}
+          value={value}
+          onChange={(e) => onChange(e.target.value.slice(0, MAX))}
           onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
+            if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
               e.preventDefault();
-              void send();
+              void submit();
             }
           }}
           rows={1}
-          maxLength={1000}
-          placeholder={started ? "Write back" : "Write to me"}
+          placeholder={placeholder}
           aria-label="Your message"
-          className={`${field} resize-none ${started ? "md:col-span-3" : "md:col-span-2"}`}
+          className={`${field} min-h-[2.4rem] flex-1 resize-none text-[16px] leading-snug`}
         />
-        {!started ? (
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Name (optional)"
-            maxLength={40}
-            aria-label="Your name"
-            className={field}
-          />
-        ) : null}
-        <div className="flex items-baseline">
-          <button
-            type="submit"
-            disabled={!text.trim() || state.kind === "sending"}
-            className="border-ink disabled:text-quiet border-t pt-1.5 font-semibold"
-          >
-            {state.kind === "sending" ? "Sending…" : "Send"}
-          </button>
-        </div>
-        {state.text ? (
-          <p className="text-quiet md:col-span-4" role="status">
-            {state.text}
-          </p>
-        ) : null}
-      </form>
+        <button type="submit" disabled={!value.trim() || state.kind === "sending"} className="border-ink disabled:text-quiet shrink-0 border-t pt-1.5 font-semibold">
+          {state.kind === "sending" ? "Sending…" : "Send"}
+        </button>
+      </div>
+      <p className="text-quiet mt-2 flex flex-wrap justify-between gap-x-4 gap-y-1 text-[12px]">
+        <span>
+          <kbd className="font-sans">Enter</kbd> to send · <kbd className="font-sans">Shift+Enter</kbd> for a new line · <code className="font-mono">`code`</code> and <code className="font-mono">```blocks```</code> work · links are fine
+        </span>
+        {left < 300 ? <span className={left < 50 ? "text-ink" : ""}>{left} left</span> : null}
+      </p>
+      {state.text ? (
+        <p className={`mt-2 ${state.kind === "error" ? "text-ink" : "text-quiet"}`} role={state.kind === "error" ? "alert" : "status"}>
+          {state.text}
+        </p>
+      ) : null}
       <p className="text-quiet mt-3 text-[12px]">
-        Only I see these.{" "}
-        <Link href="/privacy" className="hover:text-ink underline decoration-1 underline-offset-4">
+        Only you and I can read these.{" "}
+        <Link href="/privacy#talk" className="hover:text-ink underline decoration-1 underline-offset-4">
           How it works
         </Link>
       </p>
-    </div>
+    </form>
+  );
+}
+
+/* ---- from a terminal ---- */
+
+const HOST = "onkaryaglewad.in";
+const CMDS: [string, string][] = [
+  [`curl -L -d "hey, loved the site" ${HOST}/talk`, "start a chat (you get a code back)"],
+  [`curl -L -d "text=hi&name=Ana" ${HOST}/talk`, "with a name"],
+  [`curl -L ${HOST}/talk/<code>`, "read it, with my replies"],
+  [`curl -L -d "one more thing" ${HOST}/talk/<code>`, "keep going"],
+];
+
+function Terminal() {
+  return (
+    <details className="border-ink group mt-16 border-t pt-2">
+      <summary className="flex cursor-pointer list-none items-baseline justify-between gap-4 font-semibold">
+        Talk from a terminal
+        <span className="text-quiet font-normal group-open:hidden">for developers ↓</span>
+      </summary>
+      <p className="text-quiet mt-3 max-w-[64ch]">
+        Same chat, no browser. It reaches my phone the same way, and a chat started in the terminal opens here too with{" "}
+        <code className="font-mono text-[0.9em]">{HOST}/talk#&lt;code&gt;</code>. Same limits as the page.
+      </p>
+      <ul className="mt-4 space-y-2">
+        {CMDS.map(([cmd, what]) => (
+          <li key={cmd}>
+            <CopyLine cmd={cmd} />
+            <span className="text-quiet ml-1 text-[12px]">{what}</span>
+          </li>
+        ))}
+      </ul>
+      <p className="text-quiet mt-4 text-[12px]">
+        Or the JSON API: <code className="font-mono">GET/POST/PATCH/DELETE /api/talk</code>, described at the top of{" "}
+        <a href="https://github.com/once-human/1618/blob/main/src/app/api/talk/route.ts" className="hover:text-ink underline decoration-1 underline-offset-4" target="_blank" rel="noopener noreferrer">
+          its source
+        </a>
+        .
+      </p>
+    </details>
+  );
+}
+
+function CopyLine({ cmd }: { cmd: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <span className="bg-ink text-paper inline-flex max-w-full items-center gap-3 rounded-[4px] px-3 py-1.5 font-mono text-[12.5px]">
+      <span className="truncate">
+        <span className="opacity-50">$ </span>
+        {cmd}
+      </span>
+      <button
+        type="button"
+        className="shrink-0 opacity-60 hover:opacity-100"
+        onClick={() =>
+          void navigator.clipboard?.writeText(cmd).then(() => {
+            setCopied(true);
+            setTimeout(() => setCopied(false), 1400);
+          })
+        }
+      >
+        {copied ? "copied" : "copy"}
+      </button>
+    </span>
   );
 }

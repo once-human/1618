@@ -40,8 +40,8 @@ export async function GET(req: Request) {
     owner(),
     getPlace(),
     q<{ key: string }>("admin shortcuts", (db) => db`SELECT key FROM kv WHERE key LIKE 'shortcut:%'`).then((r) => new Set((r ?? []).map((x) => x.key.slice(9)))),
-    q<{ id: string; city: string | null; country: string | null; page: string | null; last_at: string; log: { side: string; text: string; at: string }[] }>("admin chats", (db) =>
-      db`SELECT t.id, t.city, t.country, t.page, t.last_at,
+    q<{ id: string; name: string | null; blocked: boolean; via: string | null; city: string | null; country: string | null; page: string | null; last_at: string; log: { side: string; text: string; at: string }[] }>("admin chats", (db) =>
+      db`SELECT t.id, t.name, t.blocked, t.via, t.city, t.country, t.page, t.last_at,
                 json_agg(json_build_object('side', m.side, 'text', m.text, 'at', m.at) ORDER BY m.id) AS log
          FROM talk_threads t JOIN talk_messages m ON m.thread = t.id
          GROUP BY t.id ORDER BY t.last_at DESC LIMIT 20`,
@@ -111,7 +111,7 @@ ${(chats ?? [])
   .map(
     (t, i) => {
       const waiting = t.log.at(-1)?.side !== "me";
-      return `<details id="chat-${esc(t.id.slice(0, 8))}"${i === 0 || waiting ? " open" : ""}><summary>${waiting ? "<b>● waiting</b> · " : ""}#${esc(t.id.slice(0, 4))} · ${esc(placeName(t.city, t.country))}${t.page ? ` · ${esc(t.page)}` : ""} · ${t.log.length} messages · ${esc(new Date(t.last_at).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" }))}</summary>
+      return `<details id="chat-${esc(t.id.slice(0, 8))}"${i === 0 || waiting ? " open" : ""}><summary>${waiting ? "<b>● waiting</b> · " : ""}#${esc(t.id.slice(0, 4))} · <b>${esc(t.name || "no name")}</b>${t.blocked ? " · blocked" : ""}${t.via === "terminal" ? " · terminal" : ""} · ${esc(placeName(t.city, t.country))}${t.page ? ` · ${esc(t.page)}` : ""} · ${t.log.length} messages · ${esc(new Date(t.last_at).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" }))}</summary>
 <ul>${t.log.map((m) => `<li><b>${m.side === "me" ? "me" : "them"}:</b> ${esc(m.text)}</li>`).join("")}</ul>
 <form method="post" action="/api/talk/reply"><input type="hidden" name="thread" value="${esc(t.id)}"><input type="text" name="text" placeholder="Reply (shows up on their screen)" maxlength="2000" required> <button>Send</button></form></details>`;
     },

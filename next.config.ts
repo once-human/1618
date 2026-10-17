@@ -12,6 +12,17 @@ const nextConfig: NextConfig = {
           has: [{ type: "header", key: "user-agent", value: "(curl|Wget|HTTPie|xh)/.*" }],
           destination: "/api/curl",
         },
+        // Talk from a terminal: curl -L -d "hi" onkaryaglewad.in/talk
+        {
+          source: "/talk",
+          has: [{ type: "header", key: "user-agent", value: "(curl|Wget|HTTPie|xh)/.*" }],
+          destination: "/api/talk/cli",
+        },
+        {
+          source: "/talk/:code([a-f0-9]{32})",
+          has: [{ type: "header", key: "user-agent", value: "(curl|Wget|HTTPie|xh)/.*" }],
+          destination: "/api/talk/cli?t=:code",
+        },
       ],
       afterFiles: [],
       fallback: [],

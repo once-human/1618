@@ -53,14 +53,14 @@ function looksLikeArt(s: string): boolean {
   return symbols / visible.length > 0.45 || s.split("\n").length > 6;
 }
 
-export function moderate(raw: string, { max = 280, required = true, links = false } = {}): Verdict {
+export function moderate(raw: string, { max = 280, required = true, links = false, code = false } = {}): Verdict {
   let text = raw.replace(/\r/g, "").trim();
   if (!text) {
     return required ? { ok: false, reason: pick(["say something first 🙂", "it's empty. type a thing?"]) } : { ok: true, text: "" };
   }
   if (text.length > max) return { ok: false, reason: `bit long. keep it under ${max} characters?` };
   if (!links && LINK.test(text)) return { ok: false, reason: pick(["no links here, just words 🙂", "links get eaten. say it in words?"]) };
-  if (looksLikeArt(text)) return { ok: false, reason: pick(["nice try, artist 🙃", "no drawings please, words only"]) };
+  if (!code && looksLikeArt(text)) return { ok: false, reason: pick(["nice try, artist 🙃", "no drawings please, words only"]) };
 
   const words = text.toLowerCase().split(/[^\p{L}\p{N}@$!|]+/u).map(flatten).filter(Boolean);
   const joined = flatten(text);

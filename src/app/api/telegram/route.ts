@@ -9,7 +9,8 @@ import { owner, push, tg, webhookSecret } from "@/lib/talk/telegram";
  * - "/start <code>" from the one-time link on /admin makes that chat mine.
  * - From me: a reply to a visitor's message answers that visitor; a plain
  *   message goes to whoever wrote most recently (within half an hour).
- *   "/chats" lists the open conversations.
+ *   "/chats" lists the open conversations; "/block" or "/unblock", sent as
+ *   a reply, closes or reopens that visitor's chat.
  * - Anyone else is politely ignored.
  */
 type Msg = {
@@ -44,7 +45,7 @@ export async function POST(req: Request) {
       await kvDelete("telegram:claim");
       await send(
         m.chat.id,
-        "Connected ✅\n\nWhen someone writes to you on onkaryaglewad.in, it shows up here. Swipe to reply to their message and your answer appears on their screen straight away.\n\nType without replying and it goes to whoever wrote most recently. /chats lists open conversations.",
+        "Connected ✅\n\nWhen someone writes to you on onkaryaglewad.in, it shows up here. Swipe to reply to their message and your answer appears on their screen straight away.\n\nType without replying and it goes to whoever wrote most recently. /chats lists open conversations. Reply /block to a message to close that chat.",
       );
     } else if (m.chat.id !== (await owner())?.chatId) {
       await send(m.chat.id, "Hi! This bot only passes messages for onkaryaglewad.in. Say hello there 🙂");
@@ -54,6 +55,28 @@ export async function POST(req: Request) {
 
   const me = await owner();
   if (!me || m.chat.id !== me.chatId) return new Response("ok");
+
+  // /block (as a reply to their message) closes that chat and stops their network writing for a day.
+  if (text === "/block" || text === "/unblock") {
+    const r = m.reply_to_message
+      ? await q<{ thread: string; who: string | null }>("talk block find", (db) =>
+          db`SELECT m.thread, t.who FROM talk_messages m JOIN talk_threads t ON t.id = m.thread WHERE m.tg_id = ${m.reply_to_message!.message_id} LIMIT 1`,
+        )
+      : null;
+    const t = r?.[0];
+    if (!t) {
+      await send(me.chatId, `Reply to one of their messages with ${text}.`, m.message_id);
+      return new Response("ok");
+    }
+    const on = text === "/block";
+    await q("talk block", (db) => db`UPDATE talk_threads SET blocked = ${on} WHERE id = ${t.thread}`);
+    if (t.who) {
+      if (on) await kvSet(`talk-block:${t.who}`, { until: Date.now() + 24 * 3600_000 });
+      else await kvDelete(`talk-block:${t.who}`);
+    }
+    await send(me.chatId, on ? `🚫 #${t.thread.slice(0, 4)} blocked, and their network can't start new chats today. Reply /unblock to undo.` : `✅ #${t.thread.slice(0, 4)} unblocked.`, m.message_id);
+    return new Response("ok");
+  }
 
   if (text === "/chats") {
     const rows = await q<{ id: string; city: string | null; country: string | null; n: number; last: string }>("talk chats", (db) =>
@@ -78,6 +101,11 @@ export async function POST(req: Request) {
       db`SELECT thread FROM talk_messages WHERE tg_id = ${m.reply_to_message!.message_id} LIMIT 1`,
     );
     thread = r?.[0]?.thread ?? null;
+    // Replying to something that isn't a live chat (deleted, or one of my own notes) never falls through to someone else.
+    if (!thread) {
+      await send(me.chatId, "That chat isn't there any more (they may have deleted it), so this didn't go anywhere.", m.message_id);
+      return new Response("ok");
+    }
   }
   if (!thread) {
     const r = await q<{ id: string }>("talk latest", (db) =>

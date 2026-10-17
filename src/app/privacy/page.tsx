@@ -26,9 +26,9 @@ function Ext({ href, children }: { href: string; children: React.ReactNode }) {
 }
 
 /** One ruled row: the heading on the left, the words on the right. */
-function Part({ title, children }: { title: string; children: React.ReactNode }) {
+function Part({ title, id, children }: { title: string; id?: string; children: React.ReactNode }) {
   return (
-    <section className="border-ink grid grid-cols-1 gap-x-4 gap-y-2 border-t pt-1.5 pb-12 md:grid-cols-4">
+    <section id={id} className="border-ink grid scroll-mt-24 grid-cols-1 gap-x-4 gap-y-2 border-t pt-1.5 pb-12 md:grid-cols-4">
       <h2 className="font-semibold">{title}</h2>
       <div className="max-w-[62ch] space-y-3 md:col-span-2">{children}</div>
     </section>
@@ -97,16 +97,27 @@ export default function Privacy() {
             </p>
           </Part>
 
-          <Part title="If you talk to me">
+          <Part title="If you talk to me" id="talk">
             <p>
-              Messages you send through &ldquo;Talk to me&rdquo; are kept in the site&apos;s database
-              and passed to me on Telegram, along with the town your connection comes from and the
-              page you were on, so I know who I&apos;m talking to. They aren&apos;t shown to anyone
-              else. My replies are kept with them and sent back to your browser, which remembers a
-              random code for the conversation so you can pick it up later. Telegram&apos;s handling
-              is covered by the{" "}
-              <Ext href="https://telegram.org/privacy">Telegram privacy policy</Ext>. Want a
-              conversation deleted? Ask me in it, and it&apos;s gone.
+              Messages you send through &ldquo;Talk to me&rdquo; (on the site or from a terminal) are
+              kept in the site&apos;s database and passed to me on Telegram, with the name you gave
+              (if any), the town your connection comes from and the page you were on, so I know who
+              I&apos;m talking to. They aren&apos;t shown to anyone else. My replies are kept with
+              them and sent back to you.
+            </p>
+            <p>
+              Each chat is a random code that only your browser keeps, and it&apos;s the only key to
+              that chat. There&apos;s no account. You can rename yourself in a chat, start as many
+              as you like, or open one on another device with its link (anyone with that link can
+              read it, so keep it to yourself).
+            </p>
+            <p>
+              <strong>Delete</strong> removes a chat for good: from the database, and from my
+              Telegram too, as far as Telegram allows (it lets a bot remove messages from the last 48
+              hours; older ones I delete by hand if you ask). To keep it from turning into spam,
+              there are limits on how often one network can write, and a one-way daily hash of your
+              connection is kept with a chat so I can block a network that abuses it. Telegram&apos;s
+              handling is covered by the <Ext href="https://telegram.org/privacy">Telegram privacy policy</Ext>.
             </p>
           </Part>
 
