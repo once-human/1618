@@ -1,17 +1,21 @@
 import { connection } from "next/server";
 import { q, visitorKey } from "@/lib/db";
+import { geoOf } from "@/lib/geo";
 
 /**
  * Visitors so far: each person counts once a day, however many times they
  * load or refresh. Today's visitors are kept as one-way daily hashes (never an
- * address); each night they're folded into a plain number and deleted.
+ * address) with the town they came from, for today's map; each night they're
+ * folded into a plain number and deleted.
  */
 export async function POST(req: Request) {
   const who = visitorKey(req);
+  const g = geoOf(req);
   const day = new Date(Date.now() + 5.5 * 3600_000).toISOString().slice(0, 10);
   const rows = await q("visit", (db) =>
     db.transaction([
-      db`INSERT INTO visitors (day, who) VALUES (${day}::date, ${who}) ON CONFLICT DO NOTHING`,
+      db`INSERT INTO visitors (day, who, city, country, lat, lon) VALUES (${day}::date, ${who}, ${g.city}, ${g.country}, ${g.lat}, ${g.lon})
+         ON CONFLICT DO NOTHING`,
       db`SELECT (count(*) + coalesce((SELECT n FROM counters WHERE name = 'visitors_archived'), 0))::int AS n FROM visitors`,
     ]),
   );

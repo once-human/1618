@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { usePathname } from "next/navigation";
-import { useHere } from "@/lib/presence/client";
+import { useHere, useVisits } from "@/lib/presence/client";
 import { pageChanged } from "@/lib/presence/here";
 import { OthersRail } from "./OthersRail";
 
@@ -13,6 +13,7 @@ import { OthersRail } from "./OthersRail";
  */
 export function HereKeeper() {
   useHere();
+  useVisits(); // counted once a day, from whichever page they land on
   const path = usePathname();
   useEffect(() => pageChanged(), [path]);
   return <OthersRail />;

@@ -77,7 +77,9 @@ export default function Privacy() {
             <p>
               Two counts, nothing more. The visitor count adds you once a day, however often you
               reload, recognising a returning visitor only by the scrambled, daily-changing code
-              described below. And to show how many people are on the site right now, each open tab
+              described below. For the map of today&apos;s visitors on /now, the town your
+              connection comes from is kept with it (coordinates rounded to about 10 km) and
+              shown only as a dot and a count per town; it&apos;s deleted with the code each night. And to show how many people are on the site right now, each open tab
               holds a live connection to Supabase Realtime and is given a scrambled code for
               the device it&apos;s on, so your tabs, private windows and other browsers on one
               phone or laptop count as one person. The code is worked out by the server from
