@@ -135,13 +135,20 @@ async function load() {
     const first = !state.ready;
     // Chats deleted elsewhere (another device, or by me) drop off the list.
     const gone = Object.entries(d.threads ?? {}).filter(([, t]) => !t.exists).map(([id]) => id);
-    if (gone.length) set({ chats: state.chats.filter((c) => !gone.includes(c.id)), active: gone.includes(state.active ?? "") ? null : state.active });
+    gone.forEach(drop);
     for (const [id, t] of Object.entries(d.threads ?? {})) if (t.exists) merge(id, t.messages, t.name);
     set({ live: d.live, ready: true });
     if (first) listen();
   } catch {
     set({ live: state.live ?? false, ready: true });
   }
+}
+
+/** Take a chat off the list; if it was open, open the next one. */
+function drop(id: string) {
+  const rest = state.chats.filter((c) => c.id !== id);
+  if (rest.length === state.chats.length) return;
+  set({ chats: rest, active: state.active === id ? (rest[0]?.id ?? null) : state.active });
 }
 
 /* ---- live ---- */
@@ -164,7 +171,7 @@ async function listen() {
     ch.on("broadcast", { event: "message" }, ({ payload }) => {
       if (payload && typeof payload.id === "number" && typeof payload.text === "string") merge(id, [payload as TalkMessage]);
     });
-    ch.on("broadcast", { event: "deleted" }, () => set({ chats: state.chats.filter((c) => c.id !== id), active: state.active === id ? null : state.active }));
+    ch.on("broadcast", { event: "deleted" }, () => drop(id));
     ch.subscribe((s) => s === "SUBSCRIBED" && void load()); // back online: catch up
     channels.set(id, ch);
   }
@@ -238,8 +245,7 @@ export async function remove(id: string): Promise<Result> {
   const ch = channels.get(id);
   if (ch && client) void client.removeChannel(ch);
   channels.delete(id);
-  const rest = state.chats.filter((c) => c.id !== id);
-  set({ chats: rest, active: state.active === id ? (rest[0]?.id ?? null) : state.active });
+  drop(id);
   return { ok: true };
 }
 
