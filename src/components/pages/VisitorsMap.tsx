@@ -55,7 +55,7 @@ export function VisitorsMap() {
     };
   }, []);
 
-  if (!data) return <div className="min-h-[40vh]" aria-hidden />;
+  if (!data) return <div className="min-h-[16rem] md:min-h-[23rem] xl:min-h-[38rem]" aria-hidden />;
   const me = myTown();
   const towns = data.places.filter((p) => p.city || p.country);
   const placed = data.places.filter((p) => p.lat != null && p.lon != null);

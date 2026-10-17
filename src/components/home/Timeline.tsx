@@ -13,7 +13,8 @@ const KIND: Record<TodayEvent["kind"], string> = { music: "music", code: "code",
 export function Timeline({ limit = 40 }: { limit?: number }) {
   const t = useTimeline();
   const now = useNow();
-  if (!t || !now) return <div className="min-h-[30vh]" aria-hidden />;
+  // Room for it while it loads (measured: ~1000px on phones, ~900px wider), so nothing below jumps.
+  if (!t || !now) return <div className="min-h-[62rem] md:min-h-[56rem]" aria-hidden />;
   if (!t.events.length) return <p className="border-t border-ink pt-1.5 text-quiet">Quiet couple of days. Nothing to show yet.</p>;
 
   const groups: { day: string; items: TodayEvent[] }[] = [];

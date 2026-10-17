@@ -14,7 +14,7 @@ export function ListeningStats() {
   const s = useListening();
   const presence = usePresence();
   const now = useNow();
-  if (!s) return <div className="min-h-[60vh]" aria-hidden />;
+  if (!s) return <div className="min-h-[68rem] md:min-h-[46rem]" aria-hidden />;
   const nowHour = now ? hourIn(presence?.place.tz ?? "Asia/Kolkata", new Date(now)) : null;
   const top = s.topArtists[0];
 

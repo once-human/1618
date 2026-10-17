@@ -70,7 +70,7 @@ export function Replay() {
 
       <div className="mt-16 grid grid-cols-1 gap-x-10 gap-y-12 md:grid-cols-3">
         <section>
-          <h4 className="mb-2 font-semibold">Top songs</h4>
+          <h3 className="mb-2 font-semibold">Top songs</h3>
           <RankList
             cover={36}
             start={2}
@@ -78,11 +78,11 @@ export function Replay() {
           />
         </section>
         <section>
-          <h4 className="mb-2 font-semibold">Top artists</h4>
+          <h3 className="mb-2 font-semibold">Top artists</h3>
           <RankList items={m.topArtists.slice(0, 10).map((a) => ({ key: a.name, title: a.name, count: a.plays }))} />
         </section>
         <section>
-          <h4 className="mb-2 font-semibold">Month by month</h4>
+          <h3 className="mb-2 font-semibold">Month by month</h3>
           <MonthChart byMonth={r.byMonth} current={currentMonth} />
           <div className="mt-6">
             {r.busiestDay && <Fact k="Busiest day" v={`${longDate(`${r.busiestDay.day}T12:00:00Z`)}, ${fmtNum(r.busiestDay.plays)} plays`} />}
