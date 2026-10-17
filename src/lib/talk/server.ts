@@ -17,9 +17,10 @@ import { deviceName } from "@/lib/ua";
  * - one chat per browser, under one name (a new name means a new chat)
  * - at most 5 messages in a row until I reply; no new chat (or new name) while
  *   5 are waiting from that network; at most 10 unanswered across its chats
- * - per network: 20 messages / 10 min; 3 new chats an hour and 6 a day
- * - everyone together: 300 messages and 60 new chats an hour reach my phone at most
- * - the same message twice in a row is dropped; bots that fill the hidden field are dropped
+ * - per network: 20 messages / 10 min, but 120 while we're actually talking (I've
+ *   replied in the last 2 hours); 3 new chats an hour and 6 a day
+ * - everyone together: 600 messages and 60 new chats an hour reach my phone at most
+ * - the same message twice within 30 seconds is dropped; bots that fill the hidden field are dropped
  * - words get the same moderation as the guestbook (code is fine here)
  * - each chat keeps one-way fingerprints of the network and device it came
  *   from (never the address itself), so /block shuts out that network for good
@@ -122,7 +123,13 @@ export async function postMessage(
   if (!decided && !given && !anon)
     return fail(via === "terminal" ? "tell me your name (add &name=YourName), or add &anon=1 to stay anonymous" : "tell me your name first, or choose to stay anonymous 🙂", 400);
 
-  if (!(await allow(`talk:${f.net}`, 20, 600))) return fail("easy, one at a time 🙂 give it a minute", 429);
+  // A real back-and-forth (I've replied in the last 2 hours) isn't held to the stranger's pace.
+  const talking = thread
+    ? ((await q<{ n: number }>("talk talking", (db) =>
+        db`SELECT count(*)::int AS n FROM talk_messages WHERE thread = ${thread} AND side = 'me' AND at > now() - interval '2 hours'`,
+      ))?.[0]?.n ?? 0) > 0
+    : false;
+  if (!(await allow(talking ? `talk-live:${f.net}` : `talk:${f.net}`, talking ? 120 : 20, 600))) return fail("easy, one at a time 🙂 give it a minute", 429);
 
   if (!isNew) {
     // At most 5 in a row until I reply.
@@ -135,8 +142,8 @@ export async function postMessage(
     );
     const r = run?.[0];
     if ((r?.n ?? 0) >= 5) return fail("that's 5 in a row 🙂 wait for me to reply, then carry on.", 429);
-    // The same thing twice in a row is a double-tap or a loop, not a message.
-    if (r?.last === text.text && r.last_at && Date.now() - Date.parse(r.last_at) < 10 * 60_000) return fail("you just sent that one 🙂");
+    // The same thing twice within seconds is a double-tap or a loop, not a message ("haha" twice in a chat is fine).
+    if (r?.last === text.text && r.last_at && Date.now() - Date.parse(r.last_at) < 30_000) return fail("you just sent that one 🙂");
   }
   // Across every chat from this network, so starting a new one doesn't reset the count.
   const waiting = await q<{ n: number }>("talk net waiting", (db) =>
@@ -180,7 +187,7 @@ export async function postMessage(
 
   const me = telegramConfigured() ? await owner() : null;
   let delivered = false;
-  if (me && (await allow("talk-phone:all", 300, 3600))) {
+  if (me && (await allow("talk-phone:all", 600, 3600))) {
     const tag = `#${thread!.slice(0, 4)}`;
     const who_ = currentName || "Anonymous";
     const where = placeName(info?.[0]?.city, info?.[0]?.country);
