@@ -39,12 +39,18 @@ export async function POST(req: Request) {
   const today = new Date(Date.now() + 5.5 * 3600_000).toISOString().slice(0, 10);
   const day = typeof body.date === "string" && /^\d{4}-\d{2}-\d{2}/.test(body.date) ? body.date.slice(0, 10) : today;
 
-  const data = {
-    steps: num(body.steps),
-    distanceKm: num(body.distanceKm),
-    activeKcal: num(body.activeKcal),
-    sleepHours: num(body.sleepHours),
-  };
+  // Only what was actually sent is written, so the Shortcut can send each
+  // number on its own without wiping the others.
+  const data = Object.fromEntries(
+    Object.entries({
+      steps: num(body.steps),
+      distanceKm: num(body.distanceKm),
+      activeKcal: num(body.activeKcal),
+      sleepHours: num(body.sleepHours),
+    }).filter(([, v]) => v != null),
+  );
+  if (!Object.keys(data).length && !Array.isArray(body.workouts))
+    return Response.json({ ok: false, reason: "nothing to save" }, { status: 422 });
   await q("health day", (db) =>
     db`INSERT INTO health_days (day, data, updated_at) VALUES (${day}, ${JSON.stringify(data)}::jsonb, now())
        ON CONFLICT (day) DO UPDATE SET data = health_days.data || EXCLUDED.data, updated_at = now()`,

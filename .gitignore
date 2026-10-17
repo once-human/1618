@@ -45,3 +45,7 @@ next-env.d.ts
 /assets/stills/*
 !/assets/*/.gitkeep
 /public/frames/*
+
+# Built shortcuts (scripts/shortcuts/build.py)
+1618-health.plist
+*.shortcut

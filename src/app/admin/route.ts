@@ -16,7 +16,7 @@ export async function GET(req: Request) {
   if (!isAdmin(req)) return new Response("Not found", { status: 404 });
   const key = encodeURIComponent(new URL(req.url).searchParams.get("key") ?? "");
 
-  const [posts, counts, sync, backfill, status, strava, place] = await Promise.all([
+  const [posts, counts, sync, backfill, status, strava, place, health] = await Promise.all([
     q<{ id: number; kind: string; name: string | null; message: string | null; payload: { track?: string; artist?: string } | null; hidden: boolean; created_at: string }>(
       "admin posts",
       (db) => db`SELECT id, kind, name, message, payload, hidden, created_at FROM submissions ORDER BY created_at DESC LIMIT 100`,
@@ -33,6 +33,7 @@ export async function GET(req: Request) {
     getStatus(),
     kvGet<{ expiresAt: number }>("strava:token"),
     getPlace(),
+    q<{ n: number }>("admin shortcut", (db) => db`SELECT count(*)::int AS n FROM kv WHERE key = 'shortcut:health'`).then((r) => !!r?.[0]?.n),
   ]);
   const c = counts?.[0];
 
@@ -83,6 +84,8 @@ export async function GET(req: Request) {
 <span class=q>Last sync ${sync ? esc(new Date(sync.value.at).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })) : "never"}. Last.fm backfill ${backfill?.value.done ? "complete" : "still running"}.</span>
 <a href="/api/sync?key=${key}">Sync now</a></p>
 
+<h2>Apple Health</h2>
+<p>${health ? "Shortcut ready." : "<span class=q>Shortcut not uploaded yet.</span>"} Open this page on your iPhone in Safari, tap <a href="/api/shortcuts/health">Get the 1618 Health shortcut</a>, then open the download. When it asks, paste your site key. Run it once from the Shortcuts app and allow Health access. Then add a Personal Automation: <b>App → Is Opened</b> (an app you open often), run immediately, and pick “1618 Health”.</p>
 <h2>Strava</h2>
 <p>${stravaConfigured() ? (strava ? "Connected." : `<a href="/api/strava/connect?key=${key}">Connect Strava</a>`) : "<span class=q>Add STRAVA_CLIENT_ID and STRAVA_CLIENT_SECRET in Vercel first.</span>"}</p>
 
