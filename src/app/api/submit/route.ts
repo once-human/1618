@@ -1,6 +1,8 @@
 import { allow, q, visitorKey } from "@/lib/db";
 import { moderate, moderateName } from "@/lib/moderation";
 import { senderHash } from "@/lib/talk/played";
+import { after } from "next/server";
+import { owner, telegramConfigured, tg } from "@/lib/talk/telegram";
 
 /**
  * Send me a song, or sign the guestbook. Posts go up straight away if they
@@ -73,6 +75,16 @@ export async function POST(req: Request) {
        RETURNING id, created_at`,
   );
   if (!rows?.[0]) return say("something broke on my end. try again later?", 500);
+  // A note to my phone, so I see it without opening the site.
+  after(async () => {
+    const me = telegramConfigured() ? await owner() : null;
+    if (!me) return;
+    const from = name.text || "Someone";
+    const text = song
+      ? `🎵 ${from} sent you a song: ${song.track} by ${song.artist}${message.text ? `\n“${message.text}”` : ""}\n${song.link}`
+      : `📖 ${from} signed the guestbook:\n“${message.text}”`;
+    await tg("sendMessage", { chat_id: me.chatId, text: `${text}\n\nHide or delete it in /admin.`, link_preview_options: { is_disabled: !song } });
+  });
   return Response.json({
     ok: true,
     submission: {

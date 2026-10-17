@@ -10,7 +10,7 @@ import { telegramConfigured, tg, webhookSecret } from "@/lib/talk/telegram";
  */
 export async function GET(req: Request) {
   await connection();
-  if (!isAdmin(req)) return new Response("Not found", { status: 404 });
+  if (!(await isAdmin(req))) return new Response("Not found", { status: 404 });
   if (!telegramConfigured()) return new Response("Add TELEGRAM_BOT_TOKEN in Vercel first, then redeploy.", { status: 400 });
 
   const bot = await tg<{ username: string }>("getMe", {});

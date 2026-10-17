@@ -583,7 +583,7 @@ export async function getPresence(): Promise<Presence> {
     place: { city: place.city, tz: place.tz },
     weather,
     status,
-    health: health ? { steps: health.steps, sleepHours: health.sleepHours } : null,
+    health: health ? { steps: health.steps, distanceKm: health.distanceKm, activeKcal: health.activeKcal, sleepHours: health.sleepHours, at: health.at } : null,
     fetchedAt: new Date().toISOString(),
   };
 }

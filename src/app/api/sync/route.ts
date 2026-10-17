@@ -10,7 +10,7 @@ import { runSync } from "@/lib/history/sync";
 export async function GET(req: Request) {
   await connection();
   const cron = process.env.CRON_SECRET && req.headers.get("authorization") === `Bearer ${process.env.CRON_SECRET}`;
-  const report = await runSync({ force: !!cron || isAdmin(req) });
+  const report = await runSync({ force: !!cron || (await isAdmin(req)) });
   return Response.json(report, { headers: { "Cache-Control": "no-store" } });
 }
 export const POST = GET;

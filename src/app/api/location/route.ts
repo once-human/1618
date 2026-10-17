@@ -1,5 +1,5 @@
-import { isAdmin, kvSet } from "@/lib/db";
-import type { Place } from "@/lib/presence/server";
+import { isAdmin } from "@/lib/db";
+import { heldUntil, savePlace, searchPlaces } from "@/lib/admin/place";
 
 /**
  * Where I am, for the weather and the clock. City level only: coordinates are
@@ -9,49 +9,28 @@ import type { Place } from "@/lib/presence/server";
  *   { "city": "Bengaluru" }                       — looked up by name, or
  *   { "city": "Bengaluru", "lat": 12.97, "lon": 77.59 }  — from the phone's location
  *
- * The /admin form posts here too.
+ * While a place is held in /admin, these updates are ignored.
  */
-const round = (n: number) => Math.round(n * 10) / 10;
-
-async function lookup(city: string): Promise<Place | null> {
-  try {
-    const res = await fetch(
-      `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1&language=en&format=json`,
-      { signal: AbortSignal.timeout(5000) },
-    );
-    const r = ((await res.json()) as { results?: { name: string; latitude: number; longitude: number; timezone: string }[] }).results?.[0];
-    return r ? { city: r.name, lat: round(r.latitude), lon: round(r.longitude), tz: r.timezone } : null;
-  } catch {
-    return null;
-  }
-}
-
 export async function POST(req: Request) {
-  if (!isAdmin(req)) return new Response("Not allowed", { status: 401 });
-  const isForm = (req.headers.get("content-type") ?? "").includes("form");
+  if (!(await isAdmin(req))) return new Response("Not allowed", { status: 401 });
   let body: Record<string, unknown> = {};
   try {
-    body = isForm ? Object.fromEntries((await req.formData()).entries()) : await req.json();
+    body = (req.headers.get("content-type") ?? "").includes("form") ? Object.fromEntries((await req.formData()).entries()) : await req.json();
   } catch {
     return new Response("Send { city }", { status: 400 });
   }
+  // While I'm holding a place in /admin, my phone's updates are politely ignored.
+  const held = await heldUntil();
+  if (held) return Response.json({ ok: true, held: true });
+
   const city = typeof body.city === "string" ? body.city.trim().slice(0, 60) : "";
   if (!city) return new Response("Send { city }", { status: 400 });
-
   // The name decides the place and its time zone; phone coordinates (rounded) refine the weather.
-  const found = await lookup(city);
+  const found = (await searchPlaces(city, 1).catch(() => []))[0];
   if (!found) return new Response(`Couldn't find "${city}"`, { status: 404 });
   const lat = Number(body.lat);
   const lon = Number(body.lon);
-  const place: Place = {
-    ...found,
-    ...(Number.isFinite(lat) && Number.isFinite(lon) && lat !== 0 ? { lat: round(lat), lon: round(lon) } : {}),
-    setAt: new Date().toISOString(),
-  };
-  await kvSet("location", place);
-
-  if (isForm) {
-    return Response.redirect(new URL("/admin", req.url), 303);
-  }
+  const near = Number.isFinite(lat) && Number.isFinite(lon) && lat !== 0;
+  const place = await savePlace({ city: found.city, tz: found.tz, country: found.cc, lat: near ? lat : found.lat, lon: near ? lon : found.lon });
   return Response.json({ ok: true, place: { city: place.city, tz: place.tz } });
 }

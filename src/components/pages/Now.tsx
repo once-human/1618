@@ -45,6 +45,15 @@ export function NowPage() {
       ? { k: "Saving to", v: saved.hotBoard.name, d: `${saved.hotBoard.count} pins lately`, href: saved.hotBoard.url }
       : null,
     run ? { k: "Moving", v: run.title, d: now ? timeAgo(run.at, now) : "", href: run.url ?? undefined } : null,
+    presence?.health?.steps
+      ? {
+          k: "Moving today",
+          v: `${fmtNum(presence.health.steps)} steps${presence.health.distanceKm ? `, ${presence.health.distanceKm.toFixed(1)} km` : ""}`,
+          d: [presence.health.activeKcal ? `${fmtNum(presence.health.activeKcal)} kcal active` : null, now ? `from Apple Health, ${timeAgo(presence.health.at, now)}` : "from Apple Health"]
+            .filter(Boolean)
+            .join(", "),
+        }
+      : null,
     presence?.weather ? { k: `In ${presence.place?.city ?? "Pune"}`, v: `${presence.weather.tempC}°, ${presence.weather.label}`, d: "right now" } : null,
   ].filter((x): x is { k: string; v: string; d: string; href?: string } => !!x);
 
@@ -70,7 +79,7 @@ export function NowPage() {
       )}
 
       {parts.length > 0 && (
-        <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+        <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
           {parts.map((p) => (
             <div key={p.k} className={cell}>
               <dt className="text-quiet">{p.k}</dt>

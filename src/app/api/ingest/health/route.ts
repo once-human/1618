@@ -29,7 +29,7 @@ const num = (v: unknown) => {
 };
 
 export async function POST(req: Request) {
-  if (!isAdmin(req)) return new Response("Not allowed", { status: 401 });
+  if (!(await isAdmin(req))) return new Response("Not allowed", { status: 401 });
   let body: Record<string, unknown>;
   try {
     body = (await req.json()) as Record<string, unknown>;

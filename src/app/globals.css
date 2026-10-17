@@ -142,3 +142,67 @@ body {
     transform: translate3d(-10px, 0, 0);
   }
 }
+
+/*
+ * /admin: its own palette. Calm, neutral surfaces; one ultramarine signal,
+ * used only for what's waiting on me. Light and dark follow the device.
+ */
+.admin {
+  --a-bg: #f3f4f6;
+  --a-panel: #ffffff;
+  --a-ink: #17181c;
+  --a-quiet: #696d76;
+  --a-line: #e2e4e8;
+  --a-soft: #eceef1;
+  --a-signal: #3434e6;
+  --a-signal-soft: #e7e7fd;
+  --a-ok: #17804a;
+  --a-bad: #cf3a30;
+  background: var(--a-bg);
+  color: var(--a-ink);
+  color-scheme: light;
+  -webkit-tap-highlight-color: transparent;
+}
+@media (prefers-color-scheme: dark) {
+  .admin {
+    --a-bg: #0e0f12;
+    --a-panel: #17181c;
+    --a-ink: #ebebe8;
+    --a-quiet: #8d919a;
+    --a-line: #272930;
+    --a-soft: #202127;
+    --a-signal: #8a8aff;
+    --a-signal-soft: #24254d;
+    --a-ok: #46c27f;
+    --a-bad: #ff6f63;
+    color-scheme: dark;
+  }
+}
+html:has(.admin) {
+  background: var(--a-bg, #f3f4f6);
+}
+@media (prefers-color-scheme: dark) {
+  html:has(.admin) {
+    background: #0e0f12;
+  }
+}
+@theme inline {
+  --color-a-bg: var(--a-bg);
+  --color-a-panel: var(--a-panel);
+  --color-a-ink: var(--a-ink);
+  --color-a-quiet: var(--a-quiet);
+  --color-a-line: var(--a-line);
+  --color-a-soft: var(--a-soft);
+  --color-a-signal: var(--a-signal);
+  --color-a-signal-soft: var(--a-signal-soft);
+  --color-a-ok: var(--a-ok);
+  --color-a-bad: var(--a-bad);
+}
+.admin .wide {
+  font-stretch: 118%;
+  font-variation-settings: "wdth" 118;
+}
+.admin :focus-visible {
+  outline: 2px solid var(--a-signal);
+  outline-offset: 2px;
+}

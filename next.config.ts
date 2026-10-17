@@ -28,6 +28,20 @@ const nextConfig: NextConfig = {
       fallback: [],
     };
   },
+  // My admin pages: never framed, never indexed, never leaking where they came from.
+  async headers() {
+    const lock = [
+      { key: "X-Frame-Options", value: "DENY" },
+      { key: "Content-Security-Policy", value: "frame-ancestors 'none'" },
+      { key: "X-Robots-Tag", value: "noindex, nofollow" },
+      { key: "Referrer-Policy", value: "no-referrer" },
+    ];
+    return [
+      { source: "/admin", headers: lock },
+      { source: "/admin/:path*", headers: lock },
+      { source: "/api/admin/:path*", headers: lock },
+    ];
+  },
   // Monthly issues were folded into /history.
   async redirects() {
     return [

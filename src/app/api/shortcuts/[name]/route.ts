@@ -24,7 +24,7 @@ export async function GET(_req: Request, ctx: RouteContext<"/api/shortcuts/[name
 }
 
 export async function PUT(req: Request, ctx: RouteContext<"/api/shortcuts/[name]">) {
-  if (!isAdmin(req)) return new Response("Not allowed", { status: 401 });
+  if (!(await isAdmin(req))) return new Response("Not allowed", { status: 401 });
   const { name } = await ctx.params;
   if (!NAMES[name]) return new Response("Not found", { status: 404 });
   const bytes = Buffer.from(await req.arrayBuffer());

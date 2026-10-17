@@ -7,7 +7,7 @@ import { push } from "@/lib/talk/telegram";
  * the visitor's screen if they're still there.
  */
 export async function POST(req: Request) {
-  if (!isAdmin(req)) return new Response("Not allowed", { status: 401 });
+  if (!(await isAdmin(req))) return new Response("Not allowed", { status: 401 });
   const form = await req.formData();
   const thread = String(form.get("thread") ?? "");
   const text = String(form.get("text") ?? "").trim().slice(0, 2000);

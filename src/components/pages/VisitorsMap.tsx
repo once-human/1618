@@ -28,9 +28,10 @@ function landPath() {
   return d;
 }
 
-const LAND_PATH = landPath();
+export const LAND_PATH = landPath();
 
-const project = (lat: number, lon: number) => ({ x: (lon + 180) / LAND.step, y: (LAND.top - lat) / LAND.step });
+export const MAP = { cols: COLS, rows: ROWS };
+export const project = (lat: number, lon: number) => ({ x: (lon + 180) / LAND.step, y: (LAND.top - lat) / LAND.step });
 
 /**
  * Who came by today, as dots on a map: towns only, and how many from each.

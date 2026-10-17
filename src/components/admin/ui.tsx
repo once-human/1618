@@ -1,0 +1,170 @@
+"use client";
+
+import { useEffect, useState } from "react";
+
+/* ---- words and numbers ---- */
+
+export const fmt = (n: number | null | undefined, digits = 0) =>
+  n == null ? "–" : n.toLocaleString("en-IN", { maximumFractionDigits: digits, minimumFractionDigits: 0 });
+
+export function ago(iso: string | number | null | undefined, now = Date.now()) {
+  if (iso == null) return "never";
+  const s = Math.max(0, Math.round((now - (typeof iso === "number" ? iso : Date.parse(iso))) / 1000));
+  if (s < 45) return "just now";
+  const m = Math.round(s / 60);
+  if (m < 60) return `${m} min ago`;
+  const h = Math.round(m / 60);
+  if (h < 36) return `${h} h ago`;
+  return `${Math.round(h / 24)} days ago`;
+}
+
+export function until(iso: string | number) {
+  const m = Math.round(((typeof iso === "number" ? iso : Date.parse(iso)) - Date.now()) / 60000);
+  if (m <= 0) return "now";
+  if (m < 60) return `${m} min`;
+  const h = Math.floor(m / 60);
+  const r = m % 60;
+  return h < 48 ? `${h} h${r ? ` ${r} min` : ""}` : `${Math.round(h / 24)} days`;
+}
+
+export const clockIn = (tz: string, at = new Date()) =>
+  new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone: tz }).format(at);
+
+export const when = (iso: string) =>
+  new Date(iso).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone: "Asia/Kolkata" });
+
+/** 🇮🇳 from "IN". */
+export const flag = (cc: string | null | undefined) =>
+  cc && /^[A-Z]{2}$/i.test(cc) ? String.fromCodePoint(...[...cc.toUpperCase()].map((c) => 0x1f1a5 + c.charCodeAt(0))) : "";
+
+const regions = typeof Intl !== "undefined" && "DisplayNames" in Intl ? new Intl.DisplayNames(["en"], { type: "region" }) : null;
+export const town = (city: string | null | undefined, cc: string | null | undefined) => {
+  const country = cc ? (regions?.of(cc.toUpperCase()) ?? cc) : null;
+  return city ? `${city}${country ? `, ${country}` : ""}` : (country ?? "Somewhere unknown");
+};
+
+/** Re-render every few seconds, for "x min ago". */
+export function useTick(ms = 10_000) {
+  const [, set] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => set((n) => n + 1), ms);
+    return () => clearInterval(t);
+  }, [ms]);
+}
+
+/* ---- pieces ---- */
+
+export function Panel({ title, aside, children, className = "", id }: { title?: React.ReactNode; aside?: React.ReactNode; children: React.ReactNode; className?: string; id?: string }) {
+  return (
+    <section id={id} className={`bg-a-panel border-a-line rounded-2xl border p-4 md:p-5 ${className}`}>
+      {title ? (
+        <header className="mb-3 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+          <h2 className="text-[17px] font-semibold">{title}</h2>
+          {aside ? <div className="text-a-quiet text-[13px]">{aside}</div> : null}
+        </header>
+      ) : null}
+      {children}
+    </section>
+  );
+}
+
+type BtnKind = "primary" | "plain" | "quiet" | "danger" | "signal";
+const BTN: Record<BtnKind, string> = {
+  primary: "bg-a-ink text-a-bg hover:opacity-90",
+  signal: "bg-a-signal text-white hover:opacity-90",
+  plain: "bg-a-soft hover:bg-a-line",
+  quiet: "text-a-quiet hover:text-a-ink hover:bg-a-soft",
+  danger: "bg-a-bad/10 text-a-bad hover:bg-a-bad/20",
+};
+export function Button({ kind = "plain", busy, className = "", children, ...rest }: React.ButtonHTMLAttributes<HTMLButtonElement> & { kind?: BtnKind; busy?: boolean }) {
+  return (
+    <button
+      type="button"
+      {...rest}
+      disabled={rest.disabled || busy}
+      className={`inline-flex min-h-9 items-center justify-center gap-1.5 rounded-lg px-3 text-[14px] font-medium whitespace-nowrap transition-colors disabled:opacity-50 ${BTN[kind]} ${className}`}
+    >
+      {busy ? <Spinner /> : null}
+      {children}
+    </button>
+  );
+}
+
+export function Spinner() {
+  return <span aria-hidden className="size-3.5 animate-spin rounded-full border-2 border-current border-r-transparent" />;
+}
+
+export function Chip({ on, children, ...rest }: React.ButtonHTMLAttributes<HTMLButtonElement> & { on?: boolean }) {
+  return (
+    <button
+      type="button"
+      aria-pressed={on}
+      {...rest}
+      className={`min-h-8 rounded-full border px-3 text-[13.5px] transition-colors ${on ? "border-a-ink bg-a-ink text-a-bg" : "border-a-line hover:border-a-quiet"} ${rest.className ?? ""}`}
+    >
+      {children}
+    </button>
+  );
+}
+
+export function Dot({ tone }: { tone: "ok" | "bad" | "off" | "signal" | "live" }) {
+  const c = { ok: "bg-a-ok", bad: "bg-a-bad", off: "border border-a-quiet", signal: "bg-a-signal", live: "bg-a-ok" }[tone];
+  return (
+    <span className="relative inline-flex size-2 shrink-0">
+      {tone === "live" ? <span className="bg-a-ok absolute inset-0 animate-ping rounded-full opacity-40 motion-reduce:hidden" /> : null}
+      <span className={`relative size-2 rounded-full ${c}`} />
+    </span>
+  );
+}
+
+export function Empty({ children }: { children: React.ReactNode }) {
+  return <p className="text-a-quiet py-6 text-center text-[14px]">{children}</p>;
+}
+
+export const input =
+  "border-a-line bg-a-bg focus:border-a-signal w-full rounded-xl border px-3.5 py-2.5 text-[16px] outline-none placeholder:text-a-quiet";
+
+/** "Delete?" → "Yes, delete" / "Keep", inline, so a slip of the thumb never deletes anything. */
+export function Confirm({ label, yes, onYes, busy }: { label: string; yes: string; onYes: () => void; busy?: boolean }) {
+  const [asking, setAsking] = useState(false);
+  return asking ? (
+    <span className="inline-flex gap-1">
+      <Button kind="danger" onClick={onYes} busy={busy}>
+        {yes}
+      </Button>
+      <Button kind="quiet" onClick={() => setAsking(false)}>
+        Keep
+      </Button>
+    </span>
+  ) : (
+    <Button kind="quiet" onClick={() => setAsking(true)}>
+      {label}
+    </Button>
+  );
+}
+
+/* ---- icons (one stroke weight, 20px box) ---- */
+
+const P: Record<string, string> = {
+  now: "M10 3v2M10 15v2M3 10h2M15 10h2M10 7.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5Z",
+  talk: "M4 4h12v9H9l-4 3v-3H4z",
+  posts: "M7 14.5a2 2 0 1 1-4 0 2 2 0 0 1 4 0Zm0 0V5l9-2v9.5M16 12.5a2 2 0 1 1-4 0 2 2 0 0 1 4 0Z",
+  you: "M10 10a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm-6 7c.8-3 3.2-4.5 6-4.5s5.2 1.5 6 4.5",
+  site: "M3 5h14v10H3zM3 8h14M6 6.5h.01M8 6.5h.01",
+  ext: "M8 4H4v12h12v-4M11 3h6v6M17 3l-8 8",
+  back: "M12 4l-6 6 6 6",
+  pin: "M10 18s5-5.2 5-9a5 5 0 0 0-10 0c0 3.8 5 9 5 9Zm0-7.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z",
+  play: "M7 4.5v11l9-5.5z",
+  pause: "M6.5 4.5v11M13.5 4.5v11",
+  refresh: "M16 10a6 6 0 1 1-1.8-4.3M16 3v4h-4",
+  search: "M9 15a6 6 0 1 0 0-12 6 6 0 0 0 0 12Zm8 2-3.5-3.5",
+  locate: "M10 2v3M10 15v3M2 10h3M15 10h3M10 14a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z",
+  send: "M3 10l14-6-5 14-2.5-5.5z",
+};
+export function Icon({ name, className = "size-5" }: { name: keyof typeof P | string; className?: string }) {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden>
+      <path d={P[name] ?? ""} />
+    </svg>
+  );
+}

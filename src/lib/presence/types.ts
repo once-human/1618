@@ -25,7 +25,7 @@ export interface Presence {
   /** A status I set myself from my phone, until it expires. */
   status: ManualStatus | null;
   /** Today's Apple Health numbers, if my Shortcut has sent them. */
-  health: { steps: number | null; sleepHours: number | null } | null;
+  health: { steps: number | null; distanceKm: number | null; activeKcal: number | null; sleepHours: number | null; at: string } | null;
   fetchedAt: string;
 }
 

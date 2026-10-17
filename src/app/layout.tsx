@@ -6,6 +6,7 @@ import { CommandMenu } from "@/components/site/CommandMenu";
 import { HereKeeper } from "@/components/site/HereKeeper";
 import { TalkNotice } from "@/components/site/TalkNotice";
 import { PlayedYourSong } from "@/components/site/PlayedYourSong";
+import { SiteOnly } from "@/components/site/SiteOnly";
 
 const description =
   "Onkar Yaglewad builds consumer products end to end, from the first idea to the last pixel. This is one ordinary day.";
@@ -37,10 +38,12 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       </head>
       <body>
         {children}
-        <CommandMenu />
-        <HereKeeper />
-        <TalkNotice />
-        <PlayedYourSong />
+        <SiteOnly>
+          <CommandMenu />
+          <HereKeeper />
+          <TalkNotice />
+          <PlayedYourSong />
+        </SiteOnly>
       </body>
     </html>
   );

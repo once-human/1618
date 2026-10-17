@@ -196,7 +196,7 @@ export async function checkFeatures(): Promise<Feature[]> {
       what: "Today's steps, distance and active calories from Apple Health, sent by my phone.",
       where: [{ href: "/now", label: "/now" }],
       ok: c?.health ? true : null,
-      state: presence.health?.steps ? `${n(presence.health.steps)} steps today.` : c?.health ? `Last sent for ${c.health}.` : "My phone hasn't sent anything yet.",
+      state: presence.health?.steps ? `${n(presence.health.steps)} steps${presence.health.distanceKm ? ` and ${presence.health.distanceKm} km` : ""} today, sent ${ago(presence.health.at, now)}.` : c?.health ? `Last sent for ${c.health}.` : "My phone hasn't sent anything yet.",
     },
     {
       id: "soundtrack",

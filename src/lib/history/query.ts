@@ -304,13 +304,27 @@ export async function getReplay(year?: string): Promise<Replay> {
 }
 
 /** Today's numbers from Apple Health, if the Shortcut has sent any. */
-export async function healthToday(): Promise<{ day: string; steps: number | null; sleepHours: number | null } | null> {
+export interface HealthToday {
+  day: string;
+  steps: number | null;
+  distanceKm: number | null;
+  activeKcal: number | null;
+  sleepHours: number | null;
+  /** When my phone last sent it. */
+  at: string;
+}
+
+export async function healthToday(): Promise<HealthToday | null> {
   const day = puneDate();
-  const rows = await q<{ data: { steps?: number | null; sleepHours?: number | null } }>("health today", (db) =>
-    db`SELECT data FROM health_days WHERE day = ${day}::date`,
+  const rows = await q<{ data: { steps?: number | null; distanceKm?: number | null; activeKcal?: number | null; sleepHours?: number | null }; updated_at: string }>(
+    "health today",
+    (db) => db`SELECT data, updated_at FROM health_days WHERE day = ${day}::date`,
   );
-  const d = rows?.[0]?.data;
-  return d ? { day, steps: d.steps ?? null, sleepHours: d.sleepHours ?? null } : null;
+  const r = rows?.[0];
+  const d = r?.data;
+  return d
+    ? { day, steps: d.steps ?? null, distanceKm: d.distanceKm ?? null, activeKcal: d.activeKcal ?? null, sleepHours: d.sleepHours ?? null, at: new Date(r.updated_at).toISOString() }
+    : null;
 }
 
 /* ---- At a glance: every period side by side ---- */

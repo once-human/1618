@@ -303,7 +303,7 @@ async function join() {
         refresh();
         const where = { c: myPlace.city ?? undefined, cc: myPlace.country ?? undefined };
         void ch.send({ type: "broadcast", event: "hi", payload: { t: tab, b: myKey, ...where } });
-        await ch.track({ t: tab, ...where });
+        await ch.track({ t: tab, ...where, p: location.pathname.slice(0, 80) });
         sendPosition(true);
       } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
         // Not sure any more: say nothing until it reconnects (it retries by itself).
@@ -402,6 +402,8 @@ export function useHere(): Here | null {
 /** A new page means a new position. */
 export function pageChanged() {
   sendPosition(true);
+  // Presence carries the page too (for my admin view of who's where).
+  if (channel && tab) void channel.track({ t: tab, c: myPlace.city ?? undefined, cc: myPlace.country ?? undefined, p: location.pathname.slice(0, 80) });
 }
 
 function subscribeOthers(f: () => void) {

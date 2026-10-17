@@ -19,7 +19,7 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  if (!isAdmin(req)) return new Response("Not allowed", { status: 401 });
+  if (!(await isAdmin(req))) return new Response("Not allowed", { status: 401 });
   // JSON from the Shortcut, or the form on /admin, or a query string.
   let body: { text?: unknown; hours?: unknown } = {};
   const type = req.headers.get("content-type") ?? "";
@@ -50,7 +50,7 @@ export async function POST(req: Request) {
 }
 
 export async function DELETE(req: Request) {
-  if (!isAdmin(req)) return new Response("Not allowed", { status: 401 });
+  if (!(await isAdmin(req))) return new Response("Not allowed", { status: 401 });
   await kvDelete("status");
   return Response.json({ ok: true });
 }

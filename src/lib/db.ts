@@ -96,7 +96,22 @@ const same = (a: string, b: string) => {
   const y = Buffer.from(b);
   return x.length === y.length && timingSafeEqual(x, y);
 };
-const sign = (secret: string, exp: number) => createHmac("sha256", secret).update(`admin-session|${exp}`).digest("base64url");
+const sign = (secret: string, exp: number, epoch: number) =>
+  createHmac("sha256", secret).update(`admin-session|${exp}|${epoch}`).digest("base64url");
+
+// "Log out everywhere" bumps this number; every login signed with an older one stops working.
+let epochCache: { n: number; at: number } | null = null;
+async function epoch(): Promise<number> {
+  if (epochCache && Date.now() - epochCache.at < 20_000) return epochCache.n;
+  const row = await kvGet<{ n: number }>("admin:epoch");
+  epochCache = { n: row?.value.n ?? 0, at: Date.now() };
+  return epochCache.n;
+}
+export async function logOutEverywhere(): Promise<void> {
+  const n = (await epoch()) + 1;
+  await kvSet("admin:epoch", { n });
+  epochCache = { n, at: Date.now() };
+}
 
 /** Is this the site key? (Constant time, so it can't be guessed a letter at a time.) */
 export function isSiteKey(key: string | null | undefined): boolean {
@@ -104,18 +119,23 @@ export function isSiteKey(key: string | null | undefined): boolean {
   return !!secret && !!key && same(key, secret);
 }
 
-/** A login that lasts 30 days. It's a signature, not the key, and changing the key ends every login. */
-export function newSession(): { value: string; maxAge: number } {
+/** A login that lasts 30 days. It's a signature, not the key; changing the key, or "log out everywhere", ends it. */
+export async function newSession(): Promise<{ value: string; maxAge: number }> {
   const exp = Date.now() + SESSION_DAYS * 86400_000;
-  return { value: `${exp}.${sign(process.env.ADMIN_SECRET!, exp)}`, maxAge: SESSION_DAYS * 86400 };
+  return { value: `${exp}.${sign(process.env.ADMIN_SECRET!, exp, await epoch())}`, maxAge: SESSION_DAYS * 86400 };
 }
 
-function sessionOk(req: Request): boolean {
+/** Checks a login cookie's value (for pages, which see cookies but not the request). */
+export async function sessionValid(raw: string | undefined | null): Promise<boolean> {
   const secret = process.env.ADMIN_SECRET;
-  const raw = req.headers.get("cookie")?.split(/;\s*/).find((c) => c.startsWith(`${ADMIN_COOKIE}=`))?.slice(ADMIN_COOKIE.length + 1);
   if (!secret || !raw) return false;
   const [exp, sig] = raw.split(".");
-  if (!(Number(exp) > Date.now()) || !sig || !same(sig, sign(secret, Number(exp)))) return false;
+  return Number(exp) > Date.now() && !!sig && same(sig, sign(secret, Number(exp), await epoch()));
+}
+
+async function sessionOk(req: Request): Promise<boolean> {
+  const raw = req.headers.get("cookie")?.split(/;\s*/).find((c) => c.startsWith(`${ADMIN_COOKIE}=`))?.slice(ADMIN_COOKIE.length + 1);
+  if (!(await sessionValid(raw))) return false;
   // A logged-in browser only takes changes from this site's own pages (no forged forms from elsewhere).
   if (req.method !== "GET" && req.method !== "HEAD") {
     const origin = req.headers.get("origin");
@@ -130,7 +150,7 @@ function sessionOk(req: Request): boolean {
  * <key>") or my browser, logged in at /admin. The key never goes in a URL,
  * where it would end up in history and logs.
  */
-export function isAdmin(req: Request): boolean {
+export async function isAdmin(req: Request): Promise<boolean> {
   const auth = req.headers.get("authorization");
   if (auth?.startsWith("Bearer ")) return isSiteKey(auth.slice(7));
   return sessionOk(req);

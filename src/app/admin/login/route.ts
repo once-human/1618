@@ -1,4 +1,5 @@
-import { ADMIN_COOKIE, allow, isSiteKey, newSession, visitorKey } from "@/lib/db";
+import { ADMIN_COOKIE, allow, isSiteKey, kvGet, kvSet, newSession, visitorKey } from "@/lib/db";
+import { geoOf } from "@/lib/geo";
 
 /**
  * Log in to /admin with the site key. Guessing is slowed to a crawl: five
@@ -19,7 +20,14 @@ export async function POST(req: Request) {
     await new Promise((r) => setTimeout(r, 800));
     return back("?wrong=1");
   }
-  const s = newSession();
+  const s = await newSession();
+  // Kept so /admin can show recent logins: when, from which town, on what.
+  const ua = req.headers.get("user-agent") ?? "";
+  const device = /iPhone/.test(ua) ? "iPhone" : /iPad/.test(ua) ? "iPad" : /Android/.test(ua) ? "Android" : /Mac OS X/.test(ua) ? "Mac" : /Windows/.test(ua) ? "Windows" : /Linux/.test(ua) ? "Linux" : "Unknown device";
+  const browser = /Edg\//.test(ua) ? "Edge" : /CriOS|Chrome\//.test(ua) ? "Chrome" : /FxiOS|Firefox\//.test(ua) ? "Firefox" : /Safari\//.test(ua) ? "Safari" : "a browser";
+  const g = geoOf(req);
+  const logins = (await kvGet<{ at: string; city: string | null; country: string | null; device: string }[]>("admin:logins"))?.value ?? [];
+  await kvSet("admin:logins", [{ at: new Date().toISOString(), city: g.city, country: g.country, device: `${device}, ${browser}` }, ...logins].slice(0, 8));
   const res = back("");
   res.headers.append("Set-Cookie", `${ADMIN_COOKIE}=${s.value}; Path=/; Max-Age=${s.maxAge}; HttpOnly; Secure; SameSite=Strict`);
   return res;
