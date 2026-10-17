@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { LAND_PATH, MAP, project } from "@/components/pages/VisitorsMap";
-import { act, isNew, type AdminState, type Person, type Thread } from "./store";
+import { act, isNew, who, type AdminState, type Person, type Thread } from "./store";
 import { Button, Dot, Empty, Panel, ago, flag, fmt, input, town, until } from "./ui";
 import { go } from "./AdminApp";
 
@@ -196,14 +196,14 @@ function QuickReply({ t }: { t: Thread }) {
       <button type="button" onClick={() => go(`talk/${t.id}`)} className="block w-full text-left">
         <span className="flex items-baseline justify-between gap-3">
           <span className="font-medium">
-            {t.name || "No name"} <span className="text-a-quiet font-normal">{flag(t.country)} {t.city ?? ""}</span>
+            {who(t)} <span className="text-a-quiet font-normal">{flag(t.country)} {t.city ?? ""}</span>
           </span>
           <span className="text-a-quiet shrink-0 text-[12.5px]">{ago(t.last?.at)}</span>
         </span>
         <span className="mt-0.5 line-clamp-2 text-[14.5px]">{t.last?.text}</span>
       </button>
       <form onSubmit={send} className="mt-2 flex gap-2">
-        <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Reply" className={`${input} py-2`} aria-label={`Reply to ${t.name || "them"}`} />
+        <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Reply" className={`${input} py-2`} aria-label={`Reply to ${who(t)}`} />
         <Button type="submit" kind="signal" busy={busy} disabled={!text.trim()}>
           Send
         </Button>

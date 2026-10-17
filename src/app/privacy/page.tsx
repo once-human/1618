@@ -107,17 +107,19 @@ export default function Privacy() {
             </p>
             <p>
               Your chat is a random code that only your browser keeps, and it&apos;s the only key to
-              it. There&apos;s no account. One browser has one chat, under the name you start it
-              with; a new name starts a fresh chat and deletes the old one. You can open your chat on
-              another device with its link (anyone with that link can read it, so keep it to
-              yourself).
+              it. There&apos;s no account. You&apos;re asked what to call you first; staying
+              anonymous is a fine answer. One browser has one chat, under that name; a new name
+              starts a fresh chat. You can open your chat on another device with its link (anyone
+              with that link can read it, so keep it to yourself).
             </p>
             <p>
-              <strong>Delete</strong> removes a chat for good: from the database, and from my
-              Telegram too, as far as Telegram allows (it lets a bot remove messages from the last 48
-              hours; older ones I delete by hand if you ask). To keep it from turning into spam,
-              there are limits on how often one network can write, and a one-way daily hash of your
-              connection is kept with a chat so I can block a network that abuses it. Telegram&apos;s
+              <strong>Delete</strong> removes a chat from the site and from your browser for good.
+              What you&apos;d already sent stays in my Telegram, the way a text you sent someone
+              stays on their phone. To keep it from turning into spam: at most 5 messages in a row
+              until I reply, limits on how often one network can write or start chats, and each chat
+              keeps a one-way code for the network and the kind of device it came from (made with a
+              secret, so it can&apos;t be turned back into an address; your IP address itself is never
+              stored). That&apos;s what lets me block a network that abuses it. Telegram&apos;s
               handling is covered by the <Ext href="https://telegram.org/privacy">Telegram privacy policy</Ext>.
             </p>
           </Part>

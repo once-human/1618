@@ -3,9 +3,11 @@
 import { useSyncExternalStore } from "react";
 import type { RealtimeChannel, RealtimeClient } from "@supabase/realtime-js";
 import { HERE_KEY, HERE_URL } from "@/lib/presence/here-config";
+import { traits } from "@/lib/presence/here";
 
 /**
- * The visitor's side of "talk to me": one chat per browser, under one name.
+ * The visitor's side of "talk to me": one chat per browser, under one name
+ * (or anonymous, if they'd rather: they're asked first, either way).
  * The chat is kept in this browser (localStorage) by its code, and can be
  * opened on another device with a link. A new name means a fresh chat: the
  * old one is deleted. My replies arrive over a realtime channel; a slow poll
@@ -23,6 +25,8 @@ export interface TalkMessage {
 export interface Chat {
   id: string;
   name: string | null;
+  /** They chose to stay anonymous. No name and not anon = never asked (an old chat). */
+  anon: boolean;
   messages: TalkMessage[];
   /** How many of my replies have been looked at. */
   seen: number;
@@ -33,15 +37,17 @@ export interface TalkState {
   live: boolean | null;
   ready: boolean;
   chat: Chat | null;
-  /** The name for a chat that hasn't started yet. */
+  /** The name for a chat that hasn't started yet… */
   name: string;
+  /** …or the choice to stay anonymous. */
+  anon: boolean;
   unread: number;
 }
 
 const KEY = "talk-v3";
 const THREAD = /^[a-f0-9]{32}$/;
 
-let state: TalkState = { live: null, ready: false, chat: null, name: "", unread: 0 };
+let state: TalkState = { live: null, ready: false, chat: null, name: "", anon: false, unread: 0 };
 const subs = new Set<() => void>();
 const replies = (c: Chat | null) => (c ? c.messages.filter((m) => m.side === "me").length : 0);
 
@@ -56,34 +62,34 @@ function set(patch: Partial<TalkState>) {
 function save() {
   try {
     const c = state.chat;
-    localStorage.setItem(KEY, JSON.stringify({ chat: c ? { id: c.id, name: c.name, seen: c.seen } : null, name: state.name }));
+    localStorage.setItem(KEY, JSON.stringify({ chat: c ? { id: c.id, name: c.name, anon: c.anon, seen: c.seen } : null, name: state.name, anon: state.anon }));
     window.dispatchEvent(new Event("talk-thread"));
   } catch {
     /* private mode: this tab only */
   }
 }
 
-function restore(): Pick<TalkState, "chat" | "name"> {
+function restore(): Pick<TalkState, "chat" | "name" | "anon"> {
   try {
     const raw = localStorage.getItem(KEY);
     if (raw) {
-      const d = JSON.parse(raw) as { chat?: { id: string; name: string | null; seen: number } | null; name?: string };
-      return { chat: d.chat && THREAD.test(d.chat.id) ? { ...d.chat, messages: [] } : null, name: d.name ?? "" };
+      const d = JSON.parse(raw) as { chat?: { id: string; name: string | null; anon?: boolean; seen: number } | null; name?: string; anon?: boolean };
+      return { chat: d.chat && THREAD.test(d.chat.id) ? { ...d.chat, anon: !!d.chat.anon, messages: [] } : null, name: d.name ?? "", anon: !!d.anon };
     }
     // From when a browser could keep several chats: keep the most recent one.
     const v2 = localStorage.getItem("talk-v2");
     if (v2) {
       const d = JSON.parse(v2) as { chats?: { id: string; name: string | null; seen: number }[]; active?: string | null; name?: string };
       const c = d.chats?.find((x) => x.id === d.active) ?? d.chats?.[0];
-      return { chat: c && THREAD.test(c.id) ? { id: c.id, name: c.name, seen: c.seen ?? 0, messages: [] } : null, name: d.name ?? "" };
+      return { chat: c && THREAD.test(c.id) ? { id: c.id, name: c.name, anon: false, seen: c.seen ?? 0, messages: [] } : null, name: d.name ?? "", anon: false };
     }
     // From the very first version.
     const old = localStorage.getItem("talk-thread");
-    if (old && THREAD.test(old)) return { chat: { id: old, name: null, seen: Number(localStorage.getItem("talk-seen")) || 0, messages: [] }, name: "" };
+    if (old && THREAD.test(old)) return { chat: { id: old, name: null, anon: false, seen: Number(localStorage.getItem("talk-seen")) || 0, messages: [] }, name: "", anon: false };
   } catch {
     /* nothing kept */
   }
-  return { chat: null, name: "" };
+  return { chat: null, name: "", anon: false };
 }
 
 /** Is there a chat to keep a line open for? (Used by the notice on other pages.) */
@@ -100,14 +106,14 @@ export function hasChat(): boolean {
 /* ---- reading ---- */
 
 let looking = false;
-function merge(list: TalkMessage[], name?: string | null) {
+function merge(list: TalkMessage[], name?: string | null, anon?: boolean) {
   const c = state.chat;
   if (!c) return;
   const known = new Set(c.messages.filter((m) => !m.pending).map((m) => m.id));
   const fresh = list.filter((m) => !known.has(m.id));
-  if (!fresh.length && (name === undefined || name === c.name)) return;
+  if (!fresh.length && (name === undefined || name === c.name) && (anon === undefined || anon === c.anon)) return;
   const messages = [...c.messages.filter((m) => !m.pending), ...fresh].sort((a, b) => a.id - b.id).concat(c.messages.filter((m) => m.pending));
-  const next = { ...c, messages, name: name === undefined ? c.name : name };
+  const next = { ...c, messages, name: name === undefined ? c.name : name, anon: anon === undefined ? c.anon : anon };
   if (looking) next.seen = replies(next);
   set({ chat: next });
 }
@@ -122,10 +128,10 @@ async function load() {
   const after = c?.messages.filter((m) => !m.pending).at(-1)?.id ?? 0;
   try {
     const res = await fetch(`/api/talk${c ? `?t=${c.id}:${after}` : ""}`, { cache: "no-store" });
-    const d = (await res.json()) as { live: boolean; threads: Record<string, { exists: boolean; name: string | null; messages: TalkMessage[] }> };
+    const d = (await res.json()) as { live: boolean; threads: Record<string, { exists: boolean; name: string | null; anon: boolean; messages: TalkMessage[] }> };
     const t = c ? d.threads?.[c.id] : undefined;
     if (c && t && !t.exists) forget(); // deleted elsewhere (another device, or by me)
-    else if (t) merge(t.messages, t.name);
+    else if (t) merge(t.messages, t.name, t.anon);
     const first = !state.ready;
     set({ live: d.live, ready: true });
     if (first) void listen();
@@ -172,19 +178,25 @@ export async function send(text: string): Promise<Result> {
     const res = await fetch("/api/talk", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      // The name goes with the first message (or with the next one, for a chat from before names were asked for).
-      body: JSON.stringify({ thread: c?.id, text, name: c?.name ? undefined : state.name.trim(), page: location.pathname }),
+      // The name (or the choice to stay anonymous) goes with the first message, or with the next one for a chat from before names were asked.
+      body: JSON.stringify({
+        thread: c?.id,
+        text,
+        ...(c?.name || c?.anon ? {} : { name: state.anon ? "" : state.name.trim(), anon: state.anon }),
+        dev: traits(),
+        page: location.pathname,
+      }),
     });
-    const d = (await res.json()) as { ok: boolean; reason?: string; thread?: string; delivered?: boolean; live?: boolean; name?: string | null; message?: TalkMessage };
+    const d = (await res.json()) as { ok: boolean; reason?: string; thread?: string; delivered?: boolean; live?: boolean; name?: string | null; anon?: boolean; message?: TalkMessage };
     if (!d.ok || !d.thread || !d.message) {
       if (res.status === 404 && c) forget();
       else dropTemp();
       return { ok: false, reason: d.reason ?? "that didn't go through. try again?" };
     }
     const msg = d.message;
-    if (c) set({ chat: { ...c, name: c.name ?? d.name ?? null, messages: [...(state.chat?.messages ?? []).filter((m) => m.id !== temp.id), msg] } });
+    if (c) set({ chat: { ...c, name: c.name ?? d.name ?? null, anon: c.anon || !!d.anon, messages: [...(state.chat?.messages ?? []).filter((m) => m.id !== temp.id), msg] } });
     else {
-      set({ chat: { id: d.thread, name: d.name ?? null, messages: [msg], seen: 0 } });
+      set({ chat: { id: d.thread, name: d.name ?? null, anon: !!d.anon, messages: [msg], seen: 0 } });
       void listen();
     }
     return { ok: true, delivered: d.delivered, live: d.live };
@@ -195,7 +207,9 @@ export async function send(text: string): Promise<Result> {
 }
 
 /** The name for a chat that hasn't started. */
-export const setName = (name: string) => set({ name: name.slice(0, 40) });
+export const setName = (name: string) => set({ name: name.slice(0, 40), anon: false });
+/** "Stay anonymous": a fine answer to "what should I call you?". */
+export const setAnon = (anon: boolean) => set({ anon });
 
 async function del(id: string): Promise<Result> {
   try {
@@ -219,7 +233,7 @@ export async function remove(): Promise<Result> {
 /** A new name is a new chat: the old one is deleted, and the next message starts a fresh one under the new name. */
 export async function changeName(name: string): Promise<Result> {
   const r = await remove();
-  if (r.ok) set({ name: name.trim().slice(0, 40) });
+  if (r.ok) set({ name: name.trim().slice(0, 40), anon: !name.trim() });
   return r;
 }
 
@@ -228,7 +242,7 @@ export function adopt(id: string): boolean {
   if (!THREAD.test(id)) return false;
   if (state.chat?.id !== id) {
     stopListening();
-    set({ chat: { id, name: null, messages: [], seen: 0 } });
+    set({ chat: { id, name: null, anon: false, messages: [], seen: 0 } });
   }
   void load().then(listen);
   return true;
@@ -260,7 +274,7 @@ function subscribe(f: () => void) {
   };
 }
 
-const SERVER: TalkState = { live: null, ready: false, chat: null, name: "", unread: 0 };
+const SERVER: TalkState = { live: null, ready: false, chat: null, name: "", anon: false, unread: 0 };
 export function useTalk(): TalkState {
   return useSyncExternalStore(subscribe, () => state, () => SERVER);
 }

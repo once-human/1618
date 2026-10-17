@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { adopt, changeName, markRead, remove, send, setName, useTalk, type Chat, type TalkMessage } from "@/lib/talk/client";
+import { adopt, changeName, markRead, remove, send, setAnon, setName, useTalk, type Chat, type TalkMessage } from "@/lib/talk/client";
 import { useMusic, useNow, usePresence } from "@/lib/presence/client";
 import { clockIn, hourIn } from "@/lib/time";
 import { Rich } from "@/components/talk/Rich";
@@ -12,10 +12,11 @@ const field = "w-full border-b border-ink bg-transparent py-1.5 outline-none pla
 const STARTERS = ["Hey! Loved the site 👋", "I'm building something and want your take", "Are you open to work?", "Feedback on the site:"];
 
 /**
- * Talk to me: one chat per browser, under one name. Messages land on my
- * phone (Telegram); my replies show up here, live. The chat can be opened on
- * another device with its link, or deleted. A new name starts a fresh chat
- * (the old one is deleted), so a name always belongs to one conversation.
+ * Talk to me: one chat per browser, under one name (or anonymous: everyone
+ * is asked first). Messages land on my phone (Telegram); my replies show up
+ * here, live. The chat can be opened on another device with its link, or
+ * deleted. A new name starts a fresh chat, so a name belongs to one
+ * conversation. Up to 5 messages in a row, then it waits for my reply.
  */
 export function Talk({ page = false }: { page?: boolean }) {
   const t = useTalk();
@@ -42,7 +43,7 @@ export function Talk({ page = false }: { page?: boolean }) {
   return (
     <div id={page ? undefined : "talk"} ref={root} className={page ? "max-w-[46rem]" : "mt-20 max-w-[46rem] scroll-mt-24"}>
       <Availability live={t.live} />
-      {!t.ready ? <div className="min-h-[30vh]" aria-hidden /> : t.chat ? <Conversation key={t.chat.id} chat={t.chat} name={t.name} /> : <NewChat name={t.name} />}
+      {!t.ready ? <div className="min-h-[30vh]" aria-hidden /> : t.chat ? <Conversation key={t.chat.id} chat={t.chat} name={t.name} anon={t.anon} /> : <NewChat name={t.name} anon={t.anon} />}
       {page ? <Terminal /> : null}
     </div>
   );
@@ -88,12 +89,12 @@ function Availability({ live }: { live: boolean | null }) {
 
 /* ---- starting ---- */
 
-function NewChat({ name }: { name: string }) {
+function NewChat({ name, anon }: { name: string; anon: boolean }) {
   const [draft, setDraft] = useState("");
   return (
     <section aria-label="Start a chat">
       <p className="mb-5 text-[17px] leading-snug">Say hi, ask something, pitch me an idea. No email, no sign-up.</p>
-      <NameField name={name} label="Your name" note="It stays with this chat." />
+      <WhoAreYou name={name} anon={anon} label="First, what should I call you?" />
       <div className="mb-4 flex flex-wrap gap-2" aria-label="Ways to start">
         {STARTERS.map((s) => (
           <button key={s} type="button" onClick={() => setDraft(s)} className="border-ink/25 hover:border-ink rounded-full border px-3 py-1 text-[13px]">
@@ -101,24 +102,50 @@ function NewChat({ name }: { name: string }) {
           </button>
         ))}
       </div>
-      <Composer value={draft} onChange={setDraft} placeholder="Write to me" needName={name.trim().length < 2} />
+      <Composer value={draft} onChange={setDraft} placeholder="Write to me" needName={!anon && name.trim().length < 2} />
     </section>
   );
 }
 
-/** Everyone tells me who they are. */
-function NameField({ name, label, note }: { name: string; label: string; note: string }) {
+/** Everyone is asked who they are; staying anonymous is a fine answer. */
+function WhoAreYou({ name, anon, label }: { name: string; anon: boolean; label: string }) {
+  const btn = "underline decoration-1 underline-offset-4 hover:decoration-2";
   return (
-    <label className="mb-5 block max-w-[22rem] text-[13px]">
-      <span className="font-semibold">{label}</span> <span className="text-quiet">{note}</span>
-      <input value={name} onChange={(e) => setName(e.target.value)} maxLength={40} placeholder="What should I call you?" required className={`${field} text-ink text-[16px]`} autoComplete="name" />
-    </label>
+    <div className="mb-5 max-w-[26rem]">
+      <p className="mb-1 text-[15px] font-semibold">{label}</p>
+      {anon ? (
+        <p className="text-[15px]">
+          You&apos;re staying anonymous.{" "}
+          <button type="button" className={`${btn} text-quiet`} onClick={() => setAnon(false)}>
+            Use a name instead
+          </button>
+        </p>
+      ) : (
+        <div className="flex items-baseline gap-4">
+          <input value={name} onChange={(e) => setName(e.target.value)} maxLength={40} placeholder="Your name" aria-label="Your name" className={`${field} text-ink flex-1 text-[16px]`} autoComplete="name" />
+          <span className="text-quiet shrink-0 text-[13px]">
+            or{" "}
+            <button type="button" className={btn} onClick={() => setAnon(true)}>
+              stay anonymous
+            </button>
+          </span>
+        </div>
+      )}
+      <p className="text-quiet mt-1.5 text-[12px]">It stays with this chat. A different name later means a fresh chat.</p>
+    </div>
   );
 }
 
+/** Their messages since my last reply. */
+const unanswered = (c: Chat) => {
+  let n = 0;
+  for (let i = c.messages.length - 1; i >= 0 && c.messages[i].side === "visitor"; i--) n++;
+  return n;
+};
+
 /* ---- the chat ---- */
 
-function Conversation({ chat, name }: { chat: Chat; name: string }) {
+function Conversation({ chat, name, anon }: { chat: Chat; name: string; anon: boolean }) {
   const list = useRef<HTMLOListElement>(null);
   const [draft, setDraft] = useState("");
   const count = chat.messages.length;
@@ -139,8 +166,14 @@ function Conversation({ chat, name }: { chat: Chat; name: string }) {
       ) : (
         <p className="text-quiet mb-5">Loading your chat…</p>
       )}
-      {chat.name ? null : <NameField name={name} label="Before you carry on, what should I call you?" note="It stays with this chat." />}
-      <Composer value={draft} onChange={setDraft} placeholder="Write back" needName={!chat.name && name.trim().length < 2} />
+      {chat.name || chat.anon ? null : <WhoAreYou name={name} anon={anon} label="Before you carry on, what should I call you?" />}
+      <Composer
+        value={draft}
+        onChange={setDraft}
+        placeholder="Write back"
+        needName={!chat.name && !chat.anon && !anon && name.trim().length < 2}
+        locked={unanswered(chat) >= 5 ? "That's 5 in a row. I'll reply soon, and then you can carry on." : null}
+      />
     </section>
   );
 }
@@ -217,7 +250,7 @@ function ChatHeader({ chat }: { chat: Chat }) {
       {mode === "name" ? (
         <form onSubmit={startFresh}>
           <p className="mb-2 text-[15px]">
-            A new name starts a fresh chat. <span className="text-quiet">This one, and everything in it, is deleted, here and on my phone.</span>
+            A new name starts a fresh chat. <span className="text-quiet">This one is deleted from the site and this browser (I keep what you&apos;ve sent on my phone).</span>
           </p>
           <div className="flex flex-wrap items-baseline gap-3">
             <label className="sr-only" htmlFor="talk-new-name">
@@ -234,7 +267,7 @@ function ChatHeader({ chat }: { chat: Chat }) {
         </form>
       ) : mode === "delete" ? (
         <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
-          <span>Delete this chat for good? It goes from here and from my phone.</span>
+          <span>Delete this chat? It goes from the site and this browser. I&apos;ll still have what you&apos;ve sent on my phone.</span>
           <button type="button" className={`${btn} font-semibold text-[#c22]`} onClick={doDelete} disabled={busy}>
             {busy ? "Deleting…" : "Delete"}
           </button>
@@ -244,17 +277,17 @@ function ChatHeader({ chat }: { chat: Chat }) {
         </div>
       ) : (
         <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-          {chat.name ? (
+          {chat.name || chat.anon ? (
             <p>
               <span className="text-quiet">You&apos;re </span>
-              <span className="font-semibold">{chat.name}</span>
+              <span className="font-semibold">{chat.name || "anonymous"}</span>
               <span className="text-quiet"> here</span>
             </p>
           ) : (
-            <p className="text-quiet">You haven&apos;t told me your name yet.</p>
+            <p className="text-quiet">You haven&apos;t said who you are yet.</p>
           )}
           <p className="text-quiet flex gap-4 text-[13px]">
-            {chat.name ? (
+            {chat.name || chat.anon ? (
               <button type="button" className={btn} onClick={() => (setNameDraft(""), setNote(null), setMode("name"))}>
                 Change name
               </button>
@@ -279,7 +312,19 @@ function ChatHeader({ chat }: { chat: Chat }) {
 
 /* ---- writing ---- */
 
-function Composer({ value, onChange, placeholder, needName = false }: { value: string; onChange: (v: string) => void; placeholder: string; needName?: boolean }) {
+function Composer({
+  value,
+  onChange,
+  placeholder,
+  needName = false,
+  locked = null,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  placeholder: string;
+  needName?: boolean;
+  locked?: string | null;
+}) {
   const box = useRef<HTMLTextAreaElement>(null);
   const [state, setState] = useState<{ kind: "idle" | "sending" | "error" | "note"; text?: string }>({ kind: "idle" });
   const [website, setWebsite] = useState("");
@@ -299,7 +344,8 @@ function Composer({ value, onChange, placeholder, needName = false }: { value: s
     e?.preventDefault();
     const text = value.trim();
     if (!text || state.kind === "sending" || website) return;
-    if (needName) return setState({ kind: "error", text: "Tell me your name first 🙂" });
+    if (locked) return setState({ kind: "error", text: locked });
+    if (needName) return setState({ kind: "error", text: "Tell me your name first, or choose to stay anonymous 🙂" });
     setState({ kind: "sending" });
     const r = await send(text);
     if (!r.ok) return setState({ kind: "error", text: r.reason });
@@ -334,10 +380,15 @@ function Composer({ value, onChange, placeholder, needName = false }: { value: s
           aria-label="Your message"
           className={`${field} min-h-[2.4rem] flex-1 resize-none text-[16px] leading-snug`}
         />
-        <button type="submit" disabled={!value.trim() || needName || state.kind === "sending"} title={needName ? "Tell me your name first" : undefined} className="border-ink disabled:text-quiet shrink-0 border-t pt-1.5 font-semibold">
+        <button type="submit" disabled={!value.trim() || needName || !!locked || state.kind === "sending"} title={locked ?? (needName ? "Tell me your name first, or stay anonymous" : undefined)} className="border-ink disabled:text-quiet shrink-0 border-t pt-1.5 font-semibold">
           {state.kind === "sending" ? "Sending…" : "Send"}
         </button>
       </div>
+      {locked ? (
+        <p className="mt-2 text-[14px]" role="status">
+          {locked}
+        </p>
+      ) : null}
       <p className="text-quiet mt-2 flex flex-wrap justify-between gap-x-4 gap-y-1 text-[12px]">
         <span>
           <kbd className="font-sans">Enter</kbd> to send · <kbd className="font-sans">Shift+Enter</kbd> for a new line · <code className="font-mono">`code`</code> and <code className="font-mono">```blocks```</code> work · links are fine
@@ -364,6 +415,7 @@ function Composer({ value, onChange, placeholder, needName = false }: { value: s
 const HOST = "onkaryaglewad.in";
 const CMDS: [string, string][] = [
   [`curl -L -d "text=hey, loved the site&name=YourName" ${HOST}/talk`, "start a chat (you get a code back)"],
+  [`curl -L -d "text=hey, loved the site&anon=1" ${HOST}/talk`, "or stay anonymous"],
   [`curl -L ${HOST}/talk/<code>`, "read it, with my replies"],
   [`curl -L -d "one more thing" ${HOST}/talk/<code>`, "keep going"],
 ];

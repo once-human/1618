@@ -2,7 +2,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Rich } from "@/components/talk/Rich";
-import { act, isNew, refresh, type AdminState, type Thread } from "./store";
+import { act, isNew, refresh, who, type AdminState, type Thread } from "./store";
 import { Button, Chip, Confirm, Empty, Icon, ago, flag, input, town, when } from "./ui";
 import { go } from "./AdminApp";
 
@@ -60,13 +60,13 @@ export function TalkView({ data, open }: { data: AdminState; open: string | null
                     <span className="flex items-baseline justify-between gap-3">
                       <span className="flex min-w-0 items-center gap-2">
                         {isNew(t) ? <span className="bg-a-signal size-2 shrink-0 rounded-full" aria-label="new, waiting on you" /> : null}
-                        <span className={`truncate ${isNew(t) ? "font-semibold" : "font-medium"}`}>{t.name || "No name"}</span>
+                        <span className={`truncate ${isNew(t) ? "font-semibold" : "font-medium"}`}>{who(t)}</span>
                         {t.blocked ? <span className="text-a-bad text-[12px]">blocked</span> : null}
                       </span>
                       <span className="text-a-quiet shrink-0 text-[12px]">{ago(t.lastAt)}</span>
                     </span>
                     <span className="text-a-quiet block truncate text-[13px]">
-                      {flag(t.country)} {t.city ?? "Somewhere"} · {t.count} messages{t.via === "terminal" ? " · terminal" : ""}
+                      {flag(t.country)} {t.city ?? "Somewhere"} · {t.count} messages{t.device ? ` · ${t.device}` : ""}{t.via === "terminal" ? " · terminal" : ""}
                     </span>
                     <span className="mt-0.5 block truncate text-[14px]">
                       {t.last ? `${t.last.side === "me" ? "You: " : ""}${t.last.text.replace(/\s+/g, " ")}` : ""}
@@ -140,7 +140,7 @@ function Conversation({ t }: { t: Thread }) {
   }
 
   return (
-    <section className="bg-a-panel border-a-line flex min-h-[60vh] flex-col rounded-2xl border md:h-[calc(100svh-9rem)]" aria-label={`Chat with ${t.name || "no name"}`}>
+    <section className="bg-a-panel border-a-line flex min-h-[60vh] flex-col rounded-2xl border md:h-[calc(100svh-9rem)]" aria-label={`Chat with ${who(t)}`}>
       <header className="border-a-line flex flex-wrap items-start justify-between gap-3 border-b px-4 py-3">
         <div className="flex min-w-0 items-start gap-2">
           <Button kind="quiet" className="-ml-2 px-1.5 md:hidden" onClick={() => go("talk")} aria-label="Back to chats">
@@ -148,11 +148,16 @@ function Conversation({ t }: { t: Thread }) {
           </Button>
           <div className="min-w-0">
             <p className="truncate font-semibold">
-              {t.name || "No name"} {t.blocked ? <span className="text-a-bad text-[13px] font-normal">blocked</span> : null}
+              {who(t)} {t.blocked ? <span className="text-a-bad text-[13px] font-normal">blocked</span> : null}
             </p>
             <p className="text-a-quiet text-[13px]">
               {flag(t.country)} {town(t.city, t.country)} · started {when(t.createdAt)}
               {t.via === "terminal" ? " from a terminal" : t.page ? ` on ${t.page === "/" ? "the home page" : t.page}` : ""} · #{t.id.slice(0, 4)}
+            </p>
+            <p className="text-a-quiet text-[13px]">
+              {t.device ?? "Device not known"}
+              {t.network ? ` · network ${t.network}` : ""}
+              {t.siblings ? <span className="text-a-ink"> · {t.siblings} other chat{t.siblings === 1 ? "" : "s"} from this network</span> : ""}
             </p>
           </div>
         </div>
@@ -165,7 +170,7 @@ function Conversation({ t }: { t: Thread }) {
               Unblock
             </Button>
           ) : (
-            <Confirm label="Block" yes="Block them" busy={busy === "block"} onYes={async () => (setBusy("block"), await act("block", { thread: t.id }, "Blocked. Their network can't start chats today."), setBusy(null))} />
+            <Confirm label="Block" yes="Block them" busy={busy === "block"} onYes={async () => (setBusy("block"), await act("block", { thread: t.id }, "Blocked, with every chat from their network"), setBusy(null))} />
           )}
           <Confirm
             label="Delete"

@@ -20,8 +20,17 @@ export interface Thread {
   count: number;
   /** When I last looked at it in /admin (or answered it from Telegram). */
   readAt: string | null;
+  anon: boolean;
+  /** "iPhone, Safari" */
+  device: string | null;
+  /** A short one-way code for the network it came from (same code = same network). */
+  network: string | null;
+  /** Other chats from the same network. */
+  siblings: number;
   last: { side: "visitor" | "me"; text: string; at: string } | null;
 }
+
+export const who = (t: Thread) => t.name || (t.anon ? "Anonymous" : "No name yet");
 
 /** Waiting on me: they wrote last, and I haven't looked since. */
 export const isNew = (t: Thread) => t.last?.side === "visitor" && !t.blocked && (!t.readAt || t.readAt < t.last.at);

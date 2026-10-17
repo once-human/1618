@@ -67,7 +67,7 @@ function browserId(): string {
 }
 
 /** What every browser on this device reports alike: the OS and the screen in real pixels. */
-function traits() {
+export function traits() {
   const ua = navigator.userAgent;
   const touchMac = /Macintosh/.test(ua) && navigator.maxTouchPoints > 1;
   const os = /Android/.test(ua)

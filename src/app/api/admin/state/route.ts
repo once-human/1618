@@ -39,10 +39,11 @@ export async function GET(req: Request) {
       db`SELECT (count(*) + coalesce((SELECT n FROM counters WHERE name = 'visitors_archived'), 0))::int AS n FROM visitors`,
     ),
     q<{
-      id: string; name: string | null; city: string | null; country: string | null; page: string | null; via: string | null; blocked: boolean; admin_read_at: string | null;
+      id: string; name: string | null; city: string | null; country: string | null; page: string | null; via: string | null; blocked: boolean; admin_read_at: string | null; anon: boolean; ua: string | null; net: string | null; siblings: number;
       created_at: string; last_at: string; n: number; last_side: "visitor" | "me" | null; last_text: string | null; last_at_msg: string | null;
     }>("admin threads", (db) =>
-      db`SELECT t.id, t.name, t.city, t.country, t.page, t.via, t.blocked, t.admin_read_at, t.created_at, t.last_at,
+      db`SELECT t.id, t.name, t.city, t.country, t.page, t.via, t.blocked, t.admin_read_at, t.anon, t.ua, t.net, t.created_at, t.last_at,
+                (SELECT count(*)::int FROM talk_threads x WHERE x.net = t.net AND x.id <> t.id) AS siblings,
                 (SELECT count(*)::int FROM talk_messages m WHERE m.thread = t.id) AS n,
                 l.side AS last_side, l.text AS last_text, l.at AS last_at_msg
          FROM talk_threads t
@@ -80,6 +81,7 @@ export async function GET(req: Request) {
           id: t.id, name: t.name, city: t.city, country: t.country, page: t.page, via: t.via, blocked: t.blocked,
           createdAt: new Date(t.created_at).toISOString(), lastAt: new Date(t.last_at).toISOString(), count: t.n,
           readAt: t.admin_read_at ? new Date(t.admin_read_at).toISOString() : null,
+          anon: t.anon, device: t.ua, network: t.net ? t.net.slice(0, 6) : null, siblings: t.siblings,
           last: t.last_side ? { side: t.last_side, text: t.last_text ?? "", at: new Date(t.last_at_msg!).toISOString() } : null,
         })),
       },

@@ -50,21 +50,20 @@ export async function POST(req: Request) {
     case "unblock": {
       if (!thread) return no("No such chat.", 404);
       const on = b.action === "block";
-      const r = await q<{ who: string | null }>("admin block", (db) => db`UPDATE talk_threads SET blocked = ${on} WHERE id = ${thread} RETURNING who`);
-      const who = r?.[0]?.who;
-      if (who) {
-        if (on) await kvSet(`talk-block:${who}`, { until: Date.now() + 24 * 3600_000 });
-        else await kvDelete(`talk-block:${who}`);
+      const r = await q<{ who: string | null; net: string | null }>("admin block", (db) => db`UPDATE talk_threads SET blocked = ${on} WHERE id = ${thread} RETURNING who, net`);
+      const t = r?.[0];
+      // The whole network they write from, for good (until unblocked).
+      if (t?.net) {
+        if (on) await kvSet(`talk-block:net:${t.net}`, { at: new Date().toISOString(), thread });
+        else await kvDelete(`talk-block:net:${t.net}`);
       }
+      if (!on && t?.who) await kvDelete(`talk-block:${t.who}`);
       return ok();
     }
     case "deleteThread": {
       if (!thread) return no("No such chat.", 404);
-      const ids = await q<{ tg_id: string }>("admin tg ids", (db) => db`SELECT tg_id FROM talk_messages WHERE thread = ${thread} AND tg_id IS NOT NULL`);
+      // From the site only: my copies on Telegram stay.
       await q("admin delete thread", (db) => db`DELETE FROM talk_threads WHERE id = ${thread}`);
-      const me = telegramConfigured() ? await owner() : null;
-      const list = (ids ?? []).map((r) => Number(r.tg_id)).filter(Boolean);
-      if (me && list.length) for (let i = 0; i < list.length; i += 100) await tg("deleteMessages", { chat_id: me.chatId, message_ids: list.slice(i, i + 100) });
       await push(`talk:${thread}`, "deleted", {});
       return ok();
     }

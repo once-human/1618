@@ -59,8 +59,8 @@ export async function POST(req: Request) {
   // /block (as a reply to their message) closes that chat and stops their network writing for a day.
   if (text === "/block" || text === "/unblock") {
     const r = m.reply_to_message
-      ? await q<{ thread: string; who: string | null }>("talk block find", (db) =>
-          db`SELECT m.thread, t.who FROM talk_messages m JOIN talk_threads t ON t.id = m.thread WHERE m.tg_id = ${m.reply_to_message!.message_id} LIMIT 1`,
+      ? await q<{ thread: string; who: string | null; net: string | null }>("talk block find", (db) =>
+          db`SELECT m.thread, t.who, t.net FROM talk_messages m JOIN talk_threads t ON t.id = m.thread WHERE m.tg_id = ${m.reply_to_message!.message_id} LIMIT 1`,
         )
       : null;
     const t = r?.[0];
@@ -70,11 +70,13 @@ export async function POST(req: Request) {
     }
     const on = text === "/block";
     await q("talk block", (db) => db`UPDATE talk_threads SET blocked = ${on} WHERE id = ${t.thread}`);
-    if (t.who) {
-      if (on) await kvSet(`talk-block:${t.who}`, { until: Date.now() + 24 * 3600_000 });
-      else await kvDelete(`talk-block:${t.who}`);
+    // The whole network they write from, for good (until /unblock).
+    if (t.net) {
+      if (on) await kvSet(`talk-block:net:${t.net}`, { at: new Date().toISOString(), thread: t.thread });
+      else await kvDelete(`talk-block:net:${t.net}`);
     }
-    await send(me.chatId, on ? `🚫 #${t.thread.slice(0, 4)} blocked, and their network can't start new chats today. Reply /unblock to undo.` : `✅ #${t.thread.slice(0, 4)} unblocked.`, m.message_id);
+    if (!on && t.who) await kvDelete(`talk-block:${t.who}`);
+    await send(me.chatId, on ? `🚫 #${t.thread.slice(0, 4)} blocked, along with every chat from their network. Reply /unblock to undo.` : `✅ #${t.thread.slice(0, 4)} unblocked.`, m.message_id);
     return new Response("ok");
   }
 
