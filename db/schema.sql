@@ -19,7 +19,6 @@ CREATE TABLE IF NOT EXISTS health_days (day date PRIMARY KEY, data jsonb NOT NUL
 -- Visitors
 CREATE TABLE IF NOT EXISTS counters (name text PRIMARY KEY, n bigint NOT NULL DEFAULT 0);
 CREATE TABLE IF NOT EXISTS reactions (track_key text PRIMARY KEY, n integer NOT NULL DEFAULT 0, updated_at timestamptz NOT NULL DEFAULT now());
-CREATE TABLE IF NOT EXISTS here (id text PRIMARY KEY, last_seen timestamptz NOT NULL DEFAULT now());
 CREATE TABLE IF NOT EXISTS submissions (id bigserial PRIMARY KEY, kind text NOT NULL, name text, message text, payload jsonb, status text NOT NULL DEFAULT 'pending', hidden boolean NOT NULL DEFAULT false, created_at timestamptz NOT NULL DEFAULT now());
 CREATE INDEX IF NOT EXISTS submissions_kind_status ON submissions (kind, status, created_at DESC);
 CREATE TABLE IF NOT EXISTS ratelimit (key text PRIMARY KEY, n integer NOT NULL DEFAULT 0, window_start timestamptz NOT NULL DEFAULT now());
@@ -32,7 +31,6 @@ CREATE INDEX IF NOT EXISTS scrobbles_song ON scrobbles (song_key);
 CREATE TABLE IF NOT EXISTS artist_credits (credit text PRIMARY KEY, single boolean NOT NULL, checked_at timestamptz NOT NULL DEFAULT now());
 -- Daily visitor hashes, folded into counters.visitors_archived each night
 CREATE TABLE IF NOT EXISTS visitors (day date NOT NULL, who text NOT NULL, PRIMARY KEY (day, who));
-ALTER TABLE here ADD COLUMN IF NOT EXISTS who text;
 
 -- Talk to me live: visitor messages go to my Telegram, my replies come back
 CREATE TABLE IF NOT EXISTS talk_threads (id text PRIMARY KEY, city text, country text, page text, created_at timestamptz NOT NULL DEFAULT now(), last_at timestamptz NOT NULL DEFAULT now(), name text, who text, via text, blocked boolean NOT NULL DEFAULT false, admin_read_at timestamptz);
