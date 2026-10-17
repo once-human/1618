@@ -60,8 +60,11 @@ plays per run until it reaches the first scrobble. It runs:
 - **Rate limits** use a salted, one-way hash of the IP that changes daily (`visitorKey` in
   `src/lib/db.ts`); no IP is ever stored.
 - **People here** (`src/lib/presence/here.ts`, `roster.ts`, tested): every tab joins one channel on
-  Supabase Realtime (a free project used for nothing else). A person is a browser: one random id
-  in local storage, so tabs count once and a private window or another device counts separately.
+  Supabase Realtime (a free project used for nothing else). A person is a device: `/api/here`
+  hands each tab a daily HMAC of network (IPv6 /64) + OS + physical screen size
+  (`src/lib/presence/device.ts`, tested), so tabs, private windows and other browsers on one
+  device count once. Trade-off: two people on one network with the same phone model count as
+  one. If the code can't be fetched, a per-browser id in local storage is used instead.
   Two signals are merged: each tab broadcasts "hi"/"bye" (seen by others in ~5-400 ms), and the
   server's presence list settles the truth ~2.5 s later and catches tabs that die without a word.
   A reload keeps its tab id, and someone's last tab gets a 1.5 s grace, so reloads never dip.

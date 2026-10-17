@@ -11,8 +11,10 @@ export type { Here };
  * Who's on the site right now, live.
  *
  * Every open tab joins one shared channel on Supabase Realtime. A person is a
- * browser: it keeps one random id in local storage, so all its tabs count
- * once, while a private window or another device counts as someone else.
+ * device: the server hands each tab a daily code for its device (./device.ts),
+ * so tabs, private windows and other browsers on one phone or laptop all
+ * count once, and only someone else's device makes it two. If that code
+ * can't be fetched, the tab falls back to one random id per browser.
  *
  * Two signals on that channel, merged by ./roster.ts: each tab announces
  * itself ("hi"/"bye") so the number moves within milliseconds, and the
@@ -63,6 +65,71 @@ function browserId(): string {
   }
 }
 
+/** What every browser on this device reports alike: the OS and the screen in real pixels. */
+function traits() {
+  const ua = navigator.userAgent;
+  const touchMac = /Macintosh/.test(ua) && navigator.maxTouchPoints > 1;
+  const os = /Android/.test(ua)
+    ? "android"
+    : /iPhone|iPad|iPod/.test(ua) || touchMac
+      ? "ios"
+      : /CrOS/.test(ua)
+        ? "chromeos"
+        : /Mac/.test(ua)
+          ? "mac"
+          : /Win/.test(ua)
+            ? "windows"
+            : /Linux/.test(ua)
+              ? "linux"
+              : "other";
+  const dpr = window.devicePixelRatio || 1;
+  return { os, w: Math.round(screen.width * dpr), h: Math.round(screen.height * dpr) };
+}
+
+let deviceCache: { key: string; day: string } | null = null;
+
+/** This device's code for today, or this browser's own id if the server can't be reached. */
+async function personKey(): Promise<string> {
+  const today = new Date().toISOString().slice(0, 10);
+  if (deviceCache?.day === today) return deviceCache.key;
+  try {
+    const kept = JSON.parse(sessionStorage.getItem("here-device") ?? "null");
+    if (kept?.day === today && ID.test(kept.key)) return (deviceCache = kept).key;
+  } catch {
+    /* ignore */
+  }
+  try {
+    const res = await fetch("/api/here", {
+      method: "POST",
+      body: JSON.stringify(traits()),
+      signal: AbortSignal.timeout(4000),
+    });
+    const got = (await res.json()) as { key?: string; day?: string };
+    if (res.ok && got.key && ID.test(got.key) && got.day) {
+      deviceCache = { key: got.key, day: got.day };
+      try {
+        sessionStorage.setItem("here-device", JSON.stringify(deviceCache));
+      } catch {
+        /* ignore */
+      }
+      return got.key;
+    }
+  } catch {
+    /* fall through */
+  }
+  return browserId();
+}
+
+/** A new network (wifi to mobile data) means a new code. */
+function forgetDevice() {
+  deviceCache = null;
+  try {
+    sessionStorage.removeItem("here-device");
+  } catch {
+    /* ignore */
+  }
+}
+
 /**
  * One id per tab that survives a reload (so a reload is the same tab coming
  * back, not someone leaving), but not a duplicated tab: it's only written on
@@ -101,7 +168,11 @@ async function join() {
   if (channel || joining) return;
   joining = true;
   try {
-    const { RealtimeClient } = await import("@supabase/realtime-js");
+    // The device code and the realtime library load side by side.
+    const [{ RealtimeClient }, me] = await Promise.all([
+      import("@supabase/realtime-js"),
+      personKey(),
+    ]);
     client ??= new RealtimeClient(`${URL}/realtime/v1`, {
       params: { apikey: KEY },
       heartbeatIntervalMs: 15_000,
@@ -109,7 +180,6 @@ async function join() {
       // don't get it mistaken for gone.
       worker: true,
     });
-    const me = browserId();
     tab = tabId();
     const r = new Roster(me);
     const ch = client.channel(TOPIC, {
@@ -192,7 +262,10 @@ function onVisibility() {
 // back from the back-forward cache rejoins.
 const onHide = () => leave();
 const onShow = (e: PageTransitionEvent) => e.persisted && void join();
-const onOnline = () => document.visibilityState === "visible" && void join();
+const onOnline = () => {
+  forgetDevice();
+  if (document.visibilityState === "visible") void join();
+};
 
 function subscribe(f: () => void) {
   subs.add(f);

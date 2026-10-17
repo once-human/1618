@@ -77,14 +77,17 @@ export default function Privacy() {
             <p>
               Two counts, nothing more. The visitor count adds you once a day, however often you
               reload, recognising a returning visitor only by the scrambled, daily-changing code
-              described below. And to show how many people are on the site right now, your browser
-              keeps one random code in its local storage (so your tabs count as one person) and,
-              while a tab is open, holds a live connection to Supabase Realtime, which passes that
-              code around to the other people on the site and nothing else. The code isn&apos;t
-              linked to your address or anything about you, isn&apos;t stored on any server once you
-              leave, and a private window gets its own. A tab that sits in the background for a
-              minute steps out until you come back. Like any server, Supabase sees your
-              connection&apos;s address while you&apos;re connected; see the{" "}
+              described below. And to show how many people are on the site right now, each open tab
+              holds a live connection to Supabase Realtime and is given a scrambled code for
+              the device it&apos;s on, so your tabs, private windows and other browsers on one
+              phone or laptop count as one person. The code is worked out by the server from
+              your connection&apos;s address, your operating system and your screen&apos;s pixel
+              size, mixed with a secret and the date. It can&apos;t be turned back into any of
+              those, changes every day, and isn&apos;t stored anywhere; it&apos;s only passed to
+              the other people on the site so their browsers can count. (If that fails, your
+              browser keeps one random code in its local storage instead.) A tab that sits in
+              the background for a minute steps out until you come back. Like any server,
+              Supabase sees your connection&apos;s address while you&apos;re connected; see the{" "}
               <Ext href="https://supabase.com/privacy">Supabase privacy policy</Ext>.
             </p>
           </Part>
