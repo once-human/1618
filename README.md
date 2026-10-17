@@ -16,24 +16,35 @@ After the day comes the work: a plain index of what I've built, each with its ow
 A few things on the page are happening right now rather than written once:
 
 - **Lately.** One line that says where I am (listening, around, or probably asleep), my time next to
-  yours, how many people are here, and a diary of the last 48 hours that writes itself: listening
-  sessions, pushes, saves, runs.
+  yours, and who else is reading right now ("you, two people in Berlin and someone in Mumbai"), plus
+  a diary of the last 48 hours that writes itself: listening sessions, pushes, saves, workouts.
+- **Other people, live.** A thin rail on the right edge has a dot for everyone else on the same page,
+  showing how far down they are. Hover a dot to see their town.
 - **Listening.** What I'm playing on Apple Music right now, roughly how far into the song I am, and
   what I played before. Press any cover to hear 30 seconds. Below it: what's on repeat this month,
-  the hours I listen at, and the year so far, recap-style, kept live. You can send me a song.
+  the hours I listen at, and the year so far, recap-style, kept live. You can send me a song, and
+  next time you visit it'll tell you if I played it.
 - **Saved.** My Pinterest: profile, boards as little mosaics, the colours of what I've been saving,
   and the latest saves, which slide in on their own.
-- **Say hi.** A guestbook. Be nice; a light filter keeps the worst out.
-- **Work.** Projects with a public repository say when they were last updated.
+- **Talk to me.** Write, and it lands on my phone; when I reply, it shows up on your screen while
+  you're still there. There's a guestbook too. Be nice; a light filter keeps the worst out.
+- **Work.** Projects with a public repository say when they were last updated, and what I was
+  listening to while I built them.
 
 Everything the live parts see is also kept, so it can be looked back on: [/history](https://onkaryaglewad.in/history)
-searches any week, month or year, and [/now](https://onkaryaglewad.in/now) is what I'm up to this month.
+searches any week, month or year, and [/now](https://onkaryaglewad.in/now) is what I'm up to this month,
+with a map of who came by today. Its colours follow the sky over wherever I am: white by day, warm
+at sunset, dark at night, with rain when it rains.
 [/status](https://onkaryaglewad.in/status) shows whether every source is answering.
 
 If a live source can't be reached, that piece is simply left out. Nothing is made up. Press ⌘K
-anywhere to jump around.
+anywhere to jump around. In a terminal, try:
 
-The site has no cookies, analytics or tracking. The [privacy page](https://onkaryaglewad.in/privacy)
+```
+curl -L onkaryaglewad.in
+```
+
+The site has no cookies, analytics or ad tracking. The [privacy page](https://onkaryaglewad.in/privacy)
 explains exactly what it reads, what it keeps, and from where.
 
 ## What's in the work index
@@ -57,7 +68,8 @@ close to the real picture's colour, captioned with what it will show.
 Next.js, TypeScript and Tailwind, with GSAP and Lenis for the scroll, set in Archivo (its width axis
 is what squeezes the big words when you scroll fast). Server routes gather the live pieces (Last.fm,
 Apple Music, Pinterest, GitHub, Apple Health, Open-Meteo) and cache each on its own schedule; a small Neon
-Postgres database keeps the history. Hosted on Vercel.
+Postgres database keeps the history, and Supabase Realtime carries everything that has to be instant
+(who's here, and replies to messages). Hosted on Vercel.
 
 ## Run it locally
 
