@@ -123,7 +123,7 @@ export function StatusLine({ className = "" }: { className?: string }) {
 }
 
 /** "Just you here right now." / "Here right now: you, two people in Berlin and someone in Mumbai." */
-function hereLine({ people, mine }: { people: number; mine: number }, others: Town[]) {
+export function hereLine({ people, mine }: { people: number; mine: number }, others: Town[]) {
   const me = myTown();
   // A town in my own country needs no country name.
   const name = (t: Town) => (t.city && me.country && t.country === me.country ? t.city : placeName(t.city, t.country));

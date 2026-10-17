@@ -14,14 +14,14 @@ const SHOW: Record<Show, string> = { all: "block", md: "hidden md:block", lg: "h
 const SECTIONS: { id: string; label: string; show: Show }[] = [
   { id: "work", label: "work", show: "all" },
   { id: "listening", label: "listening", show: "md" },
-  { id: "saved", label: "saved", show: "md" },
-  { id: "say-hi", label: "say hi", show: "lg" },
+  { id: "saved", label: "saved", show: "lg" },
 ];
 
 const PAGES: { href: string; label: string; show: Show }[] = [
   { href: "/now", label: "now", show: "all" },
-  { href: "/history", label: "history", show: "all" },
+  { href: "/history", label: "history", show: "md" },
   { href: "/status", label: "status", show: "lg" },
+  { href: "/talk", label: "talk", show: "all" },
 ];
 
 const cell = "border-t border-ink pt-1.5 pointer-events-auto truncate";

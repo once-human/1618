@@ -92,7 +92,7 @@ export function CommandMenu() {
       });
     }
     list.push(
-      { group: "Live", label: "Talk to me, live", hint: "goes to my phone", run: section("talk") },
+      { group: "Live", label: "Talk to me", hint: "/talk", run: go("/talk") },
       { group: "Live", label: "Send me a song", run: section("send-a-song") },
       { group: "Live", label: "Sign the guestbook", run: section("guestbook") },
       { group: "This page", label: "The day", run: section("top") },
@@ -103,7 +103,7 @@ export function CommandMenu() {
       { group: "Pages", label: "Now: what I'm up to, the last 48 hours, on repeat", hint: "/now", run: go("/now") },
       { group: "Pages", label: "History: the year so far, top tens, any stretch", hint: "/history", run: go("/history") },
       { group: "Pages", label: "All work", hint: "/work", run: go("/work") },
-      { group: "Pages", label: "Status of live sources", hint: "/status", run: go("/status") },
+      { group: "Pages", label: "Status: everything this site does, and whether it's working", hint: "/status", run: go("/status") },
       { group: "Pages", label: "Privacy", hint: "/privacy", run: go("/privacy") },
     );
     for (const [k, href] of Object.entries(profile.links))

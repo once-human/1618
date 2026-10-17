@@ -13,7 +13,9 @@ import { owner, telegramConfigured, tg } from "@/lib/talk/telegram";
  *   POST /api/talk { thread?, text, name?, page? }
  *
  * A conversation is a random code the visitor's browser keeps. Only I see
- * the messages.
+ * the messages. Talk is always open: while my phone isn't hooked up (no
+ * Telegram yet), messages are kept and I answer them from /admin instead.
+ * "live" says which of the two it is right now.
  */
 const THREAD = /^[a-f0-9]{32}$/;
 const say = (reason: string, status = 400) => Response.json({ ok: false, reason }, { status });
@@ -37,9 +39,9 @@ export async function GET(req: Request) {
   const url = new URL(req.url);
   const thread = url.searchParams.get("thread") ?? "";
   const after = Number(url.searchParams.get("after")) || 0;
-  const available = telegramConfigured() && !!(await owner());
+  const live = telegramConfigured() && !!(await owner());
   const list = THREAD.test(thread) ? await messages(thread, after) : [];
-  return Response.json({ available, messages: list }, { headers: { "Cache-Control": "no-store" } });
+  return Response.json({ live, messages: list }, { headers: { "Cache-Control": "no-store" } });
 }
 
 export async function POST(req: Request) {
@@ -51,8 +53,7 @@ export async function POST(req: Request) {
   }
   if (body.website) return Response.json({ ok: true }); // bots fill every field
 
-  const me = await owner();
-  if (!telegramConfigured() || !me) return say("I can't take messages here right now. Try the links above?", 503);
+  const me = telegramConfigured() ? await owner() : null;
 
   const text = moderate(typeof body.text === "string" ? body.text : "", { max: 1000, links: true });
   if (!text.ok) return say(text.reason);
@@ -89,17 +90,18 @@ export async function POST(req: Request) {
   const tag = `#${thread!.slice(0, 4)}`;
   const who_ = name.text || "Someone";
   const head = isNew ? `💬 New chat ${tag} · ${where}${info?.[0]?.page ? ` · on ${info[0].page}` : ""}\n` : `💬 ${tag} · ${where}\n`;
-  const sent = await tg<{ message_id: number }>("sendMessage", {
+  const sent = me ? await tg<{ message_id: number }>("sendMessage", {
     chat_id: me.chatId,
     text: `${head}${who_}: ${text.text}${isNew ? "\n\n↩️ Reply to this message to answer." : ""}`,
     link_preview_options: { is_disabled: true },
-  });
+  }) : null;
   if (sent) await q("talk tg", (db) => db`UPDATE talk_messages SET tg_id = ${sent.message_id} WHERE id = ${id}`);
 
   return Response.json({
     ok: true,
     thread,
     delivered: !!sent,
+    live: !!me,
     message: { id, side: "visitor", text: text.text, at: new Date(rows[0].at).toISOString() } satisfies TalkMessage,
   });
 }

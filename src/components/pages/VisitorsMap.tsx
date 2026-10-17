@@ -61,7 +61,7 @@ export function VisitorsMap() {
   const max = Math.max(1, ...placed.map((p) => p.n));
 
   return (
-    <section>
+    <section id="visitors" className="scroll-mt-24">
       <h2 className="border-ink mb-6 flex flex-wrap justify-between gap-x-4 border-t pt-1.5 font-semibold">
         Who came by today
         <span className="text-quiet font-normal">

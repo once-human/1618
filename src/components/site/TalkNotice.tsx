@@ -43,7 +43,7 @@ function Notice() {
   }, [unread, thread]);
 
   if (!unread) return null;
-  const open = () => (path === "/" ? scrollToId("talk") : router.push("/#talk"));
+  const open = () => (path === "/" ? scrollToId("talk") : router.push("/talk"));
   return (
     <button
       type="button"

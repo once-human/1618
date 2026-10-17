@@ -4,7 +4,7 @@ import { StatusPage } from "@/components/pages/Status";
 
 export const metadata: Metadata = {
   title: "Status, Onkar Yaglewad",
-  description: "Every live source behind this site, and whether it's answering.",
+  description: "Everything this site does, where to find it, and whether it's working right now.",
   alternates: { canonical: "/status" },
 };
 

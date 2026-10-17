@@ -92,18 +92,24 @@ export async function GET(req: Request) {
 <span class=q>Last sync ${sync ? esc(new Date(sync.value.at).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })) : "never"}. Last.fm backfill ${backfill?.value.done ? "complete" : "still running"}.</span>
 <a href="/api/sync?key=${key}">Sync now</a></p>
 
-<h2>Talk to me (Telegram)</h2>
+<h2>Talk to me</h2>
+<p class=q>Always open on the site. Answer below, or from Telegram once it's connected.</p>
 <p>${
     !telegramConfigured()
-      ? "<span class=q>Off. Make a bot with @BotFather in Telegram, add its token in Vercel as TELEGRAM_BOT_TOKEN, redeploy, then come back here.</span>"
+      ? "<span class=q>Telegram: off, so messages wait here. To get them on your phone: make a bot with @BotFather in Telegram, add its token in Vercel as TELEGRAM_BOT_TOKEN, redeploy, then come back here.</span>"
       : tgOwner
         ? `On: visitors' messages go to ${esc(tgOwner.name || "you")} on Telegram. Reply to one to answer. <span class=q>(<a href="/api/telegram/connect?key=${key}">reconnect</a>)</span>`
         : `Bot is ready. <a href="/api/telegram/connect?key=${key}"><b>Connect Telegram</b></a>, then press Start in the chat that opens. <span class=q>The link works once, for 15 minutes.</span>`
   }</p>
+${(chats ?? []).length ? "" : "<p class=q>No conversations yet.</p>"}
 ${(chats ?? [])
   .map(
-    (t) => `<details><summary>#${esc(t.id.slice(0, 4))} · ${esc(placeName(t.city, t.country))}${t.page ? ` · ${esc(t.page)}` : ""} · ${t.log.length} messages · ${esc(new Date(t.last_at).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" }))}</summary>
-<ul>${t.log.map((m) => `<li><b>${m.side === "me" ? "me" : "them"}:</b> ${esc(m.text)}</li>`).join("")}</ul></details>`,
+    (t, i) => {
+      const waiting = t.log.at(-1)?.side !== "me";
+      return `<details id="chat-${esc(t.id.slice(0, 8))}"${i === 0 || waiting ? " open" : ""}><summary>${waiting ? "<b>● waiting</b> · " : ""}#${esc(t.id.slice(0, 4))} · ${esc(placeName(t.city, t.country))}${t.page ? ` · ${esc(t.page)}` : ""} · ${t.log.length} messages · ${esc(new Date(t.last_at).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" }))}</summary>
+<ul>${t.log.map((m) => `<li><b>${m.side === "me" ? "me" : "them"}:</b> ${esc(m.text)}</li>`).join("")}</ul>
+<form method="post" action="/api/talk/reply?key=${key}"><input type="hidden" name="thread" value="${esc(t.id)}"><input type="text" name="text" placeholder="Reply (shows up on their screen)" maxlength="2000" required> <button>Send</button></form></details>`;
+    },
   )
   .join("")}
 

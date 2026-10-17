@@ -17,14 +17,15 @@ export interface TalkMessage {
 }
 
 export interface TalkState {
-  available: boolean | null;
+  /** True when messages reach my phone right away (Telegram); otherwise they wait for me. */
+  live: boolean | null;
   thread: string | null;
   messages: TalkMessage[];
   /** Replies from me the visitor hasn't looked at yet. */
   unread: number;
 }
 
-let state: TalkState = { available: null, thread: null, messages: [], unread: 0 };
+let state: TalkState = { live: null, thread: null, messages: [], unread: 0 };
 const subs = new Set<() => void>();
 const set = (patch: Partial<TalkState>) => {
   state = { ...state, ...patch };
@@ -41,6 +42,23 @@ const stored = () => {
   }
 };
 
+// How many of my replies this browser has actually looked at, kept across
+// visits so a reply that came while they were away still shows up as new.
+const readSeen = () => {
+  try {
+    const n = Number(localStorage.getItem("talk-seen"));
+    return Number.isFinite(n) && localStorage.getItem("talk-seen") !== null ? n : null;
+  } catch {
+    return null;
+  }
+};
+const saveSeen = (n: number) => {
+  try {
+    localStorage.setItem("talk-seen", String(n));
+  } catch {
+    /* fine */
+  }
+};
 let seen = 0;
 let looking = false;
 function add(list: TalkMessage[]) {
@@ -49,8 +67,11 @@ function add(list: TalkMessage[]) {
   if (!fresh.length) return;
   const messages = [...state.messages, ...fresh].sort((a, b) => a.id - b.id);
   const replies = messages.filter((m) => m.side === "me").length;
-  set({ messages, unread: looking ? 0 : Math.max(0, replies - seen) });
-  if (looking) seen = replies;
+  if (looking) {
+    seen = replies;
+    saveSeen(seen);
+  }
+  set({ messages, unread: Math.max(0, replies - seen) });
 }
 
 /** Called by the conversation view while it's on screen. */
@@ -58,6 +79,7 @@ export function markRead(on: boolean) {
   looking = on;
   if (on) {
     seen = state.messages.filter((m) => m.side === "me").length;
+    saveSeen(seen);
     if (state.unread) set({ unread: 0 });
   }
 }
@@ -67,13 +89,13 @@ async function load() {
   const after = state.messages.at(-1)?.id ?? 0;
   try {
     const res = await fetch(`/api/talk?${thread ? `thread=${thread}&after=${after}` : ""}`, { cache: "no-store" });
-    const d = (await res.json()) as { available: boolean; messages: TalkMessage[] };
+    const d = (await res.json()) as { live: boolean; messages: TalkMessage[] };
     if (state.thread !== thread) set({ thread });
-    set({ available: d.available });
-    if (!after) seen = d.messages.filter((m) => m.side === "me").length; // history isn't news
+    set({ live: d.live });
+    if (!after) seen = readSeen() ?? d.messages.filter((m) => m.side === "me").length;
     add(d.messages);
   } catch {
-    if (state.available === null) set({ available: false });
+    if (state.live === null) set({ live: false });
   }
 }
 
@@ -93,14 +115,14 @@ async function listen() {
   channel.subscribe((s) => s === "SUBSCRIBED" && void load());
 }
 
-export async function sendTalk(text: string, name: string): Promise<{ ok: boolean; reason?: string; delivered?: boolean }> {
+export async function sendTalk(text: string, name: string): Promise<{ ok: boolean; reason?: string; delivered?: boolean; live?: boolean }> {
   try {
     const res = await fetch("/api/talk", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ thread: state.thread, text, name, page: location.pathname }),
     });
-    const d = (await res.json()) as { ok: boolean; reason?: string; thread?: string; delivered?: boolean; message?: TalkMessage };
+    const d = (await res.json()) as { ok: boolean; reason?: string; thread?: string; delivered?: boolean; live?: boolean; message?: TalkMessage };
     if (!d.ok) return { ok: false, reason: d.reason };
     if (d.thread && d.thread !== state.thread) {
       try {
@@ -113,7 +135,7 @@ export async function sendTalk(text: string, name: string): Promise<{ ok: boolea
       void listen();
     }
     if (d.message) add([d.message]);
-    return { ok: true, delivered: d.delivered };
+    return { ok: true, delivered: d.delivered, live: d.live };
   } catch {
     return { ok: false, reason: "that didn't go through. try again?" };
   }

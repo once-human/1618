@@ -4,6 +4,7 @@ import { getSaved } from "@/lib/presence/pinterest";
 import { getListeningStats } from "@/lib/presence/lastfm";
 import { publicLinks, profile } from "@/content/profile";
 import { SITE_URL } from "@/lib/site";
+import { owner, telegramConfigured } from "@/lib/talk/telegram";
 import { clockIn, fmtNum, timeAgo } from "@/lib/time";
 
 /**
@@ -17,11 +18,12 @@ export async function GET(req: Request) {
   const b = (s: string) => (plain ? s : `\x1b[1m${s}\x1b[22m`);
   const d = (s: string) => (plain ? s : `\x1b[2m${s}\x1b[22m`);
 
-  const [presence, tracks, saved, stats] = await Promise.all([
+  const [presence, tracks, saved, stats, phone] = await Promise.all([
     getPresence(),
     getMusic().catch(() => null),
     getSaved(4).catch(() => null),
     getListeningStats().catch(() => null),
+    telegramConfigured() ? owner().catch(() => null) : null,
   ]);
   const now = Date.now();
   const place = presence.place;
@@ -48,7 +50,8 @@ export async function GET(req: Request) {
     row("steps", presence.health?.steps ? `${fmtNum(presence.health.steps)} today` : null),
     "",
     row("site", SITE_URL.replace("https://", "")),
-    row("talk", `${SITE_URL.replace("https://", "")}/#talk ${d("(goes straight to my phone)")}`),
+    row("talk", `${SITE_URL.replace("https://", "")}/talk ${d(phone ? "(goes straight to my phone)" : "(I reply right on the page)")}`),
+    row("status", `${SITE_URL.replace("https://", "")}/status ${d("(everything this site does)")}`),
     ...publicLinks()
       .filter((l) => !l.href.startsWith("mailto:"))
       .map((l) => row(l.label.toLowerCase(), l.href.replace(/^https?:\/\/(www\.)?/, ""))),

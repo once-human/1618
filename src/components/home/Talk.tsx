@@ -9,10 +9,12 @@ import { clockIn, timeAgo } from "@/lib/time";
 const field = "w-full border-b border-ink bg-transparent py-1.5 outline-none placeholder:text-quiet focus:border-b-2";
 
 /**
- * Talk to me, live. What you write lands on my phone; when I reply, it shows
- * up here while you're still on the page. Only shown when the line is open.
+ * Talk to me. What you write lands on my phone (when Telegram is hooked up)
+ * and my reply shows up here while you're still on the page; otherwise it
+ * waits for me, and the reply shows up the next time you're on the site.
+ * Always open, here and on /talk.
  */
-export function Talk() {
+export function Talk({ page = false }: { page?: boolean }) {
   const talk = useTalk();
   const presence = usePresence();
   const now = useNow();
@@ -32,17 +34,16 @@ export function Talk() {
       io.disconnect();
       markRead(false);
     };
-  }, [talk.available]);
+  }, []);
 
   useEffect(() => {
     list.current?.scrollTo({ top: list.current.scrollHeight, behavior: "smooth" });
   }, [talk.messages.length]);
 
-  if (!talk.available) return null;
-
   const place = presence?.place ?? { city: "Pune", tz: "Asia/Kolkata" };
   const clock = now ? clockIn(place.tz, new Date(now)) : null;
   const started = talk.messages.length > 0;
+  const live = talk.live === true;
 
   async function send(e?: React.FormEvent) {
     e?.preventDefault();
@@ -54,22 +55,26 @@ export function Talk() {
     setState(
       r.delivered
         ? { kind: "idle" }
-        : { kind: "note", text: "saved, but my phone didn't get it just now. I'll see it soon." },
+        : r.live
+          ? { kind: "note", text: "Saved, but my phone didn't get it just now. I'll see it soon." }
+          : { kind: "note", text: "Sent. I'll answer right here. If you've left by then, you'll see it the next time you open the site." },
     );
   }
 
   return (
-    <div id="talk" ref={box} className="mt-20 scroll-mt-24">
+    <div id={page ? undefined : "talk"} ref={box} className={page ? "" : "mt-20 scroll-mt-24"}>
       <div className="border-ink mb-6 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-t pt-1.5">
         <h3 className="flex items-center gap-2 font-semibold">
           <span className="relative inline-flex size-2">
-            <span className="bg-ink absolute inset-0 animate-ping rounded-full opacity-30 motion-reduce:hidden" />
-            <span className="bg-ink relative size-2 rounded-full" />
+            {live ? <span className="bg-ink absolute inset-0 animate-ping rounded-full opacity-30 motion-reduce:hidden" /> : null}
+            <span className={`relative size-2 rounded-full ${live ? "bg-ink" : "border-ink border"}`} />
           </span>
-          Talk to me, live
+          {live ? "Talk to me, live" : "Talk to me"}
         </h3>
         <span className="text-quiet">
-          It goes to my phone, and my reply shows up right here.
+          {live
+            ? "It goes straight to my phone, and my reply shows up right here."
+            : "I read these and reply right here. If you've left by then, my reply waits for you on any page of the site."}
           {clock ? ` It's ${clock} in ${place.city}.` : ""}
         </span>
       </div>
@@ -90,7 +95,8 @@ export function Talk() {
         </ol>
       ) : (
         <p className="mb-6 max-w-[52ch] text-[17px] leading-snug">
-          Say hi, ask something, pitch me an idea. If I&apos;m awake, I&apos;ll answer while you&apos;re still here.
+          Say hi, ask something, pitch me an idea.{" "}
+          {live ? "If I'm awake, I'll answer while you're still here." : "No email or sign-up needed: this browser keeps the conversation."}
         </p>
       )}
 

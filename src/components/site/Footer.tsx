@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMusic, usePresence, useNow } from "@/lib/presence/client";
 import { clockIn, timeAgo } from "@/lib/time";
 import { Playing } from "@/components/live/Playing";
+import { HereCount } from "@/components/live/HereCount";
 import { profile } from "@/content/profile";
 
 const cell = "border-t border-ink pt-1.5";
@@ -67,7 +68,9 @@ export function Footer() {
           </a>
         ) : null}
       </p>
-      <p className={`${cell} tnum text-right`}>
+      <p className={`${cell} tnum truncate text-right`}>
+        <HereCount />
+        <span className="text-quiet"> · </span>
         {clock ? (
           <>
             {place.city}, {clock}
