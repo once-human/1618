@@ -84,7 +84,10 @@ export default function Privacy() {
               your connection&apos;s address, your operating system and your screen&apos;s pixel
               size, mixed with a secret and the date. It can&apos;t be turned back into any of
               those, changes every day, and isn&apos;t stored anywhere; it&apos;s only passed to
-              the other people on the site so their browsers can count. (If that fails, your
+              the other people on the site so their browsers can count. Along with it go the town
+              your connection comes from (never anything finer) and, while a few people are on the
+              same page, roughly how far down it you are, so everyone can see &ldquo;someone in
+              Berlin&rdquo; and a dot where they&apos;re reading. (If that fails, your
               browser keeps one random code in its local storage instead.) A tab that sits in
               the background for a minute steps out until you come back. Like any server,
               Supabase sees your connection&apos;s address while you&apos;re connected; see the{" "}

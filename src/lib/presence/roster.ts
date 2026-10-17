@@ -90,6 +90,11 @@ export class Roster {
     return { people: people.size, tabs: tabs.size, mine };
   }
 
+  /** Everyone here as of `now`, by their person key. */
+  people(now: number): string[] {
+    return [...new Set(this.live(now).values())];
+  }
+
   /** When the count will next change by itself (a grace or hold running out), if ever. */
   nextChange(now: number): number | null {
     let next = Infinity;

@@ -86,7 +86,9 @@ function traits() {
   return { os, w: Math.round(screen.width * dpr), h: Math.round(screen.height * dpr) };
 }
 
-let deviceCache: { key: string; day: string } | null = null;
+let deviceCache: { key: string; day: string; city?: string | null; country?: string | null } | null = null;
+/** My town, as the server sees it; passed on to others as "someone in …". */
+let myPlace: Place = { city: null, country: null };
 
 /** This device's code for today, or this browser's own id if the server can't be reached. */
 async function personKey(): Promise<string> {
@@ -94,7 +96,11 @@ async function personKey(): Promise<string> {
   if (deviceCache?.day === today) return deviceCache.key;
   try {
     const kept = JSON.parse(sessionStorage.getItem("here-device") ?? "null");
-    if (kept?.day === today && ID.test(kept.key)) return (deviceCache = kept).key;
+    if (kept?.day === today && ID.test(kept.key)) {
+      deviceCache = kept;
+      myPlace = { city: kept.city ?? null, country: kept.country ?? null };
+      return kept.key;
+    }
   } catch {
     /* ignore */
   }
@@ -104,9 +110,10 @@ async function personKey(): Promise<string> {
       body: JSON.stringify(traits()),
       signal: AbortSignal.timeout(4000),
     });
-    const got = (await res.json()) as { key?: string; day?: string };
+    const got = (await res.json()) as { key?: string; day?: string; city?: string | null; country?: string | null };
     if (res.ok && got.key && ID.test(got.key) && got.day) {
-      deviceCache = { key: got.key, day: got.day };
+      deviceCache = { key: got.key, day: got.day, city: got.city ?? null, country: got.country ?? null };
+      myPlace = { city: got.city ?? null, country: got.country ?? null };
       try {
         sessionStorage.setItem("here-device", JSON.stringify(deviceCache));
       } catch {
@@ -154,11 +161,78 @@ let joining = false;
 let awayTimer: ReturnType<typeof setTimeout> | null = null;
 let tick: ReturnType<typeof setTimeout> | null = null;
 
+/* ---- Who the others are: their town, and where they are on the page ---- */
+
+export interface Place {
+  city: string | null;
+  country: string | null;
+}
+export interface Other extends Place {
+  key: string;
+  /** How far down the page they are, 0 to 1, and which page; null until they've said. */
+  y: number | null;
+  path: string | null;
+}
+
+const places = new Map<string, Place>();
+const positions = new Map<string, { y: number; path: string }>();
+let others: Other[] = [];
+const otherSubs = new Set<() => void>();
+let me = "";
+
+function publishOthers() {
+  if (!roster) return;
+  const list = roster
+    .people(Date.now())
+    .filter((k) => k !== me)
+    .map((k) => ({
+      key: k,
+      ...(places.get(k) ?? { city: null, country: null }),
+      y: positions.get(k)?.y ?? null,
+      path: positions.get(k)?.path ?? null,
+    }))
+    .sort((a, b) => a.key.localeCompare(b.key));
+  if (JSON.stringify(list) === JSON.stringify(others)) return;
+  // Someone arrived: share where I am so their view fills in.
+  const before = new Set(others.map((o) => o.key));
+  if (list.some((o) => !before.has(o.key))) sendPosition(true);
+  others = list;
+  otherSubs.forEach((f) => f());
+}
+
+const clean = (v: unknown, n: number) => (typeof v === "string" && v ? v.slice(0, n) : null);
+function noteMeta(key: string, meta: { c?: unknown; cc?: unknown } | undefined) {
+  if (!meta) return;
+  places.set(key, { city: clean(meta.c, 60), country: clean(meta.cc, 2) });
+}
+
+/** Scroll positions are shared at most once a second, and only while few enough people are here. */
+const MAX_FOR_DOTS = 8;
+let lastSent = 0;
+let posTimer: ReturnType<typeof setTimeout> | null = null;
+function myPosition() {
+  const max = document.documentElement.scrollHeight - innerHeight;
+  return { y: max > 0 ? Math.min(1, Math.max(0, scrollY / max)) : 0, path: location.pathname };
+}
+function sendPosition(soon = false) {
+  if (!channel || (state?.people ?? 0) > MAX_FOR_DOTS || (state?.people ?? 0) < 2) return;
+  if (posTimer) return;
+  const wait = soon ? Math.random() * 1500 : Math.max(0, 1000 - (Date.now() - lastSent));
+  posTimer = setTimeout(() => {
+    posTimer = null;
+    lastSent = Date.now();
+    const p = myPosition();
+    void channel?.send({ type: "broadcast", event: "pos", payload: { b: me, y: Math.round(p.y * 1000) / 1000, p: p.path.slice(0, 80) } });
+  }, wait);
+}
+const onScroll = () => sendPosition();
+
 /** Publish the count, and wake up again when a grace period runs out. */
 function refresh() {
   if (!roster || !channel) return;
   const now = Date.now();
   emit(roster.count(now));
+  publishOthers();
   if (tick) clearTimeout(tick);
   const next = roster.nextChange(now);
   tick = next == null ? null : setTimeout(refresh, Math.max(16, next - now + 5));
@@ -169,7 +243,7 @@ async function join() {
   joining = true;
   try {
     // The device code and the realtime library load side by side.
-    const [{ RealtimeClient }, me] = await Promise.all([
+    const [{ RealtimeClient }, myKey] = await Promise.all([
       import("@supabase/realtime-js"),
       personKey(),
     ]);
@@ -181,26 +255,37 @@ async function join() {
       worker: true,
     });
     tab = tabId();
-    const r = new Roster(me);
+    me = myKey;
+    const r = new Roster(myKey);
     const ch = client.channel(TOPIC, {
-      config: { presence: { key: me }, broadcast: { self: false } },
+      config: { presence: { key: myKey }, broadcast: { self: false } },
     });
     channel = ch;
     roster = r;
 
     ch.on("presence", { event: "sync" }, () => {
       if (channel !== ch) return;
-      const all = ch.presenceState<{ t?: string }>();
+      const all = ch.presenceState<{ t?: string; c?: string; cc?: string }>();
       const view: Record<string, string[]> = {};
-      for (const b in all)
+      for (const b in all) {
         view[b] = all[b].map((m) => (typeof m.t === "string" ? m.t : m.presence_ref));
+        noteMeta(b, all[b][0]);
+      }
       r.sync(view, Date.now());
       refresh();
     });
     ch.on("broadcast", { event: "hi" }, ({ payload }) => {
       if (channel !== ch || !ID.test(payload?.t) || !ID.test(payload?.b)) return;
+      noteMeta(payload.b, payload);
       r.hi(payload.t, payload.b, Date.now());
       refresh();
+      // Someone new: let them see where everyone is.
+      sendPosition(true);
+    });
+    ch.on("broadcast", { event: "pos" }, ({ payload }) => {
+      if (channel !== ch || !ID.test(payload?.b) || typeof payload.y !== "number" || typeof payload.p !== "string") return;
+      positions.set(payload.b, { y: Math.min(1, Math.max(0, payload.y)), path: payload.p.slice(0, 80) });
+      publishOthers();
     });
     ch.on("broadcast", { event: "bye" }, ({ payload }) => {
       if (channel !== ch || !ID.test(payload?.t)) return;
@@ -211,10 +296,12 @@ async function join() {
     ch.subscribe(async (status) => {
       if (channel !== ch) return;
       if (status === "SUBSCRIBED") {
-        r.hi(tab, me, Date.now());
+        r.hi(tab, myKey, Date.now());
         refresh();
-        void ch.send({ type: "broadcast", event: "hi", payload: { t: tab, b: me } });
-        await ch.track({ t: tab });
+        const where = { c: myPlace.city ?? undefined, cc: myPlace.country ?? undefined };
+        void ch.send({ type: "broadcast", event: "hi", payload: { t: tab, b: myKey, ...where } });
+        await ch.track({ t: tab, ...where });
+        sendPosition(true);
       } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
         // Not sure any more: say nothing until it reconnects (it retries by itself).
         emit(null);
@@ -231,6 +318,13 @@ function leave() {
   const ch = channel;
   channel = null;
   roster = null;
+  if (posTimer) clearTimeout(posTimer);
+  posTimer = null;
+  positions.clear();
+  if (others.length) {
+    others = [];
+    otherSubs.forEach((f) => f());
+  }
   if (tick) clearTimeout(tick);
   tick = null;
   if (!ch) return;
@@ -276,6 +370,7 @@ function subscribe(f: () => void) {
     window.addEventListener("pagehide", onHide);
     window.addEventListener("pageshow", onShow);
     window.addEventListener("online", onOnline);
+    window.addEventListener("scroll", onScroll, { passive: true });
   }
   return () => {
     subs.delete(f);
@@ -284,6 +379,7 @@ function subscribe(f: () => void) {
       window.removeEventListener("pagehide", onHide);
       window.removeEventListener("pageshow", onShow);
       window.removeEventListener("online", onOnline);
+      window.removeEventListener("scroll", onScroll);
       if (awayTimer) clearTimeout(awayTimer);
       awayTimer = null;
       leave();
@@ -299,3 +395,26 @@ export function useHere(): Here | null {
     () => null,
   );
 }
+
+/** A new page means a new position. */
+export function pageChanged() {
+  sendPosition(true);
+}
+
+function subscribeOthers(f: () => void) {
+  otherSubs.add(f);
+  const off = subscribe(() => {});
+  return () => {
+    otherSubs.delete(f);
+    off();
+  };
+}
+
+/** The other people on the site right now, with their town and where they are. */
+export function useOthers(): Other[] {
+  return useSyncExternalStore(subscribeOthers, () => others, () => EMPTY);
+}
+const EMPTY: Other[] = [];
+
+/** My own town, once the server has said. */
+export const myTown = (): Place => myPlace;

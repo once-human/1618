@@ -1,9 +1,10 @@
 import { connection } from "next/server";
 import { deviceKey, OSES, screenOf, type Os } from "@/lib/presence/device";
+import { geoOf } from "@/lib/geo";
 
 /**
  * Hands a tab its device's code for the live "people here" count (see
- * src/lib/presence/device.ts). Pure arithmetic: nothing is looked up or kept.
+ * src/lib/presence/device.ts), and its town. Nothing is looked up or kept.
  */
 export async function POST(req: Request) {
   await connection();
@@ -26,5 +27,7 @@ export async function POST(req: Request) {
     day,
     secret: process.env.HASH_SALT ?? "",
   });
-  return Response.json({ key, day }, { headers: { "Cache-Control": "no-store" } });
+  // The town is passed on to the others on the site ("someone in Berlin"); nothing finer.
+  const { city, country } = geoOf(req);
+  return Response.json({ key, day, city, country }, { headers: { "Cache-Control": "no-store" } });
 }

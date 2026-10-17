@@ -1,6 +1,9 @@
 "use client";
 
 import { useHere, useMusic, useNow, usePresence, useSaved } from "@/lib/presence/client";
+import { myTown, useOthers } from "@/lib/presence/here";
+import { whoIsHere, type Town } from "@/lib/presence/words";
+import { placeName } from "@/lib/geo";
 import { clockIn, fmtNum, hourIn, timeAgo } from "@/lib/time";
 
 type State = "active" | "around" | "away";
@@ -15,6 +18,7 @@ export function StatusLine({ className = "" }: { className?: string }) {
   const music = useMusic();
   const saved = useSaved();
   const here = useHere();
+  const others = useOthers();
   const now = useNow();
   if (!now || !presence) return <div className={`min-h-[5rem] ${className}`} aria-hidden />;
 
@@ -112,18 +116,18 @@ export function StatusLine({ className = "" }: { className?: string }) {
           </>
         )}
         {typeof steps === "number" && steps > 0 ? <> {fmtNum(steps)} steps today.</> : null}
-        {here && here.people > 0 ? <> {hereLine(here)}</> : null}
+        {here && here.people > 0 ? <> {hereLine(here, others)}</> : null}
       </p>
     </div>
   );
 }
 
-/** "Just you here right now, in 3 tabs." / "4 people here right now, you included." */
-function hereLine({ people, mine }: { people: number; mine: number }) {
-  const tabs = mine > 1 ? `, in ${mine} tabs` : "";
-  return people === 1
-    ? `Just you here right now${tabs}.`
-    : `${people} people here right now, you included${mine > 1 ? ` (you're in ${mine} tabs)` : ""}.`;
+/** "Just you here right now." / "Here right now: you, two people in Berlin and someone in Mumbai." */
+function hereLine({ people, mine }: { people: number; mine: number }, others: Town[]) {
+  const me = myTown();
+  // A town in my own country needs no country name.
+  const name = (t: Town) => (t.city && me.country && t.country === me.country ? t.city : placeName(t.city, t.country));
+  return whoIsHere(others, me, name, { people, myTabs: mine });
 }
 
 function Dot({ state }: { state: State }) {

@@ -101,3 +101,10 @@ test("a tab opened and closed before presence noticed leaves no trace", () => {
   r.bye("o2", 100);
   assert.deepEqual(r.count(100), { people: 2, tabs: 2, mine: 1 });
 });
+
+test("people lists each person once", () => {
+  const r = new Roster(ME);
+  r.sync({ [ME]: ["t1", "t2"], other: ["o1"] }, 0);
+  r.hi("n1", "newcomer", 0);
+  assert.deepEqual(r.people(1).sort(), [ME, "newcomer", "other"].sort());
+});
