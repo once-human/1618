@@ -114,7 +114,9 @@ export default function Privacy() {
             <p>
               When you send me a song or sign the guestbook, the site keeps what you typed (your
               name, if you gave one, and your message) and the song you picked, and shows it on the
-              page for everyone. Song searches are passed to Apple Music by the server and not kept.
+              page for everyone. Song searches are passed to Apple Music by the server and not kept. If you send a
+              song, your browser keeps a random code (and the site a scrambled copy of it) so that
+              next time you visit it can tell you whether I&apos;ve played it.
             </p>
             <p>
               To count people rather than page loads, and to stop one person flooding the page, the

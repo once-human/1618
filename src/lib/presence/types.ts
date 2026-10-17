@@ -166,6 +166,8 @@ export interface Submission {
   message: string | null;
   song: { track: string; artist: string; art: string | null; link: string; preview: string | null } | null;
   at: string;
+  /** For sent songs: how often I've played it since, and when first. */
+  played?: { n: number; first: string } | null;
 }
 
 /** Everything live in one response, polled by the page. */

@@ -1,5 +1,6 @@
 import { allow, q, visitorKey } from "@/lib/db";
 import { moderate, moderateName } from "@/lib/moderation";
+import { senderHash } from "@/lib/talk/played";
 
 /**
  * Send me a song, or sign the guestbook. Posts go up straight away if they
@@ -52,6 +53,9 @@ export async function POST(req: Request) {
     }
   }
 
+  const token = typeof body.sender === "string" && /^[a-f0-9]{32}$/.test(body.sender) ? body.sender : null;
+  const sender = token ? senderHash(token) : null;
+
   const who = visitorKey(req);
   if (!(await allow(`submit:${who}`, 3, 3600))) return say("slow down a little 🙂 try again in a bit", 429);
 
@@ -64,8 +68,8 @@ export async function POST(req: Request) {
   }
 
   const rows = await q<{ id: number; created_at: string }>("submit", (db) =>
-    db`INSERT INTO submissions (kind, name, message, payload, status)
-       VALUES (${kind}, ${name.text || null}, ${message.text || null}, ${song ? JSON.stringify(song) : null}::jsonb, 'live')
+    db`INSERT INTO submissions (kind, name, message, payload, status, sender)
+       VALUES (${kind}, ${name.text || null}, ${message.text || null}, ${song ? JSON.stringify(song) : null}::jsonb, 'live', ${sender})
        RETURNING id, created_at`,
   );
   if (!rows?.[0]) return say("something broke on my end. try again later?", 500);

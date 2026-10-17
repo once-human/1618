@@ -1,6 +1,7 @@
 import { connection } from "next/server";
 import { q } from "@/lib/db";
 import type { Submission } from "@/lib/presence/types";
+import { playedSince } from "@/lib/talk/played";
 
 /** Songs people sent me, or the guestbook: ?kind=song|note */
 export async function GET(req: Request) {
@@ -20,5 +21,11 @@ export async function GET(req: Request) {
     song: r.payload,
     at: new Date(r.created_at).toISOString(),
   }));
+  if (kind === "song") {
+    const played = await playedSince(
+      list.filter((s) => s.song).map((s) => ({ id: s.id, track: s.song!.track, artist: s.song!.artist, at: s.at })),
+    );
+    for (const s of list) s.played = played.get(s.id) ?? null;
+  }
   return Response.json(list, { headers: { "Cache-Control": "public, s-maxage=15, stale-while-revalidate=60" } });
 }

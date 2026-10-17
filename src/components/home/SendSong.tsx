@@ -7,6 +7,7 @@ import { Label } from "@/components/site/Label";
 import { Preview } from "@/components/live/Preview";
 import { Cover } from "@/components/live/Cover";
 import type { SongResult } from "@/app/api/songs/search/route";
+import { senderToken } from "@/components/site/PlayedYourSong";
 
 const field = "w-full border-b border-ink bg-transparent py-1.5 outline-none placeholder:text-quiet focus:border-b-2";
 
@@ -49,12 +50,17 @@ export function SendSong() {
       const res = await fetch("/api/submit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ kind: "song", songId: picked.id, name, message: note, website: trap.current?.value }),
+        body: JSON.stringify({ kind: "song", songId: picked.id, name, message: note, sender: senderToken(), website: trap.current?.value }),
       });
       const d = await res.json();
       if (!d.ok) return setState({ kind: "error", text: d.reason });
       if (d.submission) addSubmission(d.submission);
-      setState({ kind: "done", text: "got it, thank you 🖤 I'll give it a proper listen" });
+      try {
+        localStorage.setItem("sent-songs", "1");
+      } catch {
+        /* fine */
+      }
+      setState({ kind: "done", text: "got it, thank you 🖤 I'll give it a proper listen. Come back later: you'll see if I played it." });
       setPicked(null);
       setQuery("");
       setNote("");
@@ -151,6 +157,11 @@ export function SendSong() {
                       from {s.name || "someone"}
                       {now ? `, ${timeAgo(s.at, now)}` : ""}
                     </span>
+                    {s.played ? (
+                      <span className="mt-1 block text-[12px] font-semibold">
+                        I&apos;ve played it {s.played.n === 1 ? "once" : `${s.played.n} times`}
+                      </span>
+                    ) : null}
                   </span>
                 </li>
               ) : null,
