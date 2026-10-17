@@ -1,0 +1,16 @@
+// "1618 Location": tells the site which city I'm in, for the clock and weather.
+// Compile with Cherri (github.com/electrikmilk/cherri), then run add-key.py.
+#include 'actions/web'
+#include 'actions/location'
+#define name 1618 Location
+#define color blue
+#define glyph locationArrow
+
+const keyText = "PH_KEY"
+const auth = "Bearer {keyText}"
+
+const here = getCurrentLocation()
+const city = getLocationDetail(here, "City")
+const lat = getLocationDetail(here, "Latitude")
+const lon = getLocationDetail(here, "Longitude")
+jsonRequest("https://www.onkaryaglewad.in/api/location", "POST", {"city": "{city}", "lat": "{lat}", "lon": "{lon}"}, {"Authorization": "{auth}"})

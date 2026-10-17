@@ -31,6 +31,7 @@ import datetime
 import json
 import plistlib
 import sys
+import time
 import urllib.request
 import uuid
 
@@ -139,9 +140,17 @@ if __name__ == "__main__":
         req = urllib.request.Request(
             "https://hubsign.routinehub.services/sign",
             data=json.dumps({"shortcutName": NAME, "shortcut": xml.decode()}).encode(),
-            headers={"Content-Type": "application/json", "User-Agent": "1618-build"},
+            headers={"Content-Type": "application/json", "User-Agent": "cherri/2.3.0"},
         )
-        signed = urllib.request.urlopen(req, timeout=60).read()
+        signed = b""
+        for attempt in range(5):  # HubSign sometimes says no for a moment
+            try:
+                signed = urllib.request.urlopen(req, timeout=60).read()
+            except Exception:
+                signed = b""
+            if signed[:4] == b"AEA1":
+                break
+            time.sleep(5 * (attempt + 1))
         if signed[:4] != b"AEA1":
             sys.exit("signing failed: response isn't a signed shortcut")
         open("1618-health.shortcut", "wb").write(signed)

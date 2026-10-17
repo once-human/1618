@@ -1,0 +1,19 @@
+// "1618 Status": sets the line at the top of the site, or clears it.
+// Compile with Cherri (github.com/electrikmilk/cherri), then run add-key.py.
+#include 'actions/web'
+#define name 1618 Status
+#define color orange
+#define glyph chatBubble
+
+const keyText = "PH_KEY"
+const auth = "Bearer {keyText}"
+
+const text = prompt("What are you up to? Leave it empty to clear your status.", "Text")
+if text {
+    const hours = prompt("For how many hours?", "Number", "4")
+    jsonRequest("https://www.onkaryaglewad.in/api/status", "POST", {"text": "{text}", "hours": "{hours}"}, {"Authorization": "{auth}"})
+    showNotification("Status set: {text}", "onkaryaglewad.in")
+} else {
+    jsonRequest("https://www.onkaryaglewad.in/api/status", "DELETE", {"clear": "1"}, {"Authorization": "{auth}"})
+    showNotification("Status cleared", "onkaryaglewad.in")
+}
