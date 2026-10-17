@@ -2,7 +2,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Rich } from "@/components/talk/Rich";
-import { act, refresh, type AdminState, type Thread } from "./store";
+import { act, isNew, refresh, type AdminState, type Thread } from "./store";
 import { Button, Chip, Confirm, Empty, Icon, ago, flag, input, town, when } from "./ui";
 import { go } from "./AdminApp";
 
@@ -12,16 +12,15 @@ interface Msg {
   text: string;
   at: string;
 }
-type Filter = "waiting" | "all" | "blocked";
+type Filter = "new" | "all" | "blocked";
 
 /** Every conversation: the list, and the open one, with replies straight from here. */
 export function TalkView({ data, open }: { data: AdminState; open: string | null }) {
   const [filter, setFilter] = useState<Filter>("all");
   const [q, setQ] = useState("");
   const threads = data.talk.threads;
-  const waiting = (t: Thread) => t.last?.side === "visitor" && !t.blocked;
   const shown = threads
-    .filter((t) => (filter === "waiting" ? waiting(t) : filter === "blocked" ? t.blocked : true))
+    .filter((t) => (filter === "new" ? isNew(t) : filter === "blocked" ? t.blocked : true))
     .filter((t) => !q || `${t.name ?? ""} ${t.city ?? ""} ${t.last?.text ?? ""}`.toLowerCase().includes(q.toLowerCase()));
   const current = threads.find((t) => t.id === open) ?? null;
   const tg = data.talk.telegram;
@@ -41,9 +40,9 @@ export function TalkView({ data, open }: { data: AdminState; open: string | null
         {/* On phones the list and the chat take turns. */}
         <div className={`${current ? "hidden md:block" : ""} min-w-0`}>
           <div className="mb-3 flex flex-wrap gap-2">
-            {(["all", "waiting", "blocked"] as Filter[]).map((f) => (
+            {(["all", "new", "blocked"] as Filter[]).map((f) => (
               <Chip key={f} on={filter === f} onClick={() => setFilter(f)}>
-                {f === "all" ? `All ${threads.length}` : f === "waiting" ? `Waiting ${threads.filter(waiting).length}` : `Blocked ${threads.filter((t) => t.blocked).length}`}
+                {f === "all" ? `All ${threads.length}` : f === "new" ? `New ${threads.filter(isNew).length}` : `Blocked ${threads.filter((t) => t.blocked).length}`}
               </Chip>
             ))}
           </div>
@@ -60,8 +59,8 @@ export function TalkView({ data, open }: { data: AdminState; open: string | null
                   >
                     <span className="flex items-baseline justify-between gap-3">
                       <span className="flex min-w-0 items-center gap-2">
-                        {waiting(t) ? <span className="bg-a-signal size-2 shrink-0 rounded-full" aria-label="waiting on you" /> : null}
-                        <span className={`truncate ${waiting(t) ? "font-semibold" : "font-medium"}`}>{t.name || "No name"}</span>
+                        {isNew(t) ? <span className="bg-a-signal size-2 shrink-0 rounded-full" aria-label="new, waiting on you" /> : null}
+                        <span className={`truncate ${isNew(t) ? "font-semibold" : "font-medium"}`}>{t.name || "No name"}</span>
                         {t.blocked ? <span className="text-a-bad text-[12px]">blocked</span> : null}
                       </span>
                       <span className="text-a-quiet shrink-0 text-[12px]">{ago(t.lastAt)}</span>
@@ -114,6 +113,12 @@ function Conversation({ t }: { t: Thread }) {
   useLayoutEffect(() => {
     list.current?.scrollTo({ top: list.current.scrollHeight });
   }, [msgs?.length]);
+
+  // Looking at it is reading it: it stops waiting on me (quietly, no toast).
+  const lastVisitor = msgs?.filter((m) => m.side === "visitor").at(-1)?.at ?? null;
+  useEffect(() => {
+    if (lastVisitor && (!t.readAt || t.readAt < lastVisitor) && document.visibilityState === "visible") void act("read", { thread: t.id });
+  }, [lastVisitor, t.id, t.readAt]);
   useLayoutEffect(() => {
     const el = box.current;
     if (!el) return;
@@ -152,6 +157,9 @@ function Conversation({ t }: { t: Thread }) {
           </div>
         </div>
         <div className="flex gap-1">
+          <Button kind="quiet" busy={busy === "unread"} onClick={async () => (setBusy("unread"), await act("unread", { thread: t.id }, "Marked as unread"), setBusy(null), go("talk"))}>
+            Mark unread
+          </Button>
           {t.blocked ? (
             <Button kind="quiet" busy={busy === "block"} onClick={async () => (setBusy("block"), await act("unblock", { thread: t.id }, "Unblocked"), setBusy(null))}>
               Unblock

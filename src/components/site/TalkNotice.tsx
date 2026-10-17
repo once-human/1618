@@ -2,14 +2,14 @@
 
 import { useEffect, useSyncExternalStore } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { hasChats, open as openChat, useTalk } from "@/lib/talk/client";
+import { hasChat, useTalk } from "@/lib/talk/client";
 import { scrollToId } from "@/components/scroll/SmoothScroll";
 
 /**
  * If I reply while the visitor is somewhere else on the site (or in another
  * tab), a small notice says so, and the tab title shows it too.
  */
-const hasThread = () => hasChats();
+const hasThread = () => hasChat();
 const onThread = (f: () => void) => {
   window.addEventListener("storage", f);
   window.addEventListener("talk-thread", f);
@@ -26,8 +26,8 @@ export function TalkNotice() {
 }
 
 function Notice() {
-  const { unread, chats } = useTalk();
-  const thread = chats.length ? chats[0].id : null;
+  const { unread, chat } = useTalk();
+  const thread = chat?.id ?? null;
   const router = useRouter();
   const path = usePathname();
 
@@ -38,13 +38,7 @@ function Notice() {
   }, [unread, thread]);
 
   if (!unread) return null;
-  const open = () => {
-    // Open the chat with the new reply.
-    const c = chats.find((x) => x.messages.filter((m) => m.side === "me").length > x.seen);
-    if (c) openChat(c.id);
-    if (path === "/") scrollToId("talk");
-    else router.push("/talk");
-  };
+  const open = () => (path === "/" ? scrollToId("talk") : router.push("/talk"));
   return (
     <button
       type="button"

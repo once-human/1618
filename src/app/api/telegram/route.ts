@@ -127,7 +127,8 @@ export async function POST(req: Request) {
     await send(me.chatId, "Couldn't save that one. Try again?", m.message_id);
     return new Response("ok");
   }
-  await q("talk touch", (db) => db`UPDATE talk_threads SET last_at = now() WHERE id = ${thread}`);
+  // Answered from my phone: it's attended to, so /admin stops showing it as waiting.
+  await q("talk touch", (db) => db`UPDATE talk_threads SET last_at = now(), admin_read_at = now() WHERE id = ${thread}`);
   await push(`talk:${thread}`, "message", { id: Number(rows[0].id), side: "me", text: body, at: new Date(rows[0].at).toISOString() });
 
   if (routed) {

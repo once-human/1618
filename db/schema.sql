@@ -35,7 +35,7 @@ CREATE TABLE IF NOT EXISTS visitors (day date NOT NULL, who text NOT NULL, PRIMA
 ALTER TABLE here ADD COLUMN IF NOT EXISTS who text;
 
 -- Talk to me live: visitor messages go to my Telegram, my replies come back
-CREATE TABLE IF NOT EXISTS talk_threads (id text PRIMARY KEY, city text, country text, page text, created_at timestamptz NOT NULL DEFAULT now(), last_at timestamptz NOT NULL DEFAULT now(), name text, who text, via text, blocked boolean NOT NULL DEFAULT false);
+CREATE TABLE IF NOT EXISTS talk_threads (id text PRIMARY KEY, city text, country text, page text, created_at timestamptz NOT NULL DEFAULT now(), last_at timestamptz NOT NULL DEFAULT now(), name text, who text, via text, blocked boolean NOT NULL DEFAULT false, admin_read_at timestamptz);
 CREATE TABLE IF NOT EXISTS talk_messages (id bigserial PRIMARY KEY, thread text NOT NULL REFERENCES talk_threads(id) ON DELETE CASCADE, side text NOT NULL, text text NOT NULL, tg_id bigint, at timestamptz NOT NULL DEFAULT now());
 CREATE INDEX IF NOT EXISTS talk_messages_thread ON talk_messages (thread, id);
 CREATE INDEX IF NOT EXISTS talk_messages_tg ON talk_messages (tg_id) WHERE tg_id IS NOT NULL;

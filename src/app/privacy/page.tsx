@@ -106,10 +106,11 @@ export default function Privacy() {
               them and sent back to you.
             </p>
             <p>
-              Each chat is a random code that only your browser keeps, and it&apos;s the only key to
-              that chat. There&apos;s no account. You can rename yourself in a chat, start as many
-              as you like, or open one on another device with its link (anyone with that link can
-              read it, so keep it to yourself).
+              Your chat is a random code that only your browser keeps, and it&apos;s the only key to
+              it. There&apos;s no account. One browser has one chat, under the name you start it
+              with; a new name starts a fresh chat and deletes the old one. You can open your chat on
+              another device with its link (anyone with that link can read it, so keep it to
+              yourself).
             </p>
             <p>
               <strong>Delete</strong> removes a chat for good: from the database, and from my

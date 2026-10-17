@@ -1,5 +1,5 @@
 import { connection } from "next/server";
-import { deleteThread, isLive, postMessage, readThreads, renameThread, THREAD } from "@/lib/talk/server";
+import { deleteThread, isLive, postMessage, readThreads, THREAD } from "@/lib/talk/server";
 
 /**
  * Talk to me: the site's side. (For a terminal, see /api/talk/cli, or just
@@ -7,10 +7,10 @@ import { deleteThread, isLive, postMessage, readThreads, renameThread, THREAD } 
  *
  *   GET    /api/talk?t=<code>:<after>,<code>:<after>   is my phone on, and new messages in each chat
  *   POST   /api/talk { thread?, text, name?, page? }    write (no thread = start a new chat)
- *   PATCH  /api/talk { thread, name }                    rename yourself in a chat
  *   DELETE /api/talk?thread=<code>                       delete a chat for good
  *
  * A chat's code is the only key to it. Only the person holding it, and I, can read it.
+ * Its name is set when it starts and doesn't change: a new name is a new chat.
  */
 const json = (body: unknown, status = 200) => Response.json(body, { status, headers: { "Cache-Control": "no-store" } });
 
@@ -39,12 +39,6 @@ async function body(req: Request): Promise<Record<string, unknown>> {
 
 export async function POST(req: Request) {
   const r = await postMessage(req, await body(req), "site");
-  return r.ok ? json(r) : json({ ok: false, reason: r.reason }, r.status);
-}
-
-export async function PATCH(req: Request) {
-  const b = await body(req);
-  const r = await renameThread(req, b.thread, b.name);
   return r.ok ? json(r) : json({ ok: false, reason: r.reason }, r.status);
 }
 

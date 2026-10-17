@@ -18,8 +18,13 @@ export interface Thread {
   createdAt: string;
   lastAt: string;
   count: number;
+  /** When I last looked at it in /admin (or answered it from Telegram). */
+  readAt: string | null;
   last: { side: "visitor" | "me"; text: string; at: string } | null;
 }
+
+/** Waiting on me: they wrote last, and I haven't looked since. */
+export const isNew = (t: Thread) => t.last?.side === "visitor" && !t.blocked && (!t.readAt || t.readAt < t.last.at);
 export interface Post {
   id: number;
   kind: "song" | "note";

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useSyncExternalStore } from "react";
-import { refresh, useAdmin, usePeople, useToasts } from "./store";
+import { isNew, refresh, useAdmin, usePeople, useToasts } from "./store";
 import { Button, Icon, ago, clockIn, useTick } from "./ui";
 import { NowView } from "./NowView";
 import { TalkView } from "./TalkView";
@@ -46,7 +46,7 @@ export function AdminApp() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  const waiting = data?.talk.threads.filter((t) => t.last?.side === "visitor" && !t.blocked).length ?? 0;
+  const waiting = data?.talk.threads.filter(isNew).length ?? 0;
   const badges: Partial<Record<Tab, number>> = { talk: waiting, now: people?.length ?? 0 };
   const current = TABS.find((t) => t.id === tab)!;
 

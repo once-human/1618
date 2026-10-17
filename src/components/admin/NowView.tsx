@@ -2,14 +2,14 @@
 
 import { useState } from "react";
 import { LAND_PATH, MAP, project } from "@/components/pages/VisitorsMap";
-import { act, type AdminState, type Person, type Thread } from "./store";
+import { act, isNew, type AdminState, type Person, type Thread } from "./store";
 import { Button, Dot, Empty, Panel, ago, flag, fmt, input, town, until } from "./ui";
 import { go } from "./AdminApp";
 
 const plural = (n: number, one: string, many = `${one}s`) => `${fmt(n)} ${n === 1 ? one : many}`;
 
 export function NowView({ data, people }: { data: AdminState; people: Person[] | null }) {
-  const waiting = data.talk.threads.filter((t) => t.last?.side === "visitor" && !t.blocked);
+  const waiting = data.talk.threads.filter(isNew);
   const broken = data.sources.checks.filter((c) => c.ok === false);
   const today = data.health.find((h) => h.day === data.visitors.day);
   const here = people?.length ?? null;
@@ -182,6 +182,7 @@ function Row({ k, children }: { k: string; children: React.ReactNode }) {
 function QuickReply({ t }: { t: Thread }) {
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
+  const [reading, setReading] = useState(false);
   async function send(e: React.FormEvent) {
     e.preventDefault();
     if (!text.trim()) return;
@@ -205,6 +206,9 @@ function QuickReply({ t }: { t: Thread }) {
         <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Reply" className={`${input} py-2`} aria-label={`Reply to ${t.name || "them"}`} />
         <Button type="submit" kind="signal" busy={busy} disabled={!text.trim()}>
           Send
+        </Button>
+        <Button kind="quiet" busy={reading} onClick={async () => (setReading(true), await act("read", { thread: t.id }, "Marked as read"), setReading(false))}>
+          Mark as read
         </Button>
       </form>
     </li>

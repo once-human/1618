@@ -32,10 +32,19 @@ export async function POST(req: Request) {
         db`INSERT INTO talk_messages (thread, side, text) SELECT ${thread}, 'me', ${text} WHERE EXISTS (SELECT 1 FROM talk_threads WHERE id = ${thread}) RETURNING id, at`,
       );
       if (!rows?.[0]) return no("That chat isn't there any more.", 404);
-      await q("talk touch", (db) => db`UPDATE talk_threads SET last_at = now() WHERE id = ${thread}`);
+      await q("talk touch", (db) => db`UPDATE talk_threads SET last_at = now(), admin_read_at = now() WHERE id = ${thread}`);
       const message = { id: Number(rows[0].id), side: "me", text, at: new Date(rows[0].at).toISOString() };
       await push(`talk:${thread}`, "message", message);
       return ok({ message });
+    }
+    case "read":
+    case "unread": {
+      // Read: it's been seen here, so it stops waiting on me. Unread puts it back.
+      if (!thread) return no("No such chat.", 404);
+      await q("admin read", (db) =>
+        b.action === "read" ? db`UPDATE talk_threads SET admin_read_at = now() WHERE id = ${thread}` : db`UPDATE talk_threads SET admin_read_at = NULL WHERE id = ${thread}`,
+      );
+      return ok();
     }
     case "block":
     case "unblock": {

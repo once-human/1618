@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { adopt, markRead, newChat, open, remove, rename, send, setName, useTalk, type Chat, type TalkMessage } from "@/lib/talk/client";
+import { adopt, changeName, markRead, remove, send, setName, useTalk, type Chat, type TalkMessage } from "@/lib/talk/client";
 import { useMusic, useNow, usePresence } from "@/lib/presence/client";
-import { clockIn, hourIn, timeAgo } from "@/lib/time";
+import { clockIn, hourIn } from "@/lib/time";
 import { Rich } from "@/components/talk/Rich";
 
 const MAX = 2000;
@@ -12,20 +12,19 @@ const field = "w-full border-b border-ink bg-transparent py-1.5 outline-none pla
 const STARTERS = ["Hey! Loved the site 👋", "I'm building something and want your take", "Are you open to work?", "Feedback on the site:"];
 
 /**
- * Talk to me. On /talk: all your chats down the side, each under whatever
- * name you like, which you can rename, delete, or carry to another device.
- * On the home page: just the open chat. Messages land on my phone (when
- * Telegram is hooked up); my replies show up here, live.
+ * Talk to me: one chat per browser, under one name. Messages land on my
+ * phone (Telegram); my replies show up here, live. The chat can be opened on
+ * another device with its link, or deleted. A new name starts a fresh chat
+ * (the old one is deleted), so a name always belongs to one conversation.
  */
 export function Talk({ page = false }: { page?: boolean }) {
   const t = useTalk();
   const root = useRef<HTMLDivElement>(null);
 
-  // …/talk#<code>: a chat opened from a link, say on another device.
+  // …/talk#<code>: the chat opened from its link, say on another device.
   useEffect(() => {
     if (!page) return;
-    const code = location.hash.slice(1);
-    if (adopt(code)) history.replaceState(null, "", location.pathname);
+    if (adopt(location.hash.slice(1))) history.replaceState(null, "", location.pathname);
   }, [page]);
 
   // While the chat is on screen, my replies count as read.
@@ -40,30 +39,10 @@ export function Talk({ page = false }: { page?: boolean }) {
     };
   }, []);
 
-  const chat = t.chats.find((c) => c.id === t.active) ?? null;
-
   return (
-    <div id={page ? undefined : "talk"} ref={root} className={page ? "" : "mt-20 scroll-mt-24"}>
-      <Availability live={t.live} page={page} />
-
-      {!t.ready ? (
-        <div className="min-h-[40vh]" aria-hidden />
-      ) : page ? (
-        <div className="grid grid-cols-1 gap-x-8 gap-y-6 md:grid-cols-[15rem_1fr]">
-          <Chats chats={t.chats} active={t.active} />
-          {chat ? <Conversation key={chat.id} chat={chat} /> : <NewChat name={t.name} hasOthers={t.chats.length > 0} />}
-        </div>
-      ) : (
-        <>
-          {chat ? <Conversation key={chat.id} chat={chat} /> : <NewChat name={t.name} hasOthers={t.chats.length > 0} />}
-          <p className="text-quiet mt-4 text-[13px]">
-            <Link href="/talk" className="hover:text-ink underline decoration-1 underline-offset-4">
-              {t.chats.length > 1 ? `All ${t.chats.length} of your chats, new chats, names and more →` : "Open /talk for more: several chats, names, a terminal →"}
-            </Link>
-          </p>
-        </>
-      )}
-
+    <div id={page ? undefined : "talk"} ref={root} className={page ? "max-w-[46rem]" : "mt-20 max-w-[46rem] scroll-mt-24"}>
+      <Availability live={t.live} />
+      {!t.ready ? <div className="min-h-[30vh]" aria-hidden /> : t.chat ? <Conversation key={t.chat.id} chat={t.chat} /> : <NewChat name={t.name} />}
       {page ? <Terminal /> : null}
     </div>
   );
@@ -71,7 +50,7 @@ export function Talk({ page = false }: { page?: boolean }) {
 
 /* ---- whether I'm around ---- */
 
-function Availability({ live, page }: { live: boolean | null; page: boolean }) {
+function Availability({ live }: { live: boolean | null }) {
   const presence = usePresence();
   const music = useMusic();
   const now = useNow();
@@ -90,15 +69,15 @@ function Availability({ live, page }: { live: boolean | null; page: boolean }) {
         : "Away from the screen. I'll see it soon";
 
   return (
-    <div className="border-ink mb-8 grid grid-cols-1 gap-x-8 gap-y-1 border-t pt-2 md:grid-cols-[15rem_1fr]">
+    <div className="border-ink mb-8 border-t pt-2">
       <p className="flex items-center gap-2 font-semibold">
         <span className="relative inline-flex size-2">
           {live && around ? <span className="bg-ink absolute inset-0 animate-ping rounded-full opacity-30 motion-reduce:hidden" /> : null}
           <span className={`relative size-2 rounded-full ${around ? "bg-ink" : "border-ink border"}`} />
         </span>
-        {page ? "Talk to me" : live ? "Talk to me, live" : "Talk to me"}
+        {live ? "Talk to me, live" : "Talk to me"}
       </p>
-      <p className="text-quiet">
+      <p className="text-quiet mt-1">
         {state}
         {now ? `. It's ${clockIn(place.tz, new Date(now))} in ${place.city}.` : "."}{" "}
         {live ? "Messages go straight to my phone; my replies show up right here." : "I reply right here. If you've left, my reply waits for you on any page of the site."}
@@ -107,65 +86,15 @@ function Availability({ live, page }: { live: boolean | null; page: boolean }) {
   );
 }
 
-/* ---- the list of your chats ---- */
+/* ---- starting ---- */
 
-function Chats({ chats, active }: { chats: Chat[]; active: string | null }) {
-  const now = useNow();
-  return (
-    <nav aria-label="Your chats" className="min-w-0">
-      <div className="mb-2 flex items-baseline justify-between gap-3">
-        <h2 className="font-semibold">
-          Your chats {chats.length ? <span className="text-quiet font-normal">{chats.length}</span> : null}
-        </h2>
-        <button type="button" onClick={newChat} className={`underline decoration-1 underline-offset-4 hover:decoration-2 ${active === null ? "font-semibold" : ""}`}>
-          + New chat
-        </button>
-      </div>
-      {chats.length ? (
-        <ul className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 md:mx-0 md:block md:px-0">
-          {chats.map((c) => {
-            const last = c.messages.filter((m) => !m.failed).at(-1);
-            const unread = c.messages.filter((m) => m.side === "me").length - c.seen;
-            const on = c.id === active;
-            return (
-              <li key={c.id} className="shrink-0 md:shrink">
-                <button
-                  type="button"
-                  onClick={() => open(c.id)}
-                  aria-current={on ? "true" : undefined}
-                  className={`border-ink/20 block w-56 border-t py-2 text-left md:w-full ${on ? "border-ink border-t-2" : "hover:border-ink"}`}
-                >
-                  <span className="flex items-baseline justify-between gap-2">
-                    <span className={`truncate ${on || unread > 0 ? "font-semibold" : ""}`}>{c.name || "No name"}</span>
-                    <span className="text-quiet shrink-0 text-[12px]">{last && now ? timeAgo(last.at, now) : ""}</span>
-                  </span>
-                  <span className="text-quiet flex items-center gap-2 text-[13px]">
-                    {unread > 0 ? <span className="bg-ink size-1.5 shrink-0 rounded-full" aria-label={`${unread} new`} /> : null}
-                    <span className="truncate">{last ? `${last.side === "me" ? "Onkar: " : "You: "}${last.text.replace(/\s+/g, " ")}` : "Loading…"}</span>
-                  </span>
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      ) : (
-        <p className="text-quiet text-[14px] leading-snug">None yet. Your chats are kept in this browser, and only you and I can read them.</p>
-      )}
-    </nav>
-  );
-}
-
-/* ---- starting one ---- */
-
-function NewChat({ name, hasOthers }: { name: string; hasOthers: boolean }) {
+function NewChat({ name }: { name: string }) {
   const [draft, setDraft] = useState("");
   return (
-    <section aria-label="New chat" className="min-w-0">
-      <p className="mb-5 max-w-[56ch] text-[17px] leading-snug">
-        {hasOthers ? "A new chat, under any name you like." : "Say hi, ask something, pitch me an idea."} No email, no sign-up.
-      </p>
+    <section aria-label="Start a chat">
+      <p className="mb-5 text-[17px] leading-snug">Say hi, ask something, pitch me an idea. No email, no sign-up.</p>
       <label className="text-quiet mb-5 block max-w-[22rem] text-[13px]">
-        Your name, for this chat (optional)
+        Your name (optional, and it stays with this chat)
         <input value={name} onChange={(e) => setName(e.target.value)} maxLength={40} placeholder="Anonymous is fine" className={`${field} text-ink text-[16px]`} autoComplete="nickname" />
       </label>
       <div className="mb-4 flex flex-wrap gap-2" aria-label="Ways to start">
@@ -180,7 +109,7 @@ function NewChat({ name, hasOthers }: { name: string; hasOthers: boolean }) {
   );
 }
 
-/* ---- a chat ---- */
+/* ---- the chat ---- */
 
 function Conversation({ chat }: { chat: Chat }) {
   const list = useRef<HTMLOListElement>(null);
@@ -192,7 +121,7 @@ function Conversation({ chat }: { chat: Chat }) {
   }, [count]);
 
   return (
-    <section aria-label={`Chat as ${chat.name || "no name"}`} className="min-w-0">
+    <section aria-label="Your chat">
       <ChatHeader chat={chat} />
       {count ? (
         <ol ref={list} className="mb-5 max-h-[55vh] space-y-3 overflow-y-auto pr-1" aria-live="polite">
@@ -201,7 +130,7 @@ function Conversation({ chat }: { chat: Chat }) {
           ))}
         </ol>
       ) : (
-        <p className="text-quiet mb-5">Loading this chat…</p>
+        <p className="text-quiet mb-5">Loading your chat…</p>
       )}
       <Composer value={draft} onChange={setDraft} placeholder="Write back" />
     </section>
@@ -245,23 +174,22 @@ function Message({ m, name, dayBreak }: { m: TalkMessage; name: string | null; d
 }
 
 function ChatHeader({ chat }: { chat: Chat }) {
-  const [mode, setMode] = useState<"idle" | "rename" | "delete">("idle");
-  const [name, setNameDraft] = useState(chat.name ?? "");
+  const [mode, setMode] = useState<"idle" | "name" | "delete">("idle");
+  const [name, setNameDraft] = useState("");
   const [note, setNote] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  async function doRename(e?: React.FormEvent) {
+  async function startFresh(e?: React.FormEvent) {
     e?.preventDefault();
+    if (name.trim() === (chat.name ?? "")) return setMode("idle");
     setBusy(true);
-    const r = await rename(chat.id, name);
+    const r = await changeName(name);
     setBusy(false);
-    if (!r.ok) return setNote(r.reason);
-    setMode("idle");
-    setNote(null);
+    if (!r.ok) setNote(r.reason);
   }
   async function doDelete() {
     setBusy(true);
-    const r = await remove(chat.id);
+    const r = await remove();
     setBusy(false);
     if (!r.ok) setNote(r.reason);
   }
@@ -278,18 +206,23 @@ function ChatHeader({ chat }: { chat: Chat }) {
   const btn = "underline decoration-1 underline-offset-4 hover:decoration-2 disabled:opacity-50";
   return (
     <div className="border-ink/20 mb-4 border-b pb-3">
-      {mode === "rename" ? (
-        <form onSubmit={doRename} className="flex flex-wrap items-baseline gap-3">
-          <label className="sr-only" htmlFor={`n-${chat.id}`}>
-            Your name in this chat
-          </label>
-          <input id={`n-${chat.id}`} value={name} onChange={(e) => setNameDraft(e.target.value)} maxLength={40} placeholder="Your name" autoFocus className={`${field} max-w-[16rem] flex-1 text-[16px]`} />
-          <button className={`${btn} font-semibold`} disabled={busy}>
-            Save
-          </button>
-          <button type="button" className={btn} onClick={() => (setMode("idle"), setNote(null))}>
-            Cancel
-          </button>
+      {mode === "name" ? (
+        <form onSubmit={startFresh}>
+          <p className="mb-2 text-[15px]">
+            A new name starts a fresh chat. <span className="text-quiet">This one, and everything in it, is deleted, here and on my phone.</span>
+          </p>
+          <div className="flex flex-wrap items-baseline gap-3">
+            <label className="sr-only" htmlFor="talk-new-name">
+              Your new name
+            </label>
+            <input id="talk-new-name" value={name} onChange={(e) => setNameDraft(e.target.value)} maxLength={40} placeholder="New name" autoFocus className={`${field} max-w-[16rem] flex-1 text-[16px]`} />
+            <button className={`${btn} font-semibold`} disabled={busy || !name.trim() || name.trim() === (chat.name ?? "")}>
+              {busy ? "Starting…" : "Start fresh"}
+            </button>
+            <button type="button" className={btn} onClick={() => (setMode("idle"), setNote(null))}>
+              Keep this chat
+            </button>
+          </div>
         </form>
       ) : mode === "delete" ? (
         <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
@@ -309,13 +242,13 @@ function ChatHeader({ chat }: { chat: Chat }) {
             <span className="text-quiet"> here</span>
           </p>
           <p className="text-quiet flex gap-4 text-[13px]">
-            <button type="button" className={btn} onClick={() => (setNameDraft(chat.name ?? ""), setMode("rename"))}>
-              Rename
+            <button type="button" className={btn} onClick={() => (setNameDraft(""), setNote(null), setMode("name"))}>
+              Change name
             </button>
             <button type="button" className={btn} onClick={copyLink}>
               Copy link
             </button>
-            <button type="button" className={btn} onClick={() => setMode("delete")}>
+            <button type="button" className={btn} onClick={() => (setNote(null), setMode("delete"))}>
               Delete
             </button>
           </p>

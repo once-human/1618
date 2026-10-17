@@ -11,7 +11,8 @@ import { owner, push, telegramConfigured, tg } from "./telegram";
  * can read, write, rename or delete that one conversation, and nothing else.
  *
  * Keeping it open without letting it become a spam pipe to my phone:
- * - per network: 20 messages / 10 min, 6 new chats / hour, 10 renames or deletes / hour
+ * - one chat per browser, under one name: a new name means a new chat (the old one is deleted)
+ * - per network: 20 messages / 10 min; 3 new chats an hour and 6 a day (which also caps name changes); 10 deletes an hour
  * - everyone together: 300 messages and 60 new chats an hour reach my phone at most
  * - the same message twice in a row is dropped; bots that fill the hidden field are dropped
  * - words get the same moderation as the guestbook (code is fine here)
@@ -90,9 +91,10 @@ export async function postMessage(
   if (!(await allow(`talk:${who}`, 20, 600))) return fail("easy, one at a time 🙂 give it a minute", 429);
 
   const isNew = !thread;
-  let currentName = known?.[0]?.name ?? null;
+  let currentName = known?.[0]?.name ?? null; // fixed once the chat starts
   if (isNew) {
-    if (!(await allow(`talk-new:${who}`, 6, 3600))) return fail("that's a lot of new chats. carry on in one you have?", 429);
+    if (!(await allow(`talk-new:${who}`, 3, 3600)) || !(await allow(`talk-new-day:${who}`, 6, 86400)))
+      return fail("you've started a few chats already. give it a while before starting another?", 429);
     if (!(await allow("talk-new:all", 60, 3600))) return fail("lots of people writing right now. try again in a bit?", 429);
     thread = randomBytes(16).toString("hex");
     const geo = geoOf(req);
@@ -118,12 +120,6 @@ export async function postMessage(
   const info = await q<{ city: string | null; country: string | null; page: string | null }>("talk touch", (db) =>
     db`UPDATE talk_threads SET last_at = now() WHERE id = ${thread} RETURNING city, country, page`,
   );
-
-  // A different name on a later message renames the chat.
-  if (!isNew && name?.ok && name.text && name.text !== currentName) {
-    await q("talk rename", (db) => db`UPDATE talk_threads SET name = ${name.text} WHERE id = ${thread}`);
-    currentName = name.text;
-  }
 
   const me = telegramConfigured() ? await owner() : null;
   let delivered = false;
@@ -154,21 +150,6 @@ export async function postMessage(
     name: currentName,
     message: { id, side: "visitor", text: text.text, at: new Date(rows[0].at).toISOString() },
   };
-}
-
-export async function renameThread(req: Request, thread: unknown, nameIn: unknown): Promise<Fail | { ok: true; name: string | null }> {
-  if (typeof thread !== "string" || !THREAD.test(thread)) return fail("no such chat", 404);
-  const name = moderateName(typeof nameIn === "string" ? nameIn : "");
-  if (!name.ok) return fail(name.reason);
-  if (!(await allow(`talk-edit:${visitorKey(req)}`, 10, 3600))) return fail("that's a lot of changes. try later?", 429);
-  const r = await q<{ old: string | null }>("talk rename", (db) =>
-    db`UPDATE talk_threads t SET name = ${name.text || null} FROM (SELECT name AS old FROM talk_threads WHERE id = ${thread}) o WHERE t.id = ${thread} RETURNING o.old`,
-  );
-  if (!r?.length) return fail("no such chat", 404);
-  const me = telegramConfigured() ? await owner() : null;
-  if (me && (r[0].old ?? "") !== name.text)
-    await tg("sendMessage", { chat_id: me.chatId, text: `✏️ #${thread.slice(0, 4)} ${r[0].old ? `(${r[0].old}) ` : ""}is now ${name.text || "nameless"}` });
-  return { ok: true, name: name.text || null };
 }
 
 /**
