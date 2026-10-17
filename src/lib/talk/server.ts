@@ -15,8 +15,8 @@ import { deviceName } from "@/lib/ua";
  * Open, but not a pipe for flooding my phone:
  * - everyone is asked their name first; "stay anonymous" is a fine answer
  * - one chat per browser, under one name (a new name means a new chat)
- * - at most 5 messages in a row until I reply, and 10 unanswered across all
- *   the chats from one network, so starting a new chat doesn't reset it
+ * - at most 5 messages in a row until I reply; no new chat (or new name) while
+ *   5 are waiting from that network; at most 10 unanswered across its chats
  * - per network: 20 messages / 10 min; 3 new chats an hour and 6 a day
  * - everyone together: 300 messages and 60 new chats an hour reach my phone at most
  * - the same message twice in a row is dropped; bots that fill the hidden field are dropped
@@ -145,6 +145,8 @@ export async function postMessage(
          AND m.id > coalesce((SELECT max(id) FROM talk_messages r WHERE r.thread = m.thread AND r.side = 'me'), 0)`,
   );
   if ((waiting?.[0]?.n ?? 0) >= 10) return fail("you've got lots waiting on me already 🙂 I'll reply soon.", 429);
+  // A fresh chat (or a new name) is no way round "wait for my reply".
+  if (!thread && (waiting?.[0]?.n ?? 0) >= 5) return fail("you've got messages waiting on me already 🙂 I'll reply soon, then you can carry on.", 429);
 
   let earlier = 0;
   if (isNew) {
