@@ -147,7 +147,7 @@ function Conversation({ t }: { t: Thread }) {
             </p>
             <p className="text-a-quiet text-[13px]">
               {flag(t.country)} {town(t.city, t.country)} · started {when(t.createdAt)}
-              {t.via === "terminal" ? " from a terminal" : t.page ? ` on ${t.page}` : ""} · #{t.id.slice(0, 4)}
+              {t.via === "terminal" ? " from a terminal" : t.page ? ` on ${t.page === "/" ? "the home page" : t.page}` : ""} · #{t.id.slice(0, 4)}
             </p>
           </div>
         </div>
