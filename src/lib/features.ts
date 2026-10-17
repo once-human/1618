@@ -105,7 +105,7 @@ export async function checkFeatures(): Promise<Feature[]> {
         { href: "/#talk", label: "end of the day" },
       ],
       ok: c ? true : false,
-      state: `${live ? "Goes straight to my phone" : "Open; I answer from the site (my phone isn't hooked up yet)"}. ${c ? `${plural(c.threads, "conversation")} so far${c.waiting ? `, ${n(c.waiting)} waiting on me` : ""}.` : ""}`,
+      state: `${live ? "Goes straight to my phone" : "Open; I answer from the site (my phone isn't hooked up yet)"}. ${c ? (c.threads ? `${plural(c.threads, "conversation")} so far${c.waiting ? `, ${n(c.waiting)} waiting on me` : ""}.` : "No conversations yet.") : ""}`,
     },
     {
       id: "visitors",
@@ -123,7 +123,7 @@ export async function checkFeatures(): Promise<Feature[]> {
       what: "Send me a song, and the next time you visit, the site tells you if I've played it since, and how many times.",
       where: [{ href: "/#send-a-song", label: "send a song" }],
       ok: c ? true : false,
-      state: c ? `${plural(c.senders, "song")} sent since this started.` : "",
+      state: c ? (c.senders ? `${plural(c.senders, "song")} sent since this started.` : "No songs sent since this started.") : "",
     },
     {
       id: "listening",
@@ -204,7 +204,7 @@ export async function checkFeatures(): Promise<Feature[]> {
       name: "Built to this soundtrack",
       what: "On each project page: what I was listening to while I built it, matched from my commits against my listening history.",
       where: withRepo.slice(0, 3).map((p) => ({ href: `/work/${p.slug}`, label: p.name })),
-      ok: c?.plays ? true : null,
+      ok: withSound ? true : null,
       state: c?.first
         ? `${withSound} of ${withRepo.length} projects have enough to show. My listening history starts ${c.first}, so it fills in as I build.`
         : "No listening history yet.",
@@ -225,7 +225,7 @@ export async function checkFeatures(): Promise<Feature[]> {
       what: "Search any song and send it to me. It shows on the site once I've seen it.",
       where: [{ href: "/#send-a-song", label: "home, under listening" }],
       ok: c ? true : false,
-      state: c ? `${plural(c.songs, "song")} up.` : "",
+      state: c ? (c.songs ? `${plural(c.songs, "song")} up.` : "None yet. Be the first.") : "",
     },
     {
       id: "guestbook",
@@ -234,7 +234,7 @@ export async function checkFeatures(): Promise<Feature[]> {
       what: "Leave a line. Short, public, kept.",
       where: [{ href: "/#guestbook", label: "end of the day" }],
       ok: c ? true : false,
-      state: c ? `${plural(c.notes, "note")} so far.` : "",
+      state: c ? (c.notes ? `${plural(c.notes, "note")} so far.` : "Empty so far. Be the first.") : "",
     },
     {
       id: "menu",

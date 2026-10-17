@@ -120,7 +120,7 @@ export function StatusPage() {
         </h2>
         <ol>
           {data.checks.map((c) => (
-            <li key={c.name} className="border-ink/20 grid grid-cols-[1.25rem_1fr_auto] items-baseline gap-x-3 border-t py-2.5 md:grid-cols-[1.25rem_13rem_1fr_1.5fr_auto]">
+            <li key={c.name} className="border-ink/20 grid grid-cols-[1.25rem_1fr_auto] items-baseline gap-x-3 border-t py-2.5 md:grid-cols-[1.25rem_13rem_1fr_1.5fr_4.5rem]">
               <Dot ok={c.ok} />
               <span className="font-semibold">{c.name}</span>
               <span className="text-quiet hidden md:block">{c.what}</span>
