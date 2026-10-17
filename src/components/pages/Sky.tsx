@@ -76,14 +76,15 @@ function SkyLayer({ sky, cloud }: { sky: SkyState; cloud: number }) {
   const starCount = dark ? Math.round(170 * (1 - Math.min(cloud, 95) / 100) * (sky.rain ? 0.2 : 1)) : 0;
   const clouds = cloud >= 10 ? Math.min(7, 2 + Math.round(cloud / 16)) : 0;
   const night = sky.light < 0.5;
-  const cloudAlpha = (night ? 0.1 : 0.06) + (cloud / 100) * (night ? 0.1 : 0.09);
+  // By day, clouds are a faint shade on white paper; at night, a light haze over the stars.
+  const cloudAlpha = night ? 0.08 + (cloud / 100) * 0.08 : 0.03 + (cloud / 100) * 0.045;
   const glow = sky.phase === "dawn" || sky.phase === "dusk";
 
   return (
     <div
       aria-hidden
       className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[105svh] overflow-hidden"
-      style={{ maskImage: "linear-gradient(to bottom, #000 0%, #000 45%, transparent 100%)", WebkitMaskImage: "linear-gradient(to bottom, #000 0%, #000 45%, transparent 100%)" }}
+      style={{ maskImage: "linear-gradient(to bottom, #000 0%, #000 35%, transparent 90%)", WebkitMaskImage: "linear-gradient(to bottom, #000 0%, #000 35%, transparent 90%)" }}
     >
       {glow ? (
         <div
@@ -102,7 +103,7 @@ function SkyLayer({ sky, cloud }: { sky: SkyState; cloud: number }) {
                 className="sky-anim bg-ink absolute rounded-full"
                 style={{
                   left: `${rnd(i, 1) * 100}%`,
-                  top: `${Math.pow(rnd(i, 2), 1.4) * 80}%`, // thicker near the top
+                  top: `${Math.pow(rnd(i, 2), 1.7) * 75}%`, // thicker near the top
                   width: size,
                   height: size,
                   opacity: 0.45 + rnd(i, 4) * 0.55,
@@ -147,7 +148,7 @@ function SkyLayer({ sky, cloud }: { sky: SkyState; cloud: number }) {
 
       {sky.rain ? (
         <div
-          className="sky-anim absolute inset-[-10%] opacity-[0.22]"
+          className="sky-anim absolute inset-[-10%] opacity-[0.16]"
           style={{
             animation: "rain 0.6s linear infinite",
             backgroundImage: "repeating-linear-gradient(100deg, transparent 0 18px, var(--ink) 18px 19px)",
