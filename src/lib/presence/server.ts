@@ -509,13 +509,24 @@ export async function getWeather(lat: number, lon: number): Promise<Presence["we
   "use cache: remote";
   cacheLife({ stale: 300, revalidate: 900, expire: 7200 });
 
-  const data = await getJson<{ current?: { temperature_2m: number; weather_code: number } }>(
-    `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code&timezone=auto`,
+  const data = await getJson<{
+    current?: { temperature_2m: number; weather_code: number; cloud_cover?: number; precipitation?: number };
+    daily?: { sunrise?: number[]; sunset?: number[] };
+  }>(
+    `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code,cloud_cover,precipitation&daily=sunrise,sunset&forecast_days=2&timezone=auto&timeformat=unixtime`,
   );
   const c = data?.current;
   if (!c) return null;
   const label = WMO.find(([codes]) => codes.includes(c.weather_code))?.[1] ?? "";
-  return { tempC: Math.round(c.temperature_2m), label };
+  const code = c.weather_code;
+  return {
+    tempC: Math.round(c.temperature_2m),
+    label,
+    // For the sky on /now
+    cloud: c.cloud_cover ?? null,
+    rain: (c.precipitation ?? 0) > 0 || (code >= 51 && code <= 67) || (code >= 80 && code <= 82) || code >= 95,
+    sun: (data?.daily?.sunrise ?? []).map((r, i) => ({ rise: r * 1000, set: (data?.daily?.sunset?.[i] ?? 0) * 1000 })),
+  };
 }
 
 /** Only the repos the site actually shows, so the response stays small. */

@@ -115,3 +115,19 @@ html.lenis body {
     animation: none !important;
   }
 }
+
+/* /now follows the sky (src/components/pages/Sky.tsx): ease between its colours. */
+html,
+body {
+  transition:
+    background-color 1.2s ease,
+    color 1.2s ease;
+}
+@keyframes rain {
+  from {
+    transform: translate3d(0, -60px, 0);
+  }
+  to {
+    transform: translate3d(-10px, 0, 0);
+  }
+}

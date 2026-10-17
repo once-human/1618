@@ -16,6 +16,11 @@ export interface Presence {
   weather: {
     tempC: number;
     label: string;
+    /** Cloud cover, percent. */
+    cloud?: number | null;
+    rain?: boolean;
+    /** Sunrise and sunset (ms), today and tomorrow, where I am. */
+    sun?: { rise: number; set: number }[];
   } | null;
   /** A status I set myself from my phone, until it expires. */
   status: ManualStatus | null;

@@ -8,6 +8,7 @@ import { Timeline } from "@/components/home/Timeline";
 import { NOW } from "@/content/now";
 import { ListeningStats } from "@/components/home/ListeningStats";
 import { VisitorsMap } from "./VisitorsMap";
+import { Sky } from "./Sky";
 
 const cell = "border-t border-ink pt-1.5";
 
@@ -49,7 +50,10 @@ export function NowPage() {
 
   return (
     <div className="space-y-20">
-      <StatusLine className={`${cell} pt-3`} />
+      <div>
+        <Sky />
+        <StatusLine className={`${cell} pt-3`} />
+      </div>
 
       {NOW.lines.length > 0 && (
         <section className="grid grid-cols-1 gap-4 md:grid-cols-4">
