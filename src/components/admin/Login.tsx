@@ -19,7 +19,7 @@ export function Login({ note }: { note: string | null }) {
         <label htmlFor="key" className="mb-1.5 block text-[14px] font-medium">
           Site key
         </label>
-        <div className="border-a-line bg-a-panel focus-within:border-a-signal flex rounded-xl border">
+        <div className="border-a-line bg-a-panel focus-within:border-a-signal focus-within:ring-a-signal/25 flex rounded-xl border focus-within:ring-4">
           <input
             id="key"
             name="key"
@@ -28,7 +28,7 @@ export function Login({ note }: { note: string | null }) {
             required
             autoFocus
             spellCheck={false}
-            className="min-w-0 flex-1 bg-transparent px-3.5 py-3 text-[16px] outline-none"
+            className="min-w-0 flex-1 bg-transparent px-3.5 py-3 text-[16px] outline-none focus-visible:outline-none"
           />
           <button type="button" onClick={() => setShow((s) => !s)} className="text-a-quiet hover:text-a-ink px-3.5 text-[14px]">
             {show ? "Hide" : "Show"}
