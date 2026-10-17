@@ -1,12 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ViewTransition } from "react";
+import { Suspense, ViewTransition } from "react";
 import { notFound } from "next/navigation";
 import { projectBySlug, projects } from "@/content/projects";
 import { Nav } from "@/components/site/Nav";
 import { Footer } from "@/components/site/Footer";
 import { Updated } from "@/components/live/Updated";
 import { PageTransition } from "@/components/site/PageTransition";
+import { Soundtrack } from "@/components/work/Soundtrack";
 
 type Params = { slug: string };
 
@@ -83,6 +84,12 @@ export default async function CaseStudy({ params }: { params: Promise<Params> })
                 </div>
               </section>
             ))}
+
+            {p.repo ? (
+              <Suspense fallback={null}>
+                <Soundtrack repo={p.repo} />
+              </Suspense>
+            ) : null}
 
             {p.links.length > 0 && (
               <section className="grid grid-cols-2 gap-4 md:grid-cols-4">

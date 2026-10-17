@@ -14,7 +14,7 @@ const GH_USER = "once-human";
 const TIMEOUT = 5000;
 const PUNE = { lat: 18.5204, lon: 73.8567 };
 
-function ghHeaders(): HeadersInit {
+export function ghHeaders(): HeadersInit {
   const h: Record<string, string> = {
     Accept: "application/vnd.github+json",
     "User-Agent": "1618-portfolio",
