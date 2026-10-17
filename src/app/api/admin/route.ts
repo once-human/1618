@@ -11,6 +11,5 @@ export async function POST(req: Request) {
   else if (action === "show") await q("show", (db) => db`UPDATE submissions SET hidden = false WHERE id = ${id}`);
   else if (action === "delete") await q("delete", (db) => db`DELETE FROM submissions WHERE id = ${id}`);
   else return new Response("Bad action", { status: 400 });
-  const key = new URL(req.url).searchParams.get("key") ?? "";
-  return Response.redirect(new URL(`/admin?key=${encodeURIComponent(key)}`, req.url), 303);
+  return Response.redirect(new URL("/admin", req.url), 303);
 }

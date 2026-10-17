@@ -39,7 +39,7 @@ plays per run until it reaches the first scrobble. It runs:
 
 ## Things only I do
 
-- **`/admin?key=<ADMIN_SECRET>`**: hide or delete guestbook posts and sent songs, set my status,
+- **`/admin`** (log in with the site key): hide or delete guestbook posts and sent songs, set my status,
   see the store's size and last sync, connect Telegram, get the iPhone shortcuts, run a sync.
 - **iPhone shortcuts** (signed, downloadable from /admin; each asks for the site key when added):
   *1618 Health* (today's steps, distance, active calories → `/api/ingest/health`; run it from an

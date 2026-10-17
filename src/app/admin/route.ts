@@ -3,9 +3,10 @@ import { isAdmin, kvGet, q } from "@/lib/db";
 import { getPlace, getStatus } from "@/lib/presence/server";
 import { owner, telegramConfigured } from "@/lib/talk/telegram";
 import { placeName } from "@/lib/geo";
+import { loginPage, PRIVATE_HEADERS } from "@/lib/admin-page";
 
 /**
- * My private control page: open /admin?key=<ADMIN_SECRET>. Hide or delete
+ * My private control page: /admin, behind a login with the site key. Hide or delete
  * posts, set my status, see how the history store is doing, connect
  * Telegram for live chat, get the iPhone shortcuts.
  * Plain HTML on purpose: it only has to work.
@@ -15,8 +16,11 @@ const esc = (s: unknown) =>
 
 export async function GET(req: Request) {
   await connection();
-  if (!isAdmin(req)) return new Response("Not found", { status: 404 });
-  const key = encodeURIComponent(new URL(req.url).searchParams.get("key") ?? "");
+  if (!isAdmin(req)) {
+    const u = new URL(req.url).searchParams;
+    const note = u.has("wrong") ? "That's not the key." : u.has("wait") ? "Too many tries. Wait 15 minutes." : null;
+    return new Response(loginPage(note), { status: 401, headers: PRIVATE_HEADERS });
+  }
 
   const [posts, counts, sync, backfill, status, tgOwner, place, shortcuts, chats] = await Promise.all([
     q<{ id: number; kind: string; name: string | null; message: string | null; payload: { track?: string; artist?: string } | null; hidden: boolean; created_at: string }>(
@@ -52,7 +56,7 @@ export async function GET(req: Request) {
   <td>${esc(p.name ?? "—")}</td>
   <td>${p.payload?.track ? `<b>${esc(p.payload.track)}</b>, ${esc(p.payload.artist)}<br>` : ""}${esc(p.message ?? "")}</td>
   <td>${esc(new Date(p.created_at).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" }))}</td>
-  <td><form method="post" action="/api/admin?key=${key}">
+  <td><form method="post" action="/api/admin">
     <input type="hidden" name="id" value="${p.id}">
     ${p.hidden ? `<button name="action" value="show">show</button>` : `<button name="action" value="hide">hide</button>`}
     <button name="action" value="delete" onclick="return confirm('Delete for good?')">delete</button>
@@ -71,10 +75,11 @@ export async function GET(req: Request) {
   input[type=text]{font:inherit;width:min(420px,100%)}.q{color:#6e6e6e}
 </style></head><body>
 <h1>admin</h1>
+<form method="post" action="/admin/logout" style="position:absolute;top:16px;right:16px"><button>Log out</button></form>
 
 <h2>Status</h2>
 <p>${status ? `“${esc(status.text)}” until ${esc(new Date(status.until).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" }))}` : "<span class=q>None set.</span>"}</p>
-<form method="post" action="/api/status?key=${key}">
+<form method="post" action="/api/status">
   <input type="text" name="text" placeholder="heads-down till 6" maxlength="80">
   <input type="number" name="hours" value="4" min="0.25" max="48" step="0.25" style="width:5em"> hours
   <button>Set</button>
@@ -82,7 +87,7 @@ export async function GET(req: Request) {
 
 <h2>Where I am</h2>
 <p>${esc(place.city)} <span class=q>(${esc(place.tz)}${place.setAt ? `, set ${esc(new Date(place.setAt).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" }))}` : ", default"})</span></p>
-<form method="post" action="/api/location?key=${key}">
+<form method="post" action="/api/location">
   <input type="text" name="city" placeholder="Bengaluru" maxlength="60">
   <button>Set</button>
 </form>
@@ -90,7 +95,7 @@ export async function GET(req: Request) {
 <h2>History store</h2>
 <p>${c ? `${c.plays.toLocaleString("en-IN")} plays since ${esc(c.first ?? "—")} · ${c.pins} pins · ${c.events} pushes, runs and workouts · ${c.health} Health days` : "Database unreachable."}<br>
 <span class=q>Last sync ${sync ? esc(new Date(sync.value.at).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })) : "never"}. Last.fm backfill ${backfill?.value.done ? "complete" : "still running"}.</span>
-<a href="/api/sync?key=${key}">Sync now</a></p>
+<a href="/api/sync">Sync now</a></p>
 
 <h2>Talk to me</h2>
 <p class=q>Always open on the site. Answer below, or from Telegram once it's connected.</p>
@@ -98,8 +103,8 @@ export async function GET(req: Request) {
     !telegramConfigured()
       ? "<span class=q>Telegram: off, so messages wait here. To get them on your phone: make a bot with @BotFather in Telegram, add its token in Vercel as TELEGRAM_BOT_TOKEN, redeploy, then come back here.</span>"
       : tgOwner
-        ? `On: visitors' messages go to ${esc(tgOwner.name || "you")} on Telegram. Reply to one to answer. <span class=q>(<a href="/api/telegram/connect?key=${key}">reconnect</a>)</span>`
-        : `Bot is ready. <a href="/api/telegram/connect?key=${key}"><b>Connect Telegram</b></a>, then press Start in the chat that opens. <span class=q>The link works once, for 15 minutes.</span>`
+        ? `On: visitors' messages go to ${esc(tgOwner.name || "you")} on Telegram. Reply to one to answer. <span class=q>(<a href="/api/telegram/connect">reconnect</a>)</span>`
+        : `Bot is ready. <a href="/api/telegram/connect"><b>Connect Telegram</b></a>, then press Start in the chat that opens. <span class=q>The link works once, for 15 minutes.</span>`
   }</p>
 ${(chats ?? []).length ? "" : "<p class=q>No conversations yet.</p>"}
 ${(chats ?? [])
@@ -108,7 +113,7 @@ ${(chats ?? [])
       const waiting = t.log.at(-1)?.side !== "me";
       return `<details id="chat-${esc(t.id.slice(0, 8))}"${i === 0 || waiting ? " open" : ""}><summary>${waiting ? "<b>● waiting</b> · " : ""}#${esc(t.id.slice(0, 4))} · ${esc(placeName(t.city, t.country))}${t.page ? ` · ${esc(t.page)}` : ""} · ${t.log.length} messages · ${esc(new Date(t.last_at).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" }))}</summary>
 <ul>${t.log.map((m) => `<li><b>${m.side === "me" ? "me" : "them"}:</b> ${esc(m.text)}</li>`).join("")}</ul>
-<form method="post" action="/api/talk/reply?key=${key}"><input type="hidden" name="thread" value="${esc(t.id)}"><input type="text" name="text" placeholder="Reply (shows up on their screen)" maxlength="2000" required> <button>Send</button></form></details>`;
+<form method="post" action="/api/talk/reply"><input type="hidden" name="thread" value="${esc(t.id)}"><input type="text" name="text" placeholder="Reply (shows up on their screen)" maxlength="2000" required> <button>Send</button></form></details>`;
     },
   )
   .join("")}
@@ -124,5 +129,5 @@ ${(chats ?? [])
 <h2>Songs and guestbook (${(posts ?? []).length})</h2>
 <table>${rows || "<tr><td class=q>Nothing yet.</td></tr>"}</table>
 </body></html>`;
-  return new Response(html, { headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" } });
+  return new Response(html, { headers: PRIVATE_HEADERS });
 }

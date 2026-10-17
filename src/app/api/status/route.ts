@@ -44,8 +44,7 @@ export async function POST(req: Request) {
   };
   await kvSet("status", status);
   if (isForm) {
-    const key = new URL(req.url).searchParams.get("key") ?? "";
-    return Response.redirect(new URL(`/admin?key=${encodeURIComponent(key)}`, req.url), 303);
+    return Response.redirect(new URL("/admin", req.url), 303);
   }
   return Response.json({ ok: true, status });
 }

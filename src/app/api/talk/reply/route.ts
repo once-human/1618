@@ -11,8 +11,7 @@ export async function POST(req: Request) {
   const form = await req.formData();
   const thread = String(form.get("thread") ?? "");
   const text = String(form.get("text") ?? "").trim().slice(0, 2000);
-  const key = new URL(req.url).searchParams.get("key") ?? "";
-  const back = Response.redirect(new URL(`/admin?key=${encodeURIComponent(key)}#chat-${thread.slice(0, 8)}`, req.url), 303);
+  const back = Response.redirect(new URL(`/admin#chat-${thread.slice(0, 8)}`, req.url), 303);
   if (!/^[a-f0-9]{32}$/.test(thread) || !text) return back;
   const rows = await q<{ id: string; at: string }>("talk admin reply", (db) =>
     db`INSERT INTO talk_messages (thread, side, text) VALUES (${thread}, 'me', ${text}) RETURNING id, at`,

@@ -1,5 +1,5 @@
 import "server-only";
-import { createHash } from "node:crypto";
+import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import { neon, type NeonQueryFunction } from "@neondatabase/serverless";
 
 /**
@@ -85,15 +85,53 @@ export async function allow(key: string, limit: number, windowSec: number): Prom
   return typeof n === "number" && n <= limit;
 }
 
-/** Check a request carries the admin secret (header `Authorization: Bearer …` or `?key=`). */
-export function isAdmin(req: Request): boolean {
+/* ---- Me: who's allowed to change things ---- */
+
+/** The browser cookie that keeps me logged in to /admin. "__Host-" makes the browser refuse it unless it's secure and for this exact site. */
+export const ADMIN_COOKIE = "__Host-1618-admin";
+const SESSION_DAYS = 30;
+
+const same = (a: string, b: string) => {
+  const x = Buffer.from(a);
+  const y = Buffer.from(b);
+  return x.length === y.length && timingSafeEqual(x, y);
+};
+const sign = (secret: string, exp: number) => createHmac("sha256", secret).update(`admin-session|${exp}`).digest("base64url");
+
+/** Is this the site key? (Constant time, so it can't be guessed a letter at a time.) */
+export function isSiteKey(key: string | null | undefined): boolean {
   const secret = process.env.ADMIN_SECRET;
-  if (!secret) return false;
+  return !!secret && !!key && same(key, secret);
+}
+
+/** A login that lasts 30 days. It's a signature, not the key, and changing the key ends every login. */
+export function newSession(): { value: string; maxAge: number } {
+  const exp = Date.now() + SESSION_DAYS * 86400_000;
+  return { value: `${exp}.${sign(process.env.ADMIN_SECRET!, exp)}`, maxAge: SESSION_DAYS * 86400 };
+}
+
+function sessionOk(req: Request): boolean {
+  const secret = process.env.ADMIN_SECRET;
+  const raw = req.headers.get("cookie")?.split(/;\s*/).find((c) => c.startsWith(`${ADMIN_COOKIE}=`))?.slice(ADMIN_COOKIE.length + 1);
+  if (!secret || !raw) return false;
+  const [exp, sig] = raw.split(".");
+  if (!(Number(exp) > Date.now()) || !sig || !same(sig, sign(secret, Number(exp)))) return false;
+  // A logged-in browser only takes changes from this site's own pages (no forged forms from elsewhere).
+  if (req.method !== "GET" && req.method !== "HEAD") {
+    const origin = req.headers.get("origin");
+    const site = req.headers.get("sec-fetch-site");
+    if (site ? site !== "same-origin" : !origin || new URL(origin).host !== new URL(req.url).host) return false;
+  }
+  return true;
+}
+
+/**
+ * Is this me? Either my phone's shortcuts (header "Authorization: Bearer
+ * <key>") or my browser, logged in at /admin. The key never goes in a URL,
+ * where it would end up in history and logs.
+ */
+export function isAdmin(req: Request): boolean {
   const auth = req.headers.get("authorization");
-  const key = auth?.startsWith("Bearer ") ? auth.slice(7) : new URL(req.url).searchParams.get("key");
-  if (!key || key.length !== secret.length) return false;
-  // Constant-time comparison
-  let diff = 0;
-  for (let i = 0; i < key.length; i++) diff |= key.charCodeAt(i) ^ secret.charCodeAt(i);
-  return diff === 0;
+  if (auth?.startsWith("Bearer ")) return isSiteKey(auth.slice(7));
+  return sessionOk(req);
 }
