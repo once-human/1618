@@ -240,7 +240,7 @@ function PinGrid({ pins, now, onOpen, fresh }: { pins: SavedPin[]; now: number; 
           style={{ "--d": DROP[i % 4] } as React.CSSProperties}
           className={`md:[margin-top:var(--d)] ${fresh.has(p.id) ? "animate-[arrive_0.9s_cubic-bezier(.2,.7,.2,1)_both]" : ""}`}
         >
-          <button type="button" onClick={() => onOpen(i)} className="group block w-full text-left" aria-label={`Open ${p.title ?? "this pin"}`}>
+          <button type="button" onClick={() => onOpen(i)} className="group block w-full text-left">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={p.imageSmall}

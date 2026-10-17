@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { pageMeta } from "@/lib/meta";
 import Link from "next/link";
 import { Suspense, ViewTransition } from "react";
 import { notFound } from "next/navigation";
@@ -19,11 +20,7 @@ export async function generateMetadata({ params }: { params: Promise<Params> }):
   const { slug } = await params;
   const p = projectBySlug(slug);
   if (!p) return {};
-  return {
-    title: `${p.name}, Onkar Yaglewad`,
-    description: p.tagline,
-    alternates: { canonical: `/work/${p.slug}` },
-  };
+  return pageMeta(p.name, p.tagline, `/work/${p.slug}`);
 }
 
 const cell = "border-t border-ink pt-1.5";

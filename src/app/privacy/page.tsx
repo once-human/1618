@@ -1,16 +1,16 @@
 import type { Metadata } from "next";
+import { pageMeta } from "@/lib/meta";
 import { Nav } from "@/components/site/Nav";
 import { Footer } from "@/components/site/Footer";
 import { profile } from "@/content/profile";
 import { SITE_URL } from "@/lib/site";
 import { PageTransition } from "@/components/site/PageTransition";
 
-export const metadata: Metadata = {
-  title: "Privacy, Onkar Yaglewad",
-  description:
-    "What this site knows about you (almost nothing) and how it uses my own Pinterest, music and GitHub data.",
-  alternates: { canonical: "/privacy" },
-};
+export const metadata: Metadata = pageMeta(
+  "Privacy",
+  "What this site knows about you (almost nothing) and how it uses my own Pinterest, music and GitHub data.",
+  "/privacy",
+);
 
 const UPDATED = "17 October 2026";
 const host = SITE_URL.replace(/^https?:\/\//, "");

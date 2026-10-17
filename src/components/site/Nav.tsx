@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSyncExternalStore } from "react";
 import { formatClock, getClock, subscribeClock } from "@/lib/clock";
-import { scrollToId } from "@/components/scroll/SmoothScroll";
+import { scrollToId } from "@/components/scroll/scrollTo";
 import { openMenu } from "@/components/site/CommandMenu";
 
 /** Where each item shows: phones get the essentials, wide screens get everything. */
@@ -89,7 +89,7 @@ export function Nav({ home = false }: { home?: boolean }) {
           </Link>
         );
       })}
-      <button type="button" onClick={openMenu} className={`${cell} text-left`} aria-label="Open the menu">
+      <button type="button" onClick={openMenu} className={`${cell} text-left`} aria-haspopup="dialog">
         menu <span className="hidden text-quiet lg:inline">⌘K</span>
       </button>
     </nav>

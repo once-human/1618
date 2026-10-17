@@ -93,7 +93,7 @@ export function RangeView({ s, top = 10 }: { s: RangeSummary; top?: number }) {
                 <li key={p.id}>
                   <a href={p.url} target="_blank" rel="noopener noreferrer">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={p.imageSmall} alt={p.title ?? ""} loading="lazy" className="aspect-[3/4] w-full object-cover" style={{ backgroundColor: p.color ?? "#e6e6e6" }} />
+                    <img src={p.imageSmall} alt={p.title ?? "A pin I saved, on Pinterest"} loading="lazy" className="aspect-[3/4] w-full object-cover" style={{ backgroundColor: p.color ?? "#e6e6e6" }} />
                   </a>
                 </li>
               ))}

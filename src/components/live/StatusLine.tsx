@@ -132,7 +132,7 @@ export function hereLine({ people, mine }: { people: number; mine: number }, oth
 
 function Dot({ state }: { state: State }) {
   return (
-    <span aria-label={state} className="relative mt-[0.32em] inline-flex size-[0.55em] shrink-0">
+    <span role="img" aria-label={state === "active" ? "Active" : state === "around" ? "Around" : "Away"} className="relative mt-[0.32em] inline-flex size-[0.55em] shrink-0">
       {state === "active" ? (
         <span className="bg-ink absolute inset-0 animate-ping rounded-full opacity-30 motion-reduce:hidden" />
       ) : null}

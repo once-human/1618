@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { scrollToId } from "@/components/scroll/SmoothScroll";
+import { scrollToId } from "@/components/scroll/scrollTo";
 import { togglePreview, useMusic } from "@/lib/presence/client";
 import { profile } from "@/content/profile";
 

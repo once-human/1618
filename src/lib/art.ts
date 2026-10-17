@@ -9,7 +9,8 @@ const DEEZER = /\/(\d+)x\1-/;
 
 export function artUrl(url: string, px: number): string {
   const n = Math.min(1200, Math.round(px));
-  if (APPLE.test(url)) return url.replace(APPLE, `/${n}x${n}bb.jpg`);
+  // Apple also serves WebP: about half the bytes from ~160px up (smaller than that, JPEG wins).
+  if (APPLE.test(url)) return url.replace(APPLE, `/${n}x${n}bb.${n >= 160 ? "webp" : "jpg"}`);
   if (DEEZER.test(url)) return url.replace(DEEZER, `/${n}x${n}-`);
   return url;
 }

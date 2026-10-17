@@ -3,7 +3,7 @@
 import { useEffect, useSyncExternalStore } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { hasChat, useTalk } from "@/lib/talk/client";
-import { scrollToId } from "@/components/scroll/SmoothScroll";
+import { scrollToId } from "@/components/scroll/scrollTo";
 
 /**
  * If I reply while the visitor is somewhere else on the site (or in another

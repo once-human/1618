@@ -24,8 +24,9 @@ interface Data {
  * right now; then every live source behind it. All of it is worked out from
  * the real thing, so anything that stops working shows up here.
  */
-export function StatusPage() {
-  const [data, setData] = useState<Data | null>(null);
+export function StatusPage({ initial = null }: { initial?: Data | null }) {
+  // The first answer comes with the page; after that it refreshes every minute.
+  const [data, setData] = useState<Data | null>(initial);
   const [curl, setCurl] = useState<{ ok: boolean; text: string } | null>(null);
   const here = useHere();
   const others = useOthers();
@@ -41,10 +42,14 @@ export function StatusPage() {
         .then(async (r) => setCurl({ ok: r.ok, text: r.ok ? (await r.text()).replace(/^\n+|\n+$/g, "") : `answered ${r.status}` }))
         .catch(() => setCurl({ ok: false, text: "didn't answer" }));
     };
-    load();
+    if (!initial) load();
+    else
+      fetch("/api/curl?plain", { cache: "no-store" })
+        .then(async (r) => setCurl({ ok: r.ok, text: r.ok ? (await r.text()).replace(/^\n+|\n+$/g, "") : `answered ${r.status}` }))
+        .catch(() => setCurl({ ok: false, text: "didn't answer" }));
     const t = setInterval(load, 60_000);
     return () => clearInterval(t);
-  }, []);
+  }, [initial]);
 
   if (!data) return <div className="min-h-[60vh]" aria-hidden />;
 
@@ -141,6 +146,7 @@ export function StatusPage() {
 function Dot({ ok }: { ok: boolean | null }) {
   return (
     <span
+      role="img"
       aria-label={ok ? "working" : ok === false ? "not working" : "waiting"}
       className={`mt-[0.45em] inline-block size-2.5 rounded-full border-2 ${ok ? "border-ink bg-ink" : ok === false ? "border-[#d33]" : "border-ink"}`}
     />

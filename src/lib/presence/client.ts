@@ -17,6 +17,7 @@ function createPoller<T>(
   opts: { etag?: boolean; onData?: (d: T) => void } = {},
 ) {
   let data: T | null = null;
+  let primedAt = 0;
   let etag: string | null = null;
   const subs = new Set<() => void>();
   let timer: ReturnType<typeof setInterval> | null = null;
@@ -47,7 +48,8 @@ function createPoller<T>(
   function subscribe(f: () => void) {
     subs.add(f);
     if (!timer) {
-      void load();
+      // Data sent with the page is fresh: the first poll can wait for the interval.
+      if (Date.now() - primedAt > 10_000) void load();
       timer = setInterval(() => document.visibilityState === "visible" && void load(), everyMs);
       document.addEventListener("visibilitychange", onVisible);
     }
@@ -66,6 +68,15 @@ function createPoller<T>(
     get: () => data,
     refresh: load,
     set: (d: T) => ((data = d), subs.forEach((f) => f())),
+    /** Data the server sent with the page: used straight away, no request. */
+    prime: (d: T) => {
+      if (data !== null) return false;
+      data = d;
+      primedAt = Date.now();
+      opts.onData?.(d);
+      return true;
+    },
+    notify: () => subs.forEach((f) => f()),
   };
 }
 
@@ -132,6 +143,28 @@ export const useTimeline = () => usePoller(timeline);
 export const useReplay = () => usePoller(replay);
 export const useSongsSent = () => usePoller(songs);
 export const useGuestbook = () => usePoller(notes);
+
+/**
+ * Data the server sent along with the page, so it shows the moment the page
+ * starts instead of after a round trip. Called by <Seed>, browser only.
+ */
+export interface SeedData {
+  live?: Live | null;
+  saved?: Saved | null;
+  listening?: ListeningStats | null;
+  timeline?: { hours: number; events: TodayEvent[] } | null;
+  replay?: Replay | null;
+}
+const seedable = { live, saved, listening, timeline, replay } as const;
+export function seedStores(d: SeedData): (() => void)[] {
+  const primed: (() => void)[] = [];
+  for (const [k, store] of Object.entries(seedable) as [keyof SeedData, (typeof seedable)[keyof SeedData]][]) {
+    const v = d[k];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- each store takes its own shape
+    if (v && (store as any).prime(v)) primed.push(store.notify);
+  }
+  return primed;
+}
 
 /** Put a just-sent post at the top straight away, without waiting for the next poll. */
 export function addSubmission(s: Submission) {

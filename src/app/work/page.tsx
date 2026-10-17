@@ -1,14 +1,11 @@
 import type { Metadata } from "next";
+import { pageMeta } from "@/lib/meta";
 import { Nav } from "@/components/site/Nav";
 import { Footer } from "@/components/site/Footer";
 import { WorkList } from "@/components/home/WorkList";
 import { PageTransition } from "@/components/site/PageTransition";
 
-export const metadata: Metadata = {
-  title: "Work, Onkar Yaglewad",
-  description: "Everything Onkar Yaglewad has been making, as a plain list.",
-  alternates: { canonical: "/work" },
-};
+export const metadata: Metadata = pageMeta("Work", "Everything Onkar Yaglewad has been making, as a plain list.", "/work");
 
 export default function WorkIndex() {
   return (

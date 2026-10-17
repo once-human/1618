@@ -16,7 +16,9 @@ const longDate = (iso: string) => new Date(iso).toLocaleDateString("en-GB", { da
  */
 export function Replay() {
   const r = useReplay();
-  if (!r || !r.summary.music.plays) return null;
+  // Room for it while it loads, so the page below doesn't jump when it lands.
+  if (!r) return <div className="min-h-[70vh]" aria-hidden />;
+  if (!r.summary.music.plays) return null;
   const m = r.summary.music;
   const partial = r.storeFrom && r.storeFrom.slice(0, 10) > `${r.year}-01-01`;
   const hours = m.minutes >= 600;
@@ -25,7 +27,7 @@ export function Replay() {
 
   return (
     <div>
-      <Label note={partial ? `counting from ${longDate(r.storeFrom!)}, when my history starts` : "refreshes through the day"}>{r.year} so far</Label>
+      <Label as="h2" note={partial ? `counting from ${longDate(r.storeFrom!)}, when my history starts` : "refreshes through the day"}>{r.year} so far</Label>
 
       <div className="grid grid-cols-1 gap-x-10 gap-y-8 md:grid-cols-12">
         <div className="md:col-span-7">

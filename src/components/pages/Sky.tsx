@@ -41,7 +41,8 @@ export function Sky() {
     [],
   );
 
-  if (!sky || !w || !place) return null;
+  // Room for the line before the weather is in, so nothing below it jumps when it arrives.
+  if (!sky || !w || !place) return <p className="-mt-6 mb-10 min-h-[2.9em] max-w-[60ch]" aria-hidden />;
   const today = w.sun?.find((s) => s.set > (now ?? 0)) ?? w.sun?.[0];
   const next =
     today && now
