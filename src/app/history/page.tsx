@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import { PageShell } from "@/components/pages/PageShell";
 import { HistorySearch } from "@/components/history/HistorySearch";
 import { HistoryOverview } from "@/components/history/HistoryOverview";
+import { Replay } from "@/components/home/Replay";
 
 export const metadata: Metadata = {
   title: "History, Onkar Yaglewad",
@@ -15,9 +16,12 @@ export default function HistoryPage() {
     <PageShell word="history">
       <p className="mb-12 max-w-[52ch] border-t border-ink pt-1.5 text-[17px] leading-snug">
         Everything the live parts of this site have ever seen, kept: every song I&apos;ve played, every pin, every push,
-        every run. Every period side by side first, then the top tens, then any stretch you like.
+        every run. The year so far first, then every period side by side, the top tens, and any stretch you like.
       </p>
-      <HistoryOverview />
+      <Replay />
+      <div className="mt-24">
+        <HistoryOverview />
+      </div>
       <section className="mt-24">
         <h2 className="mb-6 border-t border-ink pt-1.5 font-semibold">Look back at any stretch</h2>
         <Suspense fallback={<div className="min-h-[60vh]" aria-hidden />}>

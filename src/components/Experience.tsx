@@ -15,9 +15,6 @@ import { WorkList } from "@/components/home/WorkList";
 import { Listening } from "@/components/home/Listening";
 import { SayHi } from "@/components/home/SayHi";
 import { Saved } from "@/components/home/Saved";
-import { Timeline } from "@/components/home/Timeline";
-import { StatusLine } from "@/components/live/StatusLine";
-import { Label } from "@/components/site/Label";
 import { PageTransition } from "@/components/site/PageTransition";
 
 gsap.registerPlugin(ScrollTrigger);
@@ -116,23 +113,6 @@ export function Experience() {
               Work
             </span>
             <WorkList />
-          </section>
-
-          <section id="lately" aria-labelledby="lately-title" className="px-4 pt-[18vh]">
-            <BigWord
-              as="h2"
-              word="lately"
-              className="mb-10 -ml-[0.04em] text-[clamp(4.5rem,17vw,17rem)]"
-            />
-            <span id="lately-title" className="sr-only">
-              Right now and the last 48 hours
-            </span>
-            <Label note="updates on its own" className="!mt-0">
-              Right now
-            </Label>
-            <StatusLine />
-            <Label note="music, code, saves and runs, grouped as they happened">The last 48 hours</Label>
-            <Timeline />
           </section>
 
           <section id="listening" aria-labelledby="listening-title" className="px-4 pt-[18vh]">

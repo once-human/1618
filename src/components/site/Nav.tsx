@@ -13,7 +13,6 @@ const SHOW: Record<Show, string> = { all: "block", md: "hidden md:block", lg: "h
 
 const SECTIONS: { id: string; label: string; show: Show }[] = [
   { id: "work", label: "work", show: "all" },
-  { id: "lately", label: "lately", show: "lg" },
   { id: "listening", label: "listening", show: "md" },
   { id: "saved", label: "saved", show: "md" },
   { id: "say-hi", label: "say hi", show: "lg" },
@@ -23,6 +22,7 @@ const PAGES: { href: string; label: string; show: Show }[] = [
   { href: "/now", label: "now", show: "all" },
   { href: "/history", label: "history", show: "all" },
   { href: "/issues", label: "issues", show: "lg" },
+  { href: "/status", label: "status", show: "lg" },
 ];
 
 const cell = "border-t border-ink pt-1.5 pointer-events-auto truncate";

@@ -4,6 +4,7 @@ import { scrobbles, trackKey, type Scrobble } from "@/lib/presence/lastfm";
 import { archivePins, getSaved } from "@/lib/presence/pinterest";
 import { appleSong, ghEvents } from "@/lib/presence/server";
 import { stravaActivities } from "./strava";
+import { mightBeSeveral, nameKey, parseCredit, splitCredit } from "./credits";
 
 /**
  * The history store: a copy of everything the live sources show, kept for
@@ -25,32 +26,124 @@ export interface SyncReport {
   code?: number;
   activities?: number;
   lengths?: number;
+  credits?: number;
+  canon?: number;
   ms?: number;
   skipped?: string;
 }
 
+/** Credits known to be one act even though they contain "&", "x", etc. */
+async function singleActs(): Promise<(s: string) => boolean> {
+  const rows = await q<{ credit: string }>("singles", (db) => db`SELECT credit FROM artist_credits WHERE single`);
+  const set = new Set((rows ?? []).map((r) => nameKey(r.credit)));
+  return (s: string) => set.has(nameKey(s));
+}
+
 async function storePlays(list: Scrobble[]): Promise<number> {
   if (!list.length) return 0;
+  const isSingle = await singleActs();
+  const parsed = list.map((s) => parseCredit(s.track, s.artist, isSingle));
   let added = 0;
   // Chunks keep each statement comfortably small.
   for (let i = 0; i < list.length; i += 1000) {
     const chunk = list.slice(i, i + 1000);
+    const pc = parsed.slice(i, i + 1000);
     const rows = await q<{ n: number }>("scrobbles insert", (db) =>
       db`WITH ins AS (
-           INSERT INTO scrobbles (uts, track_key, track, artist, album)
-           SELECT * FROM unnest(
+           INSERT INTO scrobbles (uts, track_key, track, artist, album, title, credit, artists, artist_keys, song_key)
+           SELECT u, tk, tr, ar, al, ti, cr, string_to_array(arts, chr(31)), string_to_array(ks, chr(31)), sk FROM unnest(
              ${chunk.map((s) => s.uts)}::bigint[],
              ${chunk.map((s) => trackKey(s.artist, s.track))}::text[],
              ${chunk.map((s) => s.track)}::text[],
              ${chunk.map((s) => s.artist)}::text[],
-             ${chunk.map((s) => s.album)}::text[]
-           )
+             ${chunk.map((s) => s.album)}::text[],
+             ${pc.map((c) => c.title)}::text[],
+             ${pc.map((c) => c.credit)}::text[],
+             ${pc.map((c) => c.artists.join("\u001f"))}::text[],
+             ${pc.map((c) => c.keys.join("\u001f"))}::text[],
+             ${pc.map((c) => c.songKey)}::text[]
+           ) AS t(u, tk, tr, ar, al, ti, cr, arts, ks, sk)
            ON CONFLICT DO NOTHING RETURNING 1
          ) SELECT count(*)::int AS n FROM ins`,
     );
     added += rows?.[0]?.n ?? 0;
   }
   return added;
+}
+
+/**
+ * Work out clean titles and individual artists for plays that don't have
+ * them yet (older rows, or rows whose credit was just re-checked).
+ */
+async function canonicalise(): Promise<number> {
+  const rows = await q<{ uts: string; track_key: string; track: string; artist: string }>("canon todo", (db) =>
+    db`SELECT uts::text, track_key, track, artist FROM scrobbles WHERE song_key IS NULL LIMIT 3000`,
+  );
+  if (!rows?.length) return 0;
+  const isSingle = await singleActs();
+  const pc = rows.map((r) => parseCredit(r.track, r.artist, isSingle));
+  await q("canon update", (db) =>
+    db`UPDATE scrobbles s SET title = t.ti, credit = t.cr,
+         artists = string_to_array(t.arts, chr(31)), artist_keys = string_to_array(t.ks, chr(31)), song_key = t.sk
+       FROM unnest(
+         ${rows.map((r) => r.uts)}::bigint[],
+         ${rows.map((r) => r.track_key)}::text[],
+         ${pc.map((c) => c.title)}::text[],
+         ${pc.map((c) => c.credit)}::text[],
+         ${pc.map((c) => c.artists.join("\u001f"))}::text[],
+         ${pc.map((c) => c.keys.join("\u001f"))}::text[],
+         ${pc.map((c) => c.songKey)}::text[]
+       ) AS t(u, tk, ti, cr, arts, ks, sk)
+       WHERE s.uts = t.u AND s.track_key = t.tk`,
+  );
+  return rows.length;
+}
+
+/**
+ * Is "A & B" one act or two? Two, if I've ever played A or B on their own.
+ * Otherwise ask Apple Music whether an artist by that exact name exists
+ * (a duo like "Harlow & Vine" does; a one-off collaboration doesn't).
+ * A few credits per run; each answer is rechecked weekly.
+ */
+async function verifyCredits(): Promise<number> {
+  const todo = await q<{ artist: string }>("credits todo", (db) =>
+    db`SELECT DISTINCT s.artist FROM scrobbles s
+       LEFT JOIN artist_credits c ON c.credit = s.artist
+       WHERE c.credit IS NULL OR c.checked_at < now() - interval '7 days'
+       LIMIT 40`,
+  );
+  const candidates = (todo ?? []).map((r) => r.artist).filter(mightBeSeveral).slice(0, 8);
+  let changed = 0;
+  for (const credit of candidates) {
+    const parts = splitCredit(credit);
+    const alone = await q<{ n: number }>("credit parts alone", (db) =>
+      db`SELECT count(*)::int AS n FROM scrobbles WHERE lower(artist) = ANY(${parts.map((p) => p.toLowerCase())}::text[])`,
+    );
+    let single = false;
+    if ((alone?.[0]?.n ?? 0) === 0) {
+      try {
+        const res = await fetch(
+          `https://itunes.apple.com/search?term=${encodeURIComponent(credit)}&entity=musicArtist&limit=5&country=in`,
+          { signal: AbortSignal.timeout(5000) },
+        );
+        const found = ((await res.json()) as { results?: { artistName: string }[] }).results ?? [];
+        single = found.some((a) => nameKey(a.artistName) === nameKey(credit));
+      } catch {
+        continue; // try again next run
+      }
+    }
+    const prev = await q<{ single: boolean }>("credit prev", (db) => db`SELECT single FROM artist_credits WHERE credit = ${credit}`);
+    await q("credit save", (db) =>
+      db`INSERT INTO artist_credits (credit, single, checked_at) VALUES (${credit}, ${single}, now())
+         ON CONFLICT (credit) DO UPDATE SET single = EXCLUDED.single, checked_at = now()`,
+    );
+    if (prev?.[0]?.single !== undefined ? prev[0].single !== single : single) {
+      // The answer changed how this credit splits: redo its plays.
+      await q("credit redo", (db) => db`UPDATE scrobbles SET song_key = NULL WHERE artist = ${credit}`);
+      changed++;
+    }
+  }
+  return changed;
 }
 
 /** New plays since the newest one stored. */
@@ -174,7 +267,8 @@ export async function runSync({ force = false } = {}): Promise<SyncReport> {
       })
       .catch(() => 0),
   ]);
-  const [back, lengths] = await Promise.all([backfill(), syncLengths()]);
+  const [back, lengths, credits] = await Promise.all([backfill(), syncLengths(), verifyCredits()]);
+  const canon = await canonicalise();
   const report: SyncReport = {
     ran: true,
     newPlays,
@@ -184,6 +278,8 @@ export async function runSync({ force = false } = {}): Promise<SyncReport> {
     code,
     activities,
     lengths,
+    credits,
+    canon,
     ms: Date.now() - t0,
   };
   console.info(`[sync] ${JSON.stringify(report)}`);

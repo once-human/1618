@@ -8,9 +8,6 @@ import type { SavedPin } from "@/lib/presence/types";
  * year so far in the style of an annual music recap, kept live.
  */
 
-/** Credits like "Romy & Fred again.." or "A, B feat. C" count once for each artist. */
-const SPLIT = "\\s*(?:,|&|\\s+x\\s+|\\s+feat\\.?\\s+|\\s+ft\\.?\\s+|\\s+with\\s+)\\s*";
-
 /** Songs with no known length count as 3½ minutes. */
 const DEFAULT_MS = 210_000;
 const TZ = "Asia/Kolkata";
@@ -48,32 +45,40 @@ export async function summarise(from: Date, to: Date): Promise<RangeSummary> {
 
   const [totals, tracks, artists, albums, days, clock, pins, pinCount, code, acts, health, fresh] = await Promise.all([
     q<{ plays: number; songs: number; artists: number; ms: string | null; known: number | null }>("sum totals", (db) =>
-      db`SELECT count(*)::int AS plays, count(DISTINCT s.track_key)::int AS songs,
-                (SELECT count(DISTINCT lower(a))::int FROM scrobbles s2, regexp_split_to_table(s2.artist, ${SPLIT}) a
-                  WHERE s2.uts >= ${f} AND s2.uts < ${t} AND a <> '') AS artists,
+      db`SELECT count(*)::int AS plays, count(DISTINCT coalesce(s.song_key, s.track_key))::int AS songs,
+                (SELECT count(DISTINCT a.k)::int FROM scrobbles s2,
+                   unnest(coalesce(s2.artist_keys, ARRAY[lower(s2.artist)])) AS a(k)
+                  WHERE s2.uts >= ${f} AND s2.uts < ${t}) AS artists,
                 sum(coalesce(m.duration_ms, ${DEFAULT_MS}))::text AS ms,
                 avg(CASE WHEN m.duration_ms IS NULL THEN 0 ELSE 1 END)::float AS known
          FROM scrobbles s LEFT JOIN track_meta m ON m.track_key = s.track_key
          WHERE s.uts >= ${f} AND s.uts < ${t}`,
     ),
+    // Songs: every version and credit order of a song counts as one song.
     q<{ track: string; artist: string; plays: number; image: string | null; link: string | null }>("sum tracks", (db) =>
-      db`SELECT min(s.track) AS track, min(s.artist) AS artist, count(*)::int AS plays,
-                max(m.image) AS image, max(m.link) AS link
+      db`SELECT mode() WITHIN GROUP (ORDER BY coalesce(s.title, s.track)) AS track,
+                mode() WITHIN GROUP (ORDER BY coalesce(s.credit, s.artist)) AS artist,
+                count(*)::int AS plays, max(m.image) AS image, max(m.link) AS link
          FROM scrobbles s LEFT JOIN track_meta m ON m.track_key = s.track_key
          WHERE s.uts >= ${f} AND s.uts < ${t}
-         GROUP BY s.track_key ORDER BY plays DESC, max(s.uts) DESC LIMIT 10`,
+         GROUP BY coalesce(s.song_key, s.track_key) ORDER BY plays DESC, max(s.uts) DESC LIMIT 10`,
     ),
+    // Artists: each play counts once for every artist on it, featured ones included.
     q<{ name: string; plays: number }>("sum artists", (db) =>
-      db`SELECT mode() WITHIN GROUP (ORDER BY a) AS name, count(*)::int AS plays
-         FROM scrobbles s, regexp_split_to_table(s.artist, ${SPLIT}) a
-         WHERE s.uts >= ${f} AND s.uts < ${t} AND a <> ''
-         GROUP BY lower(a) ORDER BY plays DESC, max(s.uts) DESC LIMIT 10`,
+      db`SELECT mode() WITHIN GROUP (ORDER BY a.name) AS name, count(*)::int AS plays
+         FROM scrobbles s,
+              unnest(coalesce(s.artist_keys, ARRAY[lower(s.artist)]), coalesce(s.artists, ARRAY[s.artist])) AS a(k, name)
+         WHERE s.uts >= ${f} AND s.uts < ${t}
+         GROUP BY a.k ORDER BY plays DESC, max(s.uts) DESC LIMIT 10`,
     ),
     q<{ album: string; artist: string; plays: number; image: string | null }>("sum albums", (db) =>
-      db`SELECT min(s.album) AS album, min(s.artist) AS artist, count(*)::int AS plays, max(m.image) AS image
+      db`SELECT mode() WITHIN GROUP (ORDER BY regexp_replace(s.album, '\s+-\s+(Single|EP)$', '', 'i')) AS album,
+                mode() WITHIN GROUP (ORDER BY coalesce(s.artists[1], s.artist)) AS artist,
+                count(*)::int AS plays, max(m.image) AS image
          FROM scrobbles s LEFT JOIN track_meta m ON m.track_key = s.track_key
          WHERE s.uts >= ${f} AND s.uts < ${t} AND coalesce(s.album, '') <> ''
-         GROUP BY lower(s.album), lower(s.artist) ORDER BY plays DESC LIMIT 5`,
+         GROUP BY lower(regexp_replace(s.album, '\s+-\s+(Single|EP)$', '', 'i')), coalesce(s.artist_keys[1], lower(s.artist))
+         ORDER BY plays DESC LIMIT 5`,
     ),
     q<{ day: string; plays: number }>("sum days", (db) =>
       db`SELECT to_char(to_timestamp(uts) AT TIME ZONE ${TZ}, 'YYYY-MM-DD') AS day, count(*)::int AS plays
@@ -108,9 +113,11 @@ export async function summarise(from: Date, to: Date): Promise<RangeSummary> {
     ),
     q<{ songs: number; artists: number }>("sum new", (db) =>
       db`SELECT
-           (SELECT count(*)::int FROM (SELECT min(uts) AS m FROM scrobbles GROUP BY track_key) x WHERE m >= ${f} AND m < ${t}) AS songs,
-           (SELECT count(*)::int FROM (SELECT min(s.uts) AS m FROM scrobbles s, regexp_split_to_table(s.artist, ${SPLIT}) a
-              WHERE a <> '' GROUP BY lower(a)) y WHERE m >= ${f} AND m < ${t}) AS artists`,
+           (SELECT count(*)::int FROM (SELECT min(uts) AS m FROM scrobbles GROUP BY coalesce(song_key, track_key)) x
+              WHERE m >= ${f} AND m < ${t}) AS songs,
+           (SELECT count(*)::int FROM (SELECT min(s.uts) AS m FROM scrobbles s,
+              unnest(coalesce(s.artist_keys, ARRAY[lower(s.artist)])) AS a(k) GROUP BY a.k) y
+              WHERE m >= ${f} AND m < ${t}) AS artists`,
     ),
   ]);
 
@@ -184,9 +191,9 @@ export type RangeName = "today" | "week" | "month" | "year" | "all";
  */
 export function resolveRange(name: string, at?: string | null): { from: Date; to: Date; label: string } | null {
   const now = new Date();
-  if (name === "today") return { from: atPune(puneDate()), to: now, label: "Today" };
+  if (name === "today") return { from: atPune(puneDate()), to: roundToFive(now), label: "Today" };
   if (name === "week") {
-    const to = now;
+    const to = roundToFive(now);
     return { from: new Date(to.getTime() - 7 * 86400_000), to, label: "The last 7 days" };
   }
   if (name === "month") {
@@ -200,9 +207,12 @@ export function resolveRange(name: string, at?: string | null): { from: Date; to
     const y = at && /^\d{4}$/.test(at) ? at : puneDate().slice(0, 4);
     return { from: atPune(`${y}-01-01`), to: atPune(`${Number(y) + 1}-01-01`), label: y };
   }
-  if (name === "all") return { from: new Date(0), to: now, label: "Everything" };
+  if (name === "all") return { from: new Date(0), to: roundToFive(now), label: "Everything" };
   return null;
 }
+
+/** Round a "now"-ish time to five minutes, so live ranges share one cached answer. */
+export const roundToFive = (d: Date) => new Date(Math.ceil(d.getTime() / 300_000) * 300_000);
 
 /** A range summary, cached: a few minutes for ranges that include now, a day for the past. */
 export async function cachedSummary(fromIso: string, toIso: string): Promise<RangeSummary> {
@@ -241,19 +251,23 @@ export async function getReplay(year?: string): Promise<Replay> {
     summarise(range.from, new Date(Math.min(range.to.getTime(), Date.now()))),
     q<{ month: string; plays: number; top_artist: string | null; top_track: string | null }>("replay months", (db) =>
       db`WITH m AS (
-           SELECT to_char(to_timestamp(uts) AT TIME ZONE ${TZ}, 'YYYY-MM') AS month, artist, track, track_key
-           FROM scrobbles WHERE uts >= ${f} AND uts < ${t}
+           SELECT to_char(to_timestamp(uts) AT TIME ZONE ${TZ}, 'YYYY-MM') AS month, s.*
+           FROM scrobbles s WHERE uts >= ${f} AND uts < ${t}
          ),
-         ta AS (SELECT DISTINCT ON (month) month, artist FROM (
-           SELECT month, min(artist) AS artist, count(*) n FROM m GROUP BY month, lower(artist)) x ORDER BY month, n DESC),
+         ta AS (SELECT DISTINCT ON (month) month, name AS artist FROM (
+           SELECT month, mode() WITHIN GROUP (ORDER BY a.name) AS name, count(*) n
+           FROM m, unnest(coalesce(m.artist_keys, ARRAY[lower(m.artist)]), coalesce(m.artists, ARRAY[m.artist])) AS a(k, name)
+           GROUP BY month, a.k) x ORDER BY month, n DESC),
          tt AS (SELECT DISTINCT ON (month) month, track FROM (
-           SELECT month, min(track) AS track, count(*) n FROM m GROUP BY month, track_key) y ORDER BY month, n DESC)
+           SELECT month, mode() WITHIN GROUP (ORDER BY coalesce(title, track)) AS track, count(*) n
+           FROM m GROUP BY month, coalesce(song_key, track_key)) y ORDER BY month, n DESC)
          SELECT m.month, count(*)::int AS plays, max(ta.artist) AS top_artist, max(tt.track) AS top_track
          FROM m LEFT JOIN ta USING (month) LEFT JOIN tt USING (month)
          GROUP BY m.month ORDER BY m.month`,
     ),
     q<{ track: string; artist: string; uts: string }>("replay first", (db) =>
-      db`SELECT track, artist, uts::text FROM scrobbles WHERE uts >= ${f} AND uts < ${t} ORDER BY uts ASC LIMIT 1`,
+      db`SELECT coalesce(title, track) AS track, coalesce(credit, artist) AS artist, uts::text
+         FROM scrobbles WHERE uts >= ${f} AND uts < ${t} ORDER BY uts ASC LIMIT 1`,
     ),
     q<{ min: string | null }>("store from", (db) => db`SELECT min(uts)::text AS min FROM scrobbles`),
   ]);

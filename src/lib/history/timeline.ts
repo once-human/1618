@@ -5,6 +5,7 @@ import { scrobbles, type Scrobble } from "@/lib/presence/lastfm";
 import { getSaved } from "@/lib/presence/pinterest";
 import type { SavedPin, TodayEvent } from "@/lib/presence/types";
 import { ghEvents } from "@/lib/presence/server";
+import { parseCredit } from "./credits";
 
 const GH_USER = "once-human";
 const HOURS = 48;
@@ -50,17 +51,19 @@ export async function getTimeline(): Promise<{ hours: number; events: TodayEvent
   let session: Scrobble[] = [];
   const flush = () => {
     if (!session.length) return;
+    // Count every artist on every song, so "mostly X" means the artist I actually heard most.
     const count = new Map<string, number>();
-    for (const s of session) count.set(s.artist, (count.get(s.artist) ?? 0) + 1);
+    const parsed = session.map((s) => parseCredit(s.track, s.artist));
+    for (const c of parsed) for (const a of c.artists) count.set(a, (count.get(a) ?? 0) + 1);
     const top = [...count.entries()].sort((a, b) => b[1] - a[1]);
     const one = session.length === 1;
     out.push({
       kind: "music",
       at: new Date(session[0].uts * 1000).toISOString(),
       until: one ? undefined : new Date(session[session.length - 1].uts * 1000).toISOString(),
-      title: one ? `Played ${session[0].track}` : `Listened to ${session.length} songs`,
+      title: one ? `Played ${parsed[0].title}` : `Listened to ${session.length} songs`,
       detail: one
-        ? session[0].artist
+        ? parsed[0].credit
         : top[0][1] > 1
           ? `mostly ${top[0][0]}`
           : top

@@ -6,6 +6,7 @@ import { fmtNum, timeAgo } from "@/lib/time";
 import { StatusLine } from "@/components/live/StatusLine";
 import { Timeline } from "@/components/home/Timeline";
 import { NOW } from "@/content/now";
+import { ListeningStats } from "@/components/home/ListeningStats";
 
 const cell = "border-t border-ink pt-1.5";
 
@@ -84,9 +85,14 @@ export function NowPage() {
       )}
 
       <section>
-        <h2 className={`${cell} mb-6 font-semibold`}>The last 48 hours</h2>
+        <h2 className={`${cell} mb-6 flex justify-between gap-4 font-semibold`}>
+          The last 48 hours
+          <span className="font-normal text-quiet">music, code, saves and runs, grouped as they happened</span>
+        </h2>
         <Timeline />
       </section>
+
+      <ListeningStats />
 
       <p className={`${cell} flex flex-wrap gap-x-8 gap-y-2`}>
         <Link href="/history" className="hover:underline">

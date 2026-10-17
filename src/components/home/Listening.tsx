@@ -7,16 +7,15 @@ import { Playing } from "@/components/live/Playing";
 import { Preview } from "@/components/live/Preview";
 import { Fire } from "@/components/live/Fire";
 import { Progress } from "@/components/live/Progress";
-import { ListeningStats } from "./ListeningStats";
-import { Replay } from "./Replay";
+import Link from "next/link";
 import { SendSong } from "./SendSong";
 
 /**
  * What I'm actually listening to, like the back of a record sleeve: one ruled
  * row per song, newest first, each song once. Press a cover to hear 30
  * seconds of it. The playing song shows roughly how far in I am and takes 🔥.
- * Below: what's on repeat, when I listen, the year so far, and a way to send
- * me a song.
+ * The numbers live on /now and /history; here it's just the music, and a way
+ * to send me a song.
  */
 export function Listening() {
   const music = useMusic();
@@ -72,8 +71,15 @@ export function Listening() {
         </ol>
       )}
 
-      <ListeningStats />
-      <Replay />
+      <p className="mt-6 flex flex-wrap gap-x-6 gap-y-1 text-quiet">
+        <Link href="/now" className="underline decoration-1 underline-offset-4 hover:text-ink">
+          On repeat this month →
+        </Link>
+        <Link href="/history" className="underline decoration-1 underline-offset-4 hover:text-ink">
+          The year so far, and everything before →
+        </Link>
+      </p>
+
       <SendSong />
     </div>
   );

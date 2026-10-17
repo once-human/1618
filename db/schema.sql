@@ -24,3 +24,13 @@ CREATE TABLE IF NOT EXISTS here (id text PRIMARY KEY, last_seen timestamptz NOT 
 CREATE TABLE IF NOT EXISTS submissions (id bigserial PRIMARY KEY, kind text NOT NULL, name text, message text, payload jsonb, status text NOT NULL DEFAULT 'pending', hidden boolean NOT NULL DEFAULT false, created_at timestamptz NOT NULL DEFAULT now());
 CREATE INDEX IF NOT EXISTS submissions_kind_status ON submissions (kind, status, created_at DESC);
 CREATE TABLE IF NOT EXISTS ratelimit (key text PRIMARY KEY, n integer NOT NULL DEFAULT 0, window_start timestamptz NOT NULL DEFAULT now());
+
+-- Clean titles and individual artists, worked out by src/lib/history/credits.ts
+ALTER TABLE scrobbles ADD COLUMN IF NOT EXISTS title text, ADD COLUMN IF NOT EXISTS credit text,
+  ADD COLUMN IF NOT EXISTS artists text[], ADD COLUMN IF NOT EXISTS artist_keys text[], ADD COLUMN IF NOT EXISTS song_key text;
+CREATE INDEX IF NOT EXISTS scrobbles_song ON scrobbles (song_key);
+-- Is "A & B" one act? Checked against my own history, then Apple Music.
+CREATE TABLE IF NOT EXISTS artist_credits (credit text PRIMARY KEY, single boolean NOT NULL, checked_at timestamptz NOT NULL DEFAULT now());
+-- Daily visitor hashes, folded into counters.visitors_archived each night
+CREATE TABLE IF NOT EXISTS visitors (day date NOT NULL, who text NOT NULL, PRIMARY KEY (day, who));
+ALTER TABLE here ADD COLUMN IF NOT EXISTS who text;

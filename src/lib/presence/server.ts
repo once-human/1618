@@ -6,6 +6,7 @@ import type { ManualStatus, Presence, Track } from "./types";
 import { kvGet, kvSet, q } from "@/lib/db";
 import { firstHeard, trackKey } from "./lastfm";
 import { healthToday } from "@/lib/history/query";
+import { parseCredit } from "@/lib/history/credits";
 import { projects } from "@/content/projects";
 import { ACCEPT, baseTitle, matchScore, nameSim, norm, splitArtists, stripRelease, type ItunesResult } from "./match";
 
@@ -197,9 +198,11 @@ export async function getMusic(): Promise<Track[] | null> {
     // Last.fm's "large" (174px) is the fallback cover when Apple has no match.
     const lfm = t.image?.find((x) => x.size === "large")?.["#text"] || "";
     const artist = t.artist["#text"];
+    // Shown clean: "Song (feat. X) [Mixed]" by "A & B" becomes "Song" by "A, B & X".
+    const clean = parseCredit(t.name, artist);
     return {
-      track: t.name,
-      artist,
+      track: clean.title,
+      artist: clean.credit || artist,
       album: t.album?.["#text"] || null,
       url:
         apple[i]?.link ??
