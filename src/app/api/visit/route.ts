@@ -15,7 +15,9 @@ export async function POST(req: Request) {
   const rows = await q("visit", (db) =>
     db.transaction([
       db`INSERT INTO visitors (day, who, city, country, lat, lon) VALUES (${day}::date, ${who}, ${g.city}, ${g.country}, ${g.lat}, ${g.lon})
-         ON CONFLICT DO NOTHING`,
+         ON CONFLICT (day, who) DO UPDATE SET
+           city = coalesce(visitors.city, EXCLUDED.city), country = coalesce(visitors.country, EXCLUDED.country),
+           lat = coalesce(visitors.lat, EXCLUDED.lat), lon = coalesce(visitors.lon, EXCLUDED.lon)`,
       db`SELECT (count(*) + coalesce((SELECT n FROM counters WHERE name = 'visitors_archived'), 0))::int AS n FROM visitors`,
     ]),
   );

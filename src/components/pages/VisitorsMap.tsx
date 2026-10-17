@@ -65,9 +65,9 @@ export function VisitorsMap() {
       <h2 className="border-ink mb-6 flex flex-wrap justify-between gap-x-4 border-t pt-1.5 font-semibold">
         Who came by today
         <span className="text-quiet font-normal">
-          {data.people
-            ? `${fmtNum(data.people)} ${data.people === 1 ? "person" : "people"} from ${towns.length || 1} ${towns.length === 1 ? "place" : "places"} so far, Pune time`
-            : "nobody yet today"}
+          {!data.people
+            ? "nobody yet today"
+            : `${fmtNum(data.people)} ${data.people === 1 ? "person" : "people"}${towns.length ? ` from ${towns.length} ${towns.length === 1 ? "place" : "places"}` : ""} so far, Pune time`}
         </span>
       </h2>
       <svg viewBox={`0 0 ${COLS} ${ROWS}`} className="w-full" role="img" aria-label={`Map of today's visitors: ${towns.map((p) => placeName(p.city, p.country)).join(", ") || "none yet"}`}>
