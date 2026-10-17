@@ -63,13 +63,13 @@ export function AdminApp() {
             <a
               key={t.id}
               href={`#${t.id}`}
+              title={`${t.label} (press ${i + 1})`}
               aria-current={tab === t.id ? "page" : undefined}
               className={`flex items-center gap-3 rounded-lg px-2 py-2 text-[15px] ${tab === t.id ? "bg-a-soft font-semibold" : "text-a-quiet hover:text-a-ink hover:bg-a-soft/60"}`}
             >
               <Icon name={t.id} />
               <span className="flex-1">{t.label}</span>
               <Badge id={t.id} n={badges[t.id]} />
-              <kbd className="text-a-quiet/70 hidden text-[11px] lg:inline">{i + 1}</kbd>
             </a>
           ))}
         </nav>

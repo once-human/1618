@@ -6,12 +6,13 @@ import { Button, Chip, Empty, Icon, Panel, Spinner, ago, clockIn, flag, fmt, inp
 
 export function YouView({ data }: { data: AdminState }) {
   return (
-    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-      <div className="space-y-4">
-        <StatusPanel data={data} />
-        <HealthPanel days={data.health} today={data.visitors.day} installed={data.shortcuts.health} />
+    // Phones: status, then place, then health. Wide screens: place gets its own column.
+    <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
+      <StatusPanel data={data} />
+      <div className="lg:col-start-2 lg:row-span-2 lg:row-start-1">
+        <PlacePanel data={data} />
       </div>
-      <PlacePanel data={data} />
+      <HealthPanel days={data.health} today={data.visitors.day} installed={data.shortcuts.health} />
     </div>
   );
 }
