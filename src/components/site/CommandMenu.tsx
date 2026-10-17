@@ -101,7 +101,6 @@ export function CommandMenu() {
       { group: "This page", label: "Say hi", run: section("say-hi") },
       { group: "Pages", label: "Now: what I'm up to, the last 48 hours, on repeat", hint: "/now", run: go("/now") },
       { group: "Pages", label: "History: the year so far, top tens, any stretch", hint: "/history", run: go("/history") },
-      { group: "Pages", label: "Monthly issues", hint: "/issues", run: go("/issues") },
       { group: "Pages", label: "All work", hint: "/work", run: go("/work") },
       { group: "Pages", label: "Status of live sources", hint: "/status", run: go("/status") },
       { group: "Pages", label: "Privacy", hint: "/privacy", run: go("/privacy") },

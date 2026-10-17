@@ -15,7 +15,6 @@ CREATE TABLE IF NOT EXISTS events (id text PRIMARY KEY, kind text NOT NULL, at t
 CREATE INDEX IF NOT EXISTS events_kind_at ON events (kind, at DESC);
 CREATE INDEX IF NOT EXISTS events_at ON events (at DESC);
 CREATE TABLE IF NOT EXISTS health_days (day date PRIMARY KEY, data jsonb NOT NULL, updated_at timestamptz NOT NULL DEFAULT now());
-CREATE TABLE IF NOT EXISTS issues (month text PRIMARY KEY, data jsonb NOT NULL, created_at timestamptz NOT NULL DEFAULT now());
 
 -- Visitors
 CREATE TABLE IF NOT EXISTS counters (name text PRIMARY KEY, n bigint NOT NULL DEFAULT 0);

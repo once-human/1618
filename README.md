@@ -27,8 +27,7 @@ A few things on the page are happening right now rather than written once:
 - **Work.** Projects with a public repository say when they were last updated.
 
 Everything the live parts see is also kept, so it can be looked back on: [/history](https://onkaryaglewad.in/history)
-searches any week, month or year, [/issues](https://onkaryaglewad.in/issues) is a monthly issue that
-writes itself, and [/now](https://onkaryaglewad.in/now) is what I'm up to this month.
+searches any week, month or year, and [/now](https://onkaryaglewad.in/now) is what I'm up to this month.
 [/status](https://onkaryaglewad.in/status) shows whether every source is answering.
 
 If a live source can't be reached, that piece is simply left out. Nothing is made up. Press ⌘K

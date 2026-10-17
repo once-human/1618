@@ -30,7 +30,6 @@ export function SayHi() {
           {[
             ["/now", "now"],
             ["/history", "history"],
-            ["/issues", "monthly issues"],
             ["/status", "status"],
           ].map(([href, label]) => (
             <Link

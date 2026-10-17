@@ -33,11 +33,10 @@ plays per run until it reaches the first scrobble. It runs:
 
 - whenever someone loads the site (at most every 5 minutes),
 - every 15 minutes from GitHub Actions (`.github/workflows/sync.yml`, no secret needed),
-- daily from Vercel cron (`/api/cron/daily`, which also freezes last month's issue and cleans up).
+- daily from Vercel cron (`/api/cron/daily`, which also cleans up).
 
 **Reading it:** `/api/history?range=week|month|year|all&at=…` or `?from=YYYY-MM-DD&to=YYYY-MM-DD`;
-`/api/replay` (year so far); `/api/timeline` (last 48 hours, merged with live sources);
-`/api/issues`, `/api/issues/2026-10`.
+`/api/replay` (year so far); `/api/timeline` (last 48 hours, merged with live sources).
 
 ## Things only I do
 

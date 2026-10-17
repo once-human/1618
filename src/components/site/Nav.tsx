@@ -21,7 +21,6 @@ const SECTIONS: { id: string; label: string; show: Show }[] = [
 const PAGES: { href: string; label: string; show: Show }[] = [
   { href: "/now", label: "now", show: "all" },
   { href: "/history", label: "history", show: "all" },
-  { href: "/issues", label: "issues", show: "lg" },
   { href: "/status", label: "status", show: "lg" },
 ];
 
@@ -39,7 +38,7 @@ export function Nav({ home = false }: { home?: boolean }) {
   return (
     <nav
       aria-label="Main"
-      className="fixed inset-x-0 top-0 z-50 grid grid-cols-5 gap-3 bg-paper px-4 pt-3 pb-2 text-[13px] sm:gap-4 sm:text-[15px] md:grid-cols-7 lg:grid-cols-10"
+      className="fixed inset-x-0 top-0 z-50 grid grid-cols-5 gap-3 bg-paper px-4 pt-3 pb-2 text-[13px] sm:gap-4 sm:text-[15px] md:grid-cols-7 lg:grid-cols-9"
     >
       {home ? (
         <a

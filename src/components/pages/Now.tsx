@@ -98,9 +98,6 @@ export function NowPage() {
         <Link href="/history" className="hover:underline">
           Search everything →
         </Link>
-        <Link href="/issues" className="hover:underline">
-          Monthly issues →
-        </Link>
       </p>
     </div>
   );
