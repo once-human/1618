@@ -20,6 +20,7 @@ export async function GET() {
 export async function POST(req: Request) {
   if (!(await isAdmin(req))) return new Response("Not allowed", { status: 401 });
   const bedtime = await goToBed("siri");
+  if (!bedtime) return Response.json({ ok: false, reason: "couldn't reach the database" }, { status: 503 });
   return Response.json({ ok: true, bedtime });
 }
 

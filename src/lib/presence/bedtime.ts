@@ -28,7 +28,8 @@ export async function lastBedtime(): Promise<Bedtime | null> {
   return plain(row.value);
 }
 
-export async function goToBed(via: Bedtime["via"]): Promise<Bedtime> {
+/** Went to bed just now. Null if the database couldn't be reached. */
+export async function goToBed(via: Bedtime["via"]): Promise<Bedtime | null> {
   const now = Date.now();
   const cur = (await kvGet<Stored>("bedtime"))?.value;
   const again = cur && Date.parse(cur.until) > now && now - Date.parse(cur.at) < AGAIN_MS;
@@ -38,11 +39,13 @@ export async function goToBed(via: Bedtime["via"]): Promise<Bedtime> {
     until: new Date(now + BED_HOURS * 3600_000).toISOString(),
     via,
   };
-  await kvSet("bedtime", bed);
-  await q("bedtime", (db) =>
+  // The history row first: if the database can't be reached, nothing is half-saved and the caller hears so.
+  const saved = await q("bedtime", (db) =>
     db`INSERT INTO events (id, kind, at, data) VALUES (${bed.id}, 'sleep', ${bed.at}, ${JSON.stringify({ via })}::jsonb)
        ON CONFLICT (id) DO UPDATE SET at = EXCLUDED.at, data = EXCLUDED.data`,
   );
+  if (!saved) return null;
+  await kvSet("bedtime", bed);
   return plain(bed);
 }
 

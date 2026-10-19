@@ -93,8 +93,10 @@ export async function POST(req: Request) {
     case "clearStatus":
       await kvDelete("status");
       return ok();
-    case "bed":
-      return ok({ bedtime: await goToBed("admin") });
+    case "bed": {
+      const bedtime = await goToBed("admin");
+      return bedtime ? ok({ bedtime }) : no("Couldn't reach the database. Try again?");
+    }
     case "wake":
       await endBedtime();
       return ok();
