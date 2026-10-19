@@ -45,7 +45,8 @@ name). It records the moment in `kv` (`bedtime`) and as a `sleep` event in the h
 next five hours the status line, /now, Talk and the curl version say "Went to bed at 01:12"
 (`src/lib/presence/asleep.ts`). It stops sooner if I'm clearly up: a status set afterwards, or a push
 or a pin more than ten minutes after it. Music doesn't end it; I fall asleep to it. "I'm up" on
-/admin ends it by hand. The timeline keeps every bedtime, and any stretch on /history shows the usual
+/admin ends it by hand. The history keeps one bedtime per night (noon to noon), at the last time I
+went to bed that night; under ten minutes in bed doesn't count and is dropped. The timeline shows each night, and any stretch on /history shows the usual
 time once there are a couple of nights.
 
 ## Things only I do

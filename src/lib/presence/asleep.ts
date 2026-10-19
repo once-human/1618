@@ -33,3 +33,8 @@ export function typicalBedtime(times: string[], tz = "Asia/Kolkata"): string | n
   const min = (avg + 720) % 1440;
   return `${String(Math.floor(min / 60)).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}`;
 }
+
+/** Which night a moment belongs to: the date in Pune twelve hours earlier, so 23:30 and 01:00 are the same night. */
+export function nightOf(ms: number, tz = "Asia/Kolkata"): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(ms - 12 * 3600_000));
+}
