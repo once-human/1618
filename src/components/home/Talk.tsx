@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { bedClock, inBed } from "@/lib/presence/asleep";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { adopt, changeName, markRead, remove, send, setAnon, setName, useTalk, type Chat, type TalkMessage } from "@/lib/talk/client";
 import { useMusic, useNow, usePresence } from "@/lib/presence/client";
@@ -60,8 +61,11 @@ function Availability({ live }: { live: boolean | null }) {
   const playing = !!music?.tracks?.find((x) => x.nowPlaying);
   const since = last && now ? now - Date.parse(last) : Infinity;
   const hour = now ? hourIn(place.tz, new Date(now)) : 12;
-  const around = playing || since < 20 * 60_000;
-  const state = presence?.status
+  const around = (playing || since < 20 * 60_000) && !(now && inBed(presence, now));
+  const bed = now ? inBed(presence, now) : null;
+  const state = bed
+    ? `Went to bed at ${bedClock(bed, place.tz)}. I'll see it in the morning`
+    : presence?.status
     ? `“${presence.status.text}”`
     : around
       ? "I'm around right now"

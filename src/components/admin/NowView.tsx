@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { LAND_PATH, MAP, project } from "@/components/pages/VisitorsMap";
 import { act, isNew, who, type AdminState, type Person, type Thread } from "./store";
-import { Button, Dot, Empty, Panel, ago, flag, fmt, input, town, until } from "./ui";
+import { Button, Dot, Empty, Panel, ago, clockIn, flag, fmt, input, town, until } from "./ui";
 import { go } from "./AdminApp";
 
 const plural = (n: number, one: string, many = `${one}s`) => `${fmt(n)} ${n === 1 ? one : many}`;
@@ -92,7 +92,12 @@ export function NowView({ data, people }: { data: AdminState; people: Person[] |
           <Panel title="How the site shows you" aside={<a href="#you" className="hover:text-a-ink">Change</a>}>
             <dl className="space-y-3 text-[14.5px]">
               <Row k="Status">
-                {data.status ? (
+                {data.bedtime.shown ? (
+                  <>
+                    Went to bed at {clockIn(data.place.tz, new Date(data.bedtime.shown.at))}{" "}
+                    <span className="text-a-quiet">for {until(data.bedtime.shown.until)} more</span>
+                  </>
+                ) : data.status ? (
                   <>
                     “{data.status.text}” <span className="text-a-quiet">for {until(data.status.until)} more</span>
                   </>

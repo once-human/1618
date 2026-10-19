@@ -6,6 +6,7 @@ import { publicLinks, profile } from "@/content/profile";
 import { SITE_URL } from "@/lib/site";
 import { owner, telegramConfigured } from "@/lib/talk/telegram";
 import { clockIn, fmtNum, timeAgo } from "@/lib/time";
+import { bedClock, inBed } from "@/lib/presence/asleep";
 
 /**
  * `curl -L onkaryaglewad.in`: the live site, as text, for terminals.
@@ -29,6 +30,8 @@ export async function GET(req: Request) {
   const place = presence.place;
   const playing = tracks?.find((t) => t.nowPlaying) ?? null;
   const last = tracks?.[0] ?? null;
+  const bed = inBed(presence, now, saved?.pins[0]?.at);
+  const status = bed ? null : presence.status;
 
   const row = (k: string, v: string | null | undefined) => (v ? `  ${d(k.padEnd(11))}${v}` : null);
   const lines = [
@@ -36,12 +39,14 @@ export async function GET(req: Request) {
     `  ${b(profile.name.toUpperCase().split("").join(" "))}`,
     `  ${d(`${profile.role.toLowerCase()} · ${place.city} · ${clockIn(place.tz, new Date(now))} there`)}`,
     "",
-    presence.status
-      ? `  ● ${b(presence.status.text)} ${d(`(set ${timeAgo(presence.status.setAt, now)})`)}`
+    bed
+      ? `  ○ Went to bed at ${b(bedClock(bed, place.tz))}${playing ? `, falling asleep to ${b(playing.track)}` : ""} ${d(`(${timeAgo(bed.at, now)})`)}`
+      : status
+      ? `  ● ${b(status.text)} ${d(`(set ${timeAgo(status.setAt, now)})`)}`
       : playing
         ? `  ● Awake, listening to ${b(playing.track)} by ${playing.artist}`
         : null,
-    presence.status || playing ? "" : null,
+    bed || status || playing ? "" : null,
     row("weather", presence.weather ? `${presence.weather.tempC}°, ${presence.weather.label.toLowerCase()} in ${place.city}` : null),
     row("music", playing ? `${playing.track} — ${playing.artist} ${d("(playing now)")}` : last ? `${last.track} — ${last.artist} ${d(`(${last.at ? timeAgo(last.at, now) : "recently"})`)}` : null),
     row("on repeat", stats?.onRepeat[0] ? `${stats.onRepeat[0].track} — ${stats.onRepeat[0].artist} ${d(`(${fmtNum(stats.onRepeat[0].plays)} plays this month)`)}` : null),

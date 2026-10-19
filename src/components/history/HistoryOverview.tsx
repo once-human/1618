@@ -21,6 +21,7 @@ const ROWS: Row[] = [
   { k: "Pushes", get: (s) => (s.code.pushes ? fmtNum(s.code.pushes) : null) },
   { k: "Distance moved", get: (s) => (s.activity.km ? `${s.activity.km} km` : null) },
   { k: "Steps a day", get: (s) => (s.health.avgSteps ? fmtNum(s.health.avgSteps) : null) },
+  { k: "In bed by, usually", get: (s) => (s.bed?.typical && s.bed.nights > 1 ? s.bed.typical : null) },
 ];
 
 /**

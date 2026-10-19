@@ -4,7 +4,7 @@ import { useNow, useTimeline } from "@/lib/presence/client";
 import { puneClock, puneDayLabel } from "@/lib/time";
 import type { TodayEvent } from "@/lib/presence/types";
 
-const KIND: Record<TodayEvent["kind"], string> = { music: "music", code: "code", pin: "saved", move: "moved" };
+const KIND: Record<TodayEvent["kind"], string> = { music: "music", code: "code", pin: "saved", move: "moved", sleep: "bed" };
 
 /**
  * The last 48 hours across everything, like a diary that writes itself:

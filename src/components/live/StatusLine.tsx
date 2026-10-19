@@ -5,13 +5,14 @@ import { myTown, useOthers } from "@/lib/presence/here";
 import { whoIsHere, type Town } from "@/lib/presence/words";
 import { placeName } from "@/lib/geo";
 import { clockIn, fmtNum, hourIn, timeAgo } from "@/lib/time";
+import { bedClock, inBed } from "@/lib/presence/asleep";
 
 type State = "active" | "around" | "away";
 
 /**
- * One sentence that says where I am, built from everything live: a status I
- * set from my phone wins; otherwise what's playing, or the most recent thing
- * I did anywhere. Underneath: my time against yours, and who else is here.
+ * One sentence that says where I am, built from everything live: going to
+ * bed ("Hey Siri, good night") or a status I set from my phone wins, whichever
+ * is newer; otherwise what's playing, or the most recent thing I did anywhere. Underneath: my time against yours, and who else is here.
  */
 export function StatusLine({ className = "" }: { className?: string }) {
   const presence = usePresence();
@@ -77,7 +78,8 @@ export function StatusLine({ className = "" }: { className?: string }) {
     );
   }
 
-  const manual = presence.status;
+  const bed = inBed(presence, now, saved?.pins[0]?.at);
+  const manual = bed ? null : presence.status;
   const visitorZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const sameZone =
     visitorZone === place.tz ||
@@ -93,9 +95,19 @@ export function StatusLine({ className = "" }: { className?: string }) {
   return (
     <div className={className} aria-live="polite">
       <p className="flex items-start gap-3 text-[clamp(1.25rem,2.6vw,2rem)] leading-tight tracking-tight">
-        <Dot state={manual ? "active" : state} />
+        <Dot state={bed ? "away" : manual ? "active" : state} />
         <span>
-          {manual ? (
+          {bed ? (
+            <>
+              Went to bed at <span className="font-semibold">{bedClock(bed, place.tz)}</span>
+              {playing ? (
+                <>
+                  , falling asleep to <span className="font-semibold">{playing.track}</span>
+                </>
+              ) : null}
+              .<span className="text-quiet"> · {timeAgo(bed.at, now)}</span>
+            </>
+          ) : manual ? (
             <>
               <span className="font-semibold">{manual.text}</span>
               <span className="text-quiet"> · set {timeAgo(manual.setAt, now)}</span>

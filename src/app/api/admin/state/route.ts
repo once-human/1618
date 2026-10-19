@@ -5,6 +5,7 @@ import { checkSources } from "@/lib/history/sources";
 import { heldUntil, recentPlaces } from "@/lib/admin/place";
 import { owner, telegramConfigured } from "@/lib/talk/telegram";
 import { playedSince } from "@/lib/talk/played";
+import { inBed } from "@/lib/presence/asleep";
 
 /** Everything /admin shows, in one go. Admin only, never cached. */
 export async function GET(req: Request) {
@@ -12,7 +13,7 @@ export async function GET(req: Request) {
   if (!(await isAdmin(req))) return new Response("Not allowed", { status: 401 });
   const day = new Date(Date.now() + 5.5 * 3600_000).toISOString().slice(0, 10);
 
-  const [presence, place, held, recent, music, sources, sync, backfill, counts, health, today, total, threads, posts, shortcuts, logins, me] = await Promise.all([
+  const [presence, place, held, recent, music, sources, sync, backfill, counts, health, today, total, threads, posts, shortcuts, logins, me, nights] = await Promise.all([
     getPresence(),
     getPlace(),
     heldUntil(),
@@ -57,6 +58,9 @@ export async function GET(req: Request) {
     q<{ key: string }>("admin shortcuts", (db) => db`SELECT key FROM kv WHERE key LIKE 'shortcut:%'`),
     kvGet<{ at: string; city: string | null; country: string | null; device: string }[]>("admin:logins"),
     telegramConfigured() ? owner() : Promise.resolve(null),
+    q<{ at: string; data: { via?: string; endedAt?: string } }>("admin nights", (db) =>
+      db`SELECT at, data FROM events WHERE kind = 'sleep' ORDER BY at DESC LIMIT 14`,
+    ),
   ]);
 
   const songs = (posts ?? []).filter((p) => p.kind === "song" && p.payload?.track);
@@ -71,6 +75,12 @@ export async function GET(req: Request) {
       place: { ...place, held, recent },
       weather: presence.weather,
       status: presence.status,
+      bedtime: {
+        // What the site is saying right now (it lets go early if I'm clearly up), and the raw window.
+        shown: inBed(presence, Date.now()),
+        window: presence.bedtime,
+        nights: (nights ?? []).map((n) => ({ at: new Date(n.at).toISOString(), via: n.data?.via ?? null, endedAt: n.data?.endedAt ?? null })),
+      },
       github: presence.github,
       music: music?.slice(0, 5) ?? null,
       health: (health ?? []).map((h) => ({ day: h.day, ...h.data, at: new Date(h.updated_at).toISOString() })),
@@ -91,7 +101,7 @@ export async function GET(req: Request) {
       })),
       sources,
       store: c ? { ...c, lastSync: sync?.value.at ?? null, backfillDone: !!backfill?.value.done } : null,
-      shortcuts: Object.fromEntries(["health", "location", "status"].map((k) => [k, (shortcuts ?? []).some((s) => s.key === `shortcut:${k}`)])),
+      shortcuts: Object.fromEntries(["health", "location", "status", "goodnight"].map((k) => [k, (shortcuts ?? []).some((s) => s.key === `shortcut:${k}`)])),
       logins: logins?.value ?? [],
     },
     { headers: { "Cache-Control": "no-store" } },

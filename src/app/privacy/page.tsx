@@ -192,6 +192,10 @@ export default function Privacy() {
               own phone, and only the numbers I choose to send.
             </p>
             <p>
+              When I say &ldquo;Hey Siri, good night&rdquo;, a shortcut on my phone tells the site the time I
+              went to bed. The site says so for a few hours, and keeps the time in its history.
+            </p>
+            <p>
               The site keeps a copy of all of this in its own database (Neon, hosted in the United
               States), so it can show my history by week, month and year. All of it is about me.
             </p>

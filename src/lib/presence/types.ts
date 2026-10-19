@@ -24,9 +24,18 @@ export interface Presence {
   } | null;
   /** A status I set myself from my phone, until it expires. */
   status: ManualStatus | null;
+  /** "Hey Siri, good night": when I went to bed, for five hours after. */
+  bedtime: Bedtime | null;
   /** Today's Apple Health numbers, if my Shortcut has sent them. */
   health: { steps: number | null; distanceKm: number | null; activeKcal: number | null; sleepHours: number | null; at: string } | null;
   fetchedAt: string;
+}
+
+export interface Bedtime {
+  at: string;
+  /** When the site stops saying so: five hours later, or sooner if I said I'm up. */
+  until: string;
+  via: "siri" | "admin";
 }
 
 export interface ManualStatus {
@@ -153,7 +162,7 @@ export interface SavedPin {
 
 /** One thing I did today, for the day's timeline. */
 export interface TodayEvent {
-  kind: "music" | "code" | "pin" | "move";
+  kind: "music" | "code" | "pin" | "move" | "sleep";
   at: string;
   /** For a run of songs: when it ended. */
   until?: string;

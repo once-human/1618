@@ -4,10 +4,16 @@ import { useState } from "react";
 import { act, type AdminState } from "./store";
 import { Button, Confirm, Dot, Panel, ago, flag, fmt, town, when } from "./ui";
 
-const SHORTCUTS: { id: "health" | "location" | "status"; name: string; what: string; automate: string }[] = [
+const SHORTCUTS: { id: "health" | "location" | "status" | "goodnight"; name: string; what: string; automate: string }[] = [
   { id: "health", name: "1618 Health", what: "Today's steps, distance and active calories.", automate: "Automation → App → Is Opened (an app you open a lot) → Run Immediately. Health can't be read while the phone is locked, so a time-of-day automation won't work." },
   { id: "location", name: "1618 Location", what: "Your town, for the clock and weather.", automate: "Automation → Time of Day, a few times a day, or Arrive at a place. Holding a place in You stops it for a while." },
   { id: "status", name: "1618 Status", what: "Set or clear the status line from your phone.", automate: "Put it on the Action Button or Back Tap." },
+  {
+    id: "goodnight",
+    name: "Good Night",
+    what: "Say “Hey Siri, good night”: Siri wishes you good night and the site says you went to bed, for five hours.",
+    automate: "No automation needed: Siri runs it by its name. Keep the name exactly “Good Night”. If you have a Home scene with the same name, rename one of them.",
+  },
 ];
 
 export function SiteView({ data }: { data: AdminState }) {

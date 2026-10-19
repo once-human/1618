@@ -11,8 +11,8 @@ const GH_USER = "once-human";
 const HOURS = 48;
 
 /**
- * The last 48 hours across everything: runs of music, pushes, saves, runs and
- * workouts, newest first. Songs played close together become one entry
+ * The last 48 hours across everything: runs of music, pushes, saves, runs,
+ * workouts and bedtimes, newest first. Songs played close together become one entry
  * ("14 songs, mostly …") so it reads like a diary, not a log. Live sources
  * are merged with the history store, so nothing is missed if one is slow.
  * Cached for two minutes.
@@ -25,7 +25,7 @@ export async function getTimeline(): Promise<{ hours: number; events: TodayEvent
   const fromSec = Math.floor(now / 1000) - HOURS * 3600;
   const fromIso = new Date(fromSec * 1000).toISOString();
 
-  const [livePlays, storedPlays, gh, storedCode, saved, archived, moves] = await Promise.all([
+  const [livePlays, storedPlays, gh, storedCode, saved, archived, moves, nights] = await Promise.all([
     scrobbles(fromSec, Math.floor(now / 1000), 6),
     q<{ track: string; artist: string; album: string | null; uts: string }>("tl plays", (db) =>
       db`SELECT track, artist, album, uts::text FROM scrobbles WHERE uts >= ${fromSec} ORDER BY uts`,
@@ -38,6 +38,9 @@ export async function getTimeline(): Promise<{ hours: number; events: TodayEvent
     q<{ data: SavedPin }>("tl pins", (db) => db`SELECT data FROM pins WHERE saved_at >= ${fromIso}`),
     q<{ kind: string; at: string; data: Record<string, unknown> }>("tl moves", (db) =>
       db`SELECT kind, at, data FROM events WHERE kind IN ('activity', 'workout') AND at >= ${fromIso}`,
+    ),
+    q<{ at: string; data: { via?: string } }>("tl sleep", (db) =>
+      db`SELECT at, data FROM events WHERE kind = 'sleep' AND at >= ${fromIso}`,
     ),
   ]);
 
@@ -148,6 +151,16 @@ export async function getTimeline(): Promise<{ hours: number; events: TodayEvent
       url: typeof d.url === "string" ? d.url : null,
     });
   }
+
+  // Bedtimes ("Hey Siri, good night").
+  for (const n of nights ?? [])
+    out.push({
+      kind: "sleep",
+      at: new Date(n.at).toISOString(),
+      title: "Went to bed",
+      detail: n.data?.via === "siri" ? "said good night to Siri" : null,
+      url: null,
+    });
 
   out.sort((a, b) => (b.until ?? b.at).localeCompare(a.until ?? a.at));
   return { hours: HOURS, events: out };

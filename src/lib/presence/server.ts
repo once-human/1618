@@ -1,4 +1,5 @@
 import "server-only";
+import { getBedtime } from "@/lib/presence/bedtime";
 import { cacheLife, cacheTag } from "next/cache";
 import { after } from "next/server";
 import sharp from "sharp";
@@ -570,11 +571,12 @@ export async function getPlace(): Promise<Place> {
 
 export async function getPresence(): Promise<Presence> {
   const place = await getPlace();
-  const [gh, weather, status, health] = await Promise.all([
+  const [gh, weather, status, health, bedtime] = await Promise.all([
     getGithub(),
     getWeather(place.lat, place.lon),
     getStatus(),
     healthToday(),
+    getBedtime(),
   ]);
   const repos = Object.fromEntries(Object.entries(gh.repos).filter(([name]) => SHOWN_REPOS.has(name)));
   return {
@@ -583,6 +585,7 @@ export async function getPresence(): Promise<Presence> {
     place: { city: place.city, tz: place.tz },
     weather,
     status,
+    bedtime,
     health: health ? { steps: health.steps, distanceKm: health.distanceKm, activeKcal: health.activeKcal, sleepHours: health.sleepHours, at: health.at } : null,
     fetchedAt: new Date().toISOString(),
   };

@@ -4,6 +4,7 @@ import { useEffect, useSyncExternalStore } from "react";
 import type { RealtimeChannel, RealtimeClient } from "@supabase/realtime-js";
 import { HERE_KEY, HERE_URL } from "@/lib/presence/here-config";
 import type { SourceCheck } from "@/lib/history/sources";
+import type { Bedtime } from "@/lib/presence/types";
 
 /* ---- what /api/admin/state sends ---- */
 
@@ -64,6 +65,11 @@ export interface AdminState {
   place: { city: string; tz: string; lat: number; lon: number; setAt?: string; held: { until: number | null; setAt: string } | null; recent: RecentPlace[] };
   weather: { tempC: number; label: string; cloud?: number | null; rain?: boolean } | null;
   status: { text: string; setAt: string; until: string } | null;
+  bedtime: {
+    shown: Bedtime | null;
+    window: Bedtime | null;
+    nights: { at: string; via: string | null; endedAt: string | null }[];
+  };
   github: { repo: string; url: string; action: string; message?: string | null; at: string } | null;
   music: { track: string; artist: string; at?: string | null; nowPlaying?: boolean; url?: string; art?: string | null }[] | null;
   health: HealthDay[];
@@ -72,7 +78,7 @@ export interface AdminState {
   posts: Post[];
   sources: { checks: SourceCheck[]; checkedAt: string };
   store: { plays: number; first: string | null; pins: number; events: number; plays_today: number; lastSync: string | null; backfillDone: boolean } | null;
-  shortcuts: Record<"health" | "location" | "status", boolean>;
+  shortcuts: Record<"health" | "location" | "status" | "goodnight", boolean>;
   logins: { at: string; city: string | null; country: string | null; device: string }[];
 }
 

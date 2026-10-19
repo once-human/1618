@@ -15,9 +15,10 @@ After the day comes the work: a plain index of what I've built, each with its ow
 
 A few things on the page are happening right now rather than written once:
 
-- **Lately.** One line that says where I am (listening, around, or probably asleep), my time next to
+- **Lately.** One line that says where I am (listening, around, or asleep: when I say "Hey Siri, good
+  night", my phone tells the site I went to bed, and it says so for the next few hours), my time next to
   yours, and who else is reading right now ("you, two people in Berlin and someone in Mumbai"), plus
-  a diary of the last 48 hours that writes itself: listening sessions, pushes, saves, workouts.
+  a diary of the last 48 hours that writes itself: listening sessions, pushes, saves, workouts, bedtimes.
 - **Other people, live.** A thin rail on the right edge has a dot for everyone else on the same page,
   showing how far down they are. Hover a dot to see their town.
 - **Listening.** What I'm playing on Apple Music right now, roughly how far into the song I am, and

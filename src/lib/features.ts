@@ -1,4 +1,6 @@
 import "server-only";
+import { lastBedtime } from "@/lib/presence/bedtime";
+import { bedClock, inBed } from "@/lib/presence/asleep";
 import { cacheLife } from "next/cache";
 import { kvGet, q } from "@/lib/db";
 import { getMusic, getPlace, getPresence } from "@/lib/presence/server";
@@ -43,7 +45,7 @@ export async function checkFeatures(): Promise<Feature[]> {
   cacheLife({ stale: 30, revalidate: 60, expire: 300 });
 
   const withRepo = projects.filter((p) => p.repo);
-  const [presence, tracks, saved, counts, today, me, statusKv, soundtracks, setPlace] = await Promise.all([
+  const [presence, tracks, saved, counts, today, me, statusKv, soundtracks, setPlace, lastBed] = await Promise.all([
     getPresence(),
     getMusic().catch(() => null),
     getSaved(4).catch(() => null),
@@ -69,6 +71,7 @@ export async function checkFeatures(): Promise<Feature[]> {
     kvGet<{ setAt: string }>("status"),
     Promise.all(withRepo.map((p) => soundtrack(p.repo!).catch(() => null))),
     getPlace(),
+    lastBedtime(),
   ]);
   const c = counts?.[0];
   const now = Date.now();
@@ -179,6 +182,22 @@ export async function checkFeatures(): Promise<Feature[]> {
       ],
       ok: true,
       state: presence.status ? `"${presence.status.text}", set ${ago(presence.status.setAt, now)}.` : statusKv ? `None right now. Last set ${ago(statusKv.value.setAt, now)}.` : "None set right now.",
+    },
+    {
+      id: "bedtime",
+      group: "From my day",
+      name: "Gone to bed",
+      what: "When I say \"Hey Siri, good night\", my phone tells the site. It says when I went to bed for five hours (less if I'm clearly up again), and the timeline keeps it.",
+      where: [
+        { href: "/", label: "home" },
+        { href: "/now", label: "/now" },
+      ],
+      ok: true,
+      state: (() => {
+        const bed = inBed(presence, now, saved?.pins[0]?.at);
+        if (bed) return `Went to bed at ${bedClock(bed, place.tz)}, ${ago(bed.at, now)}.`;
+        return lastBed ? `Up. Last good night ${ago(lastBed.at, now)}, at ${bedClock(lastBed, place.tz)}.` : "Waiting for the first good night.";
+      })(),
     },
     {
       id: "place",

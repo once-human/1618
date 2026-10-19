@@ -1,4 +1,5 @@
 import "server-only";
+import { typicalBedtime } from "@/lib/presence/asleep";
 import { cacheLife } from "next/cache";
 import { q } from "@/lib/db";
 import type { SavedPin } from "@/lib/presence/types";
@@ -35,7 +36,10 @@ export interface RangeSummary {
   code: { pushes: number; commits: number; repos: { name: string; pushes: number }[] };
   activity: { count: number; km: number; minutes: number; byType: { type: string; count: number; km: number }[] };
   health: { days: number; steps: number | null; avgSteps: number | null; avgSleep: number | null };
+  /** Nights I said "Hey Siri, good night", and the usual time (my clock). Optional: older cached summaries lack it. */
+  bed?: { nights: number; typical: string | null };
 }
+
 
 export async function summarise(from: Date, to: Date): Promise<RangeSummary> {
   const f = Math.floor(from.getTime() / 1000);
@@ -43,7 +47,7 @@ export async function summarise(from: Date, to: Date): Promise<RangeSummary> {
   const fi = from.toISOString();
   const ti = to.toISOString();
 
-  const [totals, tracks, artists, albums, days, clock, pins, pinCount, code, acts, health, fresh] = await Promise.all([
+  const [totals, tracks, artists, albums, days, clock, pins, pinCount, code, acts, health, fresh, beds] = await Promise.all([
     q<{ plays: number; songs: number; artists: number; ms: string | null; known: number | null }>("sum totals", (db) =>
       db`SELECT count(*)::int AS plays, count(DISTINCT coalesce(s.song_key, s.track_key))::int AS songs,
                 (SELECT count(DISTINCT a.k)::int FROM scrobbles s2,
@@ -119,6 +123,9 @@ export async function summarise(from: Date, to: Date): Promise<RangeSummary> {
               unnest(coalesce(s.artist_keys, ARRAY[lower(s.artist)])) AS a(k) GROUP BY a.k) y
               WHERE m >= ${f} AND m < ${t}) AS artists`,
     ),
+    q<{ at: string }>("sum bed", (db) =>
+      db`SELECT at FROM events WHERE kind = 'sleep' AND at >= ${fi} AND at < ${ti} ORDER BY at LIMIT 2000`,
+    ),
   ]);
 
   const tot = totals?.[0];
@@ -174,6 +181,7 @@ export async function summarise(from: Date, to: Date): Promise<RangeSummary> {
       avgSteps: health?.[0]?.avg_steps ?? null,
       avgSleep: health?.[0]?.avg_sleep != null ? Math.round(health[0].avg_sleep * 10) / 10 : null,
     },
+    bed: { nights: beds?.length ?? 0, typical: typicalBedtime((beds ?? []).map((r) => new Date(r.at).toISOString())) },
   };
 }
 

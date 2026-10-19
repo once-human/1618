@@ -1,3 +1,4 @@
+import { endBedtime, goToBed } from "@/lib/presence/bedtime";
 import { ADMIN_COOKIE, isAdmin, kvDelete, kvSet, logOutEverywhere, newSession, q } from "@/lib/db";
 import { push, owner, telegramConfigured, tg } from "@/lib/talk/telegram";
 import { THREAD } from "@/lib/talk/server";
@@ -91,6 +92,11 @@ export async function POST(req: Request) {
     }
     case "clearStatus":
       await kvDelete("status");
+      return ok();
+    case "bed":
+      return ok({ bedtime: await goToBed("admin") });
+    case "wake":
+      await endBedtime();
       return ok();
     case "place": {
       const city = str(b.city, 60);

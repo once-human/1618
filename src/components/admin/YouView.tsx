@@ -1,17 +1,19 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { typicalBedtime } from "@/lib/presence/asleep";
 import { act, type AdminState, type HealthDay, type RecentPlace } from "./store";
 import { Button, Chip, Empty, Icon, Panel, Spinner, ago, clockIn, flag, fmt, input, until } from "./ui";
 
 export function YouView({ data }: { data: AdminState }) {
   return (
-    // Phones: status, then place, then health. Wide screens: place gets its own column.
+    // Phones: status, then place, bedtime, health. Wide screens: place gets its own column.
     <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
       <StatusPanel data={data} />
-      <div className="lg:col-start-2 lg:row-span-2 lg:row-start-1">
+      <div className="lg:col-start-2 lg:row-span-3 lg:row-start-1">
         <PlacePanel data={data} />
       </div>
+      <BedtimePanel data={data} />
       <HealthPanel days={data.health} today={data.visitors.day} installed={data.shortcuts.health} />
     </div>
   );
@@ -294,6 +296,64 @@ function PlacePanel({ data }: { data: AdminState }) {
           </button>
         </p>
       ) : null}
+    </Panel>
+  );
+}
+
+/* ---- bedtime ---- */
+
+function BedtimePanel({ data }: { data: AdminState }) {
+  const [busy, setBusy] = useState<string | null>(null);
+  const { shown, window: win, nights } = data.bedtime;
+  const tz = data.place.tz;
+  const typical = nights.length > 1 ? typicalBedtime(nights.map((n) => n.at), tz) : null;
+
+  return (
+    <Panel title="Bedtime" aside="“Hey Siri, good night”">
+      {shown ? (
+        <div className="bg-a-soft mb-4 flex items-start justify-between gap-3 rounded-xl px-3.5 py-3">
+          <div>
+            <p className="font-medium">Went to bed at {clockIn(tz, new Date(shown.at))}</p>
+            <p className="text-a-quiet text-[13px]">
+              {ago(shown.at)}. The site says so for {until(shown.until)} more.
+            </p>
+          </div>
+          <Button kind="quiet" busy={busy === "wake"} onClick={async () => (setBusy("wake"), await act("wake", {}, "Good morning. The site has stopped saying you're in bed"), setBusy(null))}>
+            I&apos;m up
+          </Button>
+        </div>
+      ) : (
+        <div className="mb-4 flex items-start justify-between gap-3">
+          <p className="text-a-quiet text-[14.5px]">
+            {win
+              ? `You said good night at ${clockIn(tz, new Date(win.at))}, but you've been up since (a status, a push or a pin), so the site stopped saying you're in bed.`
+              : "Awake, as far as the site knows. Saying “Hey Siri, good night” tells it you've gone to bed, for five hours."}
+          </p>
+          <Button kind="quiet" busy={busy === "bed"} onClick={async () => (setBusy("bed"), await act("bed", {}, "Good night. The site says you went to bed just now"), setBusy(null))}>
+            Going to bed
+          </Button>
+        </div>
+      )}
+
+      {nights.length ? (
+        <>
+          <ul className="divide-a-line divide-y text-[14px]">
+            {nights.slice(0, 7).map((n) => (
+              <li key={n.at} className="flex justify-between gap-3 py-1.5">
+                <span>{new Date(n.at).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: tz })}</span>
+                <span className="text-a-quiet tabular-nums">
+                  {clockIn(tz, new Date(n.at))}
+                  {n.endedAt ? `, up at ${clockIn(tz, new Date(n.endedAt))}` : ""}
+                  {n.via === "admin" ? " · from here" : ""}
+                </span>
+              </li>
+            ))}
+          </ul>
+          {typical ? <p className="text-a-quiet mt-2 text-[13px]">Usually in bed by {typical}, over the last {nights.length} nights.</p> : null}
+        </>
+      ) : (
+        <Empty>{data.shortcuts.goodnight ? "No good nights yet. Install the Good Night shortcut from the Site tab, then say it tonight." : "No good nights yet."}</Empty>
+      )}
     </Panel>
   );
 }
