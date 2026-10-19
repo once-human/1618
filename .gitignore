@@ -49,3 +49,4 @@ next-env.d.ts
 # Built shortcuts (scripts/shortcuts/build.py)
 1618-health.plist
 *.shortcut
+__pycache__/
