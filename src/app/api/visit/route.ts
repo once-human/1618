@@ -5,7 +5,7 @@ import { isBotAgent } from "@/lib/bots";
 
 /**
  * Visitors so far: each person counts once a day, however many times they
- * load or refresh. Today's visitors are kept as one-way daily hashes (never an
+ * load or refresh. The month's visitors are kept as one-way daily hashes (never an
  * address) with the town they came from, for today's map; each night they're
  * folded into a plain number and deleted.
  */

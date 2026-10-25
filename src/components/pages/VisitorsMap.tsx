@@ -34,8 +34,8 @@ export const MAP = { cols: COLS, rows: ROWS };
 export const project = (lat: number, lon: number) => ({ x: (lon + 180) / LAND.step, y: (LAND.top - lat) / LAND.step });
 
 /**
- * Who came by today, as dots on a map: towns only, and how many from each.
- * Pune's day, so it starts fresh at midnight here.
+ * Who came by this month, as dots on a map: towns only, and how many from each.
+ * Pune's calendar month, so it starts fresh on the 1st.
  */
 export function VisitorsMap() {
   const [data, setData] = useState<{ people: number; places: Place[] } | null>(null);
@@ -43,7 +43,7 @@ export function VisitorsMap() {
   useEffect(() => {
     let live = true;
     const load = () =>
-      fetch("/api/visitors/today")
+      fetch("/api/visitors/month")
         .then((r) => r.json())
         .then((d) => live && setData(d))
         .catch(() => {});
@@ -64,14 +64,14 @@ export function VisitorsMap() {
   return (
     <section id="visitors" className="scroll-mt-24">
       <h2 className="border-ink mb-6 flex flex-wrap justify-between gap-x-4 border-t pt-1.5 font-semibold">
-        Who came by today
+        Who came by this month
         <span className="text-quiet font-normal">
           {!data.people
-            ? "nobody yet today"
-            : `${fmtNum(data.people)} ${data.people === 1 ? "person" : "people"}${towns.length ? ` from ${towns.length} ${towns.length === 1 ? "place" : "places"}` : ""} so far, Pune time`}
+            ? "nobody yet this month"
+            : `${fmtNum(data.people)} ${data.people === 1 ? "person" : "people"}${towns.length ? ` from ${towns.length} ${towns.length === 1 ? "place" : "places"}` : ""} so far`}
         </span>
       </h2>
-      <svg viewBox={`0 0 ${COLS} ${ROWS}`} className="w-full" role="img" aria-label={`Map of today's visitors: ${towns.map((p) => placeName(p.city, p.country)).join(", ") || "none yet"}`}>
+      <svg viewBox={`0 0 ${COLS} ${ROWS}`} className="w-full" role="img" aria-label={`Map of this month's visitors: ${towns.map((p) => placeName(p.city, p.country)).join(", ") || "none yet"}`}>
         <path d={LAND_PATH} className="stroke-ink/20" strokeWidth={0.55} strokeLinecap="round" fill="none" />
         {placed.map((p) => {
           const { x, y } = project(p.lat!, p.lon!);

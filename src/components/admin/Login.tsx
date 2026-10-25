@@ -9,17 +9,17 @@ export function Login({ note }: { note: string | null }) {
   return (
     <main className="grid min-h-svh place-items-center px-5">
       <form method="post" action="/admin/login" onSubmit={() => setBusy(true)} className="w-full max-w-[22rem]">
-        <p className="bigword text-[clamp(4.5rem,22vw,8rem)]">admin</p>
-        <p className="text-a-quiet border-a-ink mt-6 mb-8 border-t pt-1.5">1618. Only Onkar gets past here.</p>
+        <p className="wide text-[44px] leading-none font-bold tracking-tight">1618</p>
+        <p className="text-a-quiet mt-2 mb-8">Admin. Only Onkar gets past here.</p>
         {note ? (
-          <p role="alert" className="border-a-bad text-a-bad mb-4 border-l-2 py-1 pl-3 text-[14px]">
+          <p role="alert" className="bg-a-bad/10 text-a-bad mb-4 rounded-lg px-3 py-2 text-[14px]">
             {note}
           </p>
         ) : null}
-        <label htmlFor="key" className="text-a-quiet block text-[14px]">
+        <label htmlFor="key" className="mb-1.5 block text-[14px] font-medium">
           Site key
         </label>
-        <div className="border-a-line focus-within:border-a-ink flex border-b">
+        <div className="border-a-line bg-a-panel focus-within:border-a-signal focus-within:ring-a-signal/25 flex rounded-xl border focus-within:ring-4">
           <input
             id="key"
             name="key"
@@ -28,13 +28,13 @@ export function Login({ note }: { note: string | null }) {
             required
             autoFocus
             spellCheck={false}
-            className="min-w-0 flex-1 bg-transparent py-3 text-[18px] outline-none focus-visible:outline-none"
+            className="min-w-0 flex-1 bg-transparent px-3.5 py-3 text-[16px] outline-none focus-visible:outline-none"
           />
-          <button type="button" onClick={() => setShow((s) => !s)} className="text-a-quiet hover:text-a-ink pl-3.5 text-[14px]">
+          <button type="button" onClick={() => setShow((s) => !s)} className="text-a-quiet hover:text-a-ink px-3.5 text-[14px]">
             {show ? "Hide" : "Show"}
           </button>
         </div>
-        <button disabled={busy} className="bg-a-ink text-a-bg mt-6 w-full py-3 text-[16px] font-semibold disabled:opacity-60">
+        <button disabled={busy} className="bg-a-ink text-a-bg mt-4 w-full rounded-xl py-3 text-[16px] font-semibold disabled:opacity-60">
           {busy ? "Logging in…" : "Log in"}
         </button>
         <p className="text-a-quiet mt-5 text-[13px] leading-snug">

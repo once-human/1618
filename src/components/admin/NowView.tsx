@@ -15,9 +15,9 @@ export function NowView({ data, people }: { data: AdminState; people: Person[] |
   const here = people?.length ?? null;
 
   return (
-    <div className="space-y-14">
+    <div className="space-y-4">
       {/* The moment, in one sentence. */}
-      <p className="border-a-ink max-w-[44ch] border-t pt-1.5 text-[clamp(1.35rem,2.7vw,2.1rem)] leading-tight tracking-tight">
+      <p className="wide max-w-[34ch] text-[24px] leading-[1.18] font-semibold tracking-tight md:text-[34px]">
         {here === null ? "Checking who's on the site…" : here === 0 ? "Nobody's on the site right now." : `${plural(here, "person is", "people are")} on the site right now.`}{" "}
         {waiting.length ? (
           <a href="#talk" className="text-a-signal underline decoration-2 underline-offset-4">
@@ -27,13 +27,13 @@ export function NowView({ data, people }: { data: AdminState; people: Person[] |
           <span className="text-a-quiet">Nobody&apos;s waiting on you.</span>
         )}{" "}
         <span className="text-a-quiet">
-          {plural(data.visitors.people, "visitor")} today
+          {plural(data.visitors.people, "visitor")} this month
           {data.visitors.places.length ? ` from ${plural(data.visitors.places.filter((p) => p.city).length, "place")}` : ""}.
         </span>
       </p>
 
-      <div className="grid grid-cols-1 gap-x-10 gap-y-14 lg:grid-cols-[1.3fr_1fr]">
-        <div className="space-y-14">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.3fr_1fr]">
+        <div className="space-y-4">
           {waiting.length ? (
             <Panel title="Waiting on you" aside={<a href="#talk" className="hover:text-a-ink">All chats</a>}>
               <ul className="divide-a-line divide-y">
@@ -69,7 +69,7 @@ export function NowView({ data, people }: { data: AdminState; people: Person[] |
             )}
           </Panel>
 
-          <Panel title="Today's visitors" aside={`${fmt(data.visitors.total)} all time`}>
+          <Panel title="Visitors this month" aside={`${fmt(data.visitors.total)} all time`}>
             <TodayMap places={data.visitors.places} />
             {data.visitors.places.length ? (
               <ul className="mt-3 grid grid-cols-1 gap-x-6 sm:grid-cols-2">
@@ -83,12 +83,12 @@ export function NowView({ data, people }: { data: AdminState; people: Person[] |
                 ))}
               </ul>
             ) : (
-              <Empty>No visitors yet today (Pune time).</Empty>
+              <Empty>No visitors yet this month.</Empty>
             )}
           </Panel>
         </div>
 
-        <div className="space-y-14">
+        <div className="space-y-4">
           <Panel title="How the site shows you" aside={<a href="#you" className="hover:text-a-ink">Change</a>}>
             <dl className="space-y-3 text-[14.5px]">
               <Row k="Status">
@@ -224,7 +224,7 @@ function TodayMap({ places }: { places: AdminState["visitors"]["places"] }) {
   const placed = places.filter((p) => p.lat != null && p.lon != null);
   const max = Math.max(1, ...placed.map((p) => p.n));
   return (
-    <svg viewBox={`0 ${MAP.rows * 0.04} ${MAP.cols} ${MAP.rows * 0.86}`} className="w-full" role="img" aria-label="Where today's visitors came from">
+    <svg viewBox={`0 ${MAP.rows * 0.04} ${MAP.cols} ${MAP.rows * 0.86}`} className="w-full" role="img" aria-label="Where this month's visitors came from">
       <path d={LAND_PATH} stroke="currentColor" strokeWidth={0.42} strokeLinecap="round" className="text-a-line" />
       {placed.map((p) => {
         const { x, y } = project(p.lat!, p.lon!);

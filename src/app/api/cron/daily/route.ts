@@ -11,12 +11,12 @@ export async function GET(req: Request) {
   if (process.env.CRON_SECRET && req.headers.get("authorization") !== `Bearer ${process.env.CRON_SECRET}`)
     return new Response("Not allowed", { status: 401 });
   const sync = await runSync({ force: true });
-  // Yesterday's visitors become a plain number; their hashes are deleted.
+  // Visitors are kept for the month (for the map); last month's become a plain number and their hashes are deleted.
   await q("fold visitors", (db) =>
     db.transaction([
-      db`INSERT INTO counters (name, n) VALUES ('visitors_archived', (SELECT count(*) FROM visitors WHERE day < (now() AT TIME ZONE 'Asia/Kolkata')::date))
+      db`INSERT INTO counters (name, n) VALUES ('visitors_archived', (SELECT count(*) FROM visitors WHERE day < date_trunc('month', now() AT TIME ZONE 'Asia/Kolkata')::date))
          ON CONFLICT (name) DO UPDATE SET n = counters.n + EXCLUDED.n`,
-      db`DELETE FROM visitors WHERE day < (now() AT TIME ZONE 'Asia/Kolkata')::date`,
+      db`DELETE FROM visitors WHERE day < date_trunc('month', now() AT TIME ZONE 'Asia/Kolkata')::date`,
     ]),
   );
   // The visitor log: past 30 days, a visit keeps only its country and counts.

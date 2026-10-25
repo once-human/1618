@@ -24,8 +24,8 @@ export function SiteView({ data }: { data: AdminState }) {
   const s = data.store;
 
   return (
-    <div className="grid grid-cols-1 gap-x-10 gap-y-14 lg:grid-cols-2">
-      <div className="space-y-14">
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <div className="space-y-4">
         <Panel title="Live sources" aside={`Checked ${ago(data.sources.checkedAt)}`}>
           <ul className="divide-a-line divide-y">
             {checks.map((c) => (
@@ -73,7 +73,7 @@ export function SiteView({ data }: { data: AdminState }) {
         </Panel>
       </div>
 
-      <div className="space-y-14">
+      <div className="space-y-4">
         <Panel title="Telegram" aside="Talk messages to your phone">
           {!tg.configured ? (
             <ol className="list-inside list-decimal space-y-1 text-[14.5px]">
@@ -91,7 +91,7 @@ export function SiteView({ data }: { data: AdminState }) {
                 <Button busy={busy === "tg"} onClick={async () => (setBusy("tg"), await act("telegramTest", {}, "Sent. Check Telegram."), setBusy(null))}>
                   Send a test
                 </Button>
-                <a href="/api/telegram/connect" className="text-a-quiet hover:text-a-ink inline-flex min-h-9 items-center px-3 text-[14px]">
+                <a href="/api/telegram/connect" className="text-a-quiet hover:text-a-ink hover:bg-a-soft inline-flex min-h-9 items-center rounded-lg px-3 text-[14px]">
                   Reconnect
                 </a>
               </div>
@@ -99,7 +99,7 @@ export function SiteView({ data }: { data: AdminState }) {
           ) : (
             <>
               <p className="text-[14.5px]">The bot is ready. Connect it, then press Start in the chat that opens.</p>
-              <a href="/api/telegram/connect" className="bg-a-ink text-a-bg mt-3 inline-flex min-h-9 items-center px-4 text-[14px] font-semibold">
+              <a href="/api/telegram/connect" className="bg-a-signal mt-3 inline-flex min-h-9 items-center rounded-lg px-4 text-[14px] font-semibold text-white">
                 Connect Telegram
               </a>
             </>
@@ -137,7 +137,7 @@ function Shortcut({ sc, ready }: { sc: (typeof SHORTCUTS)[number]; ready: boolea
         </div>
         {ready ? (
           <div className="flex gap-1">
-            <a href={`/api/shortcuts/${sc.id}`} className="bg-a-ink text-a-bg inline-flex min-h-9 items-center px-3 text-[14px] font-medium hover:opacity-85">
+            <a href={`/api/shortcuts/${sc.id}`} className="bg-a-soft hover:bg-a-line inline-flex min-h-9 items-center rounded-lg px-3 text-[14px] font-medium">
               Install
             </a>
             <Button kind="quiet" onClick={showQr} className="hidden md:inline-flex">
@@ -150,7 +150,7 @@ function Shortcut({ sc, ready }: { sc: (typeof SHORTCUTS)[number]; ready: boolea
       </div>
       {qr ? (
         <div className="mt-3 flex items-center gap-4">
-          <div className="size-32 shrink-0 bg-white p-1.5 [&_svg]:size-full" dangerouslySetInnerHTML={{ __html: qr }} />
+          <div className="size-32 shrink-0 rounded-lg bg-white p-1.5 [&_svg]:size-full" dangerouslySetInnerHTML={{ __html: qr }} />
           <p className="text-a-quiet text-[13px]">Point your iPhone camera at this to install it.</p>
         </div>
       ) : null}

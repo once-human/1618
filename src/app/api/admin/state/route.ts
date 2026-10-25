@@ -34,7 +34,7 @@ export async function GET(req: Request) {
     ),
     q<{ city: string | null; country: string | null; lat: number | null; lon: number | null; n: number }>("admin visitors", (db) =>
       db`SELECT city, country, round(avg(lat)::numeric, 1)::float AS lat, round(avg(lon)::numeric, 1)::float AS lon, count(*)::int AS n
-         FROM visitors WHERE day = ${day}::date GROUP BY city, country ORDER BY n DESC`,
+         FROM visitors WHERE day >= ${day.slice(0, 8) + "01"}::date GROUP BY city, country ORDER BY n DESC`,
     ),
     q<{ n: number }>("admin visitors total", (db) =>
       db`SELECT (count(*) + coalesce((SELECT n FROM counters WHERE name = 'visitors_archived'), 0))::int AS n FROM visitors`,

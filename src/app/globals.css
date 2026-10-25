@@ -151,11 +151,11 @@ body {
  */
 .admin {
   --a-bg: #000000;
-  --a-panel: #000000;
+  --a-panel: #0d0d0d;
   --a-ink: #ffffff;
   --a-quiet: #8e8e8e;
-  --a-line: #2b2b2b;
-  --a-soft: #141414;
+  --a-line: #262626;
+  --a-soft: #181818;
   --a-signal: #ff5533;
   --a-signal-soft: #2a120c;
   --a-ok: #4fd18b;
@@ -166,12 +166,12 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 .admin[data-theme="light"] {
-  --a-bg: #ffffff;
+  --a-bg: #f4f4f4;
   --a-panel: #ffffff;
   --a-ink: #000000;
   --a-quiet: #6e6e6e;
   --a-line: #e3e3e3;
-  --a-soft: #f3f3f3;
+  --a-soft: #eeeeee;
   --a-signal: #e8401c;
   --a-signal-soft: #fdebe6;
   --a-ok: #12804a;
@@ -182,7 +182,7 @@ html:has(.admin) {
   background: #000000;
 }
 html:has(.admin[data-theme="light"]) {
-  background: #ffffff;
+  background: #f4f4f4;
 }
 .admin ::selection {
   background: var(--a-ink);

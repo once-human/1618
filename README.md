@@ -38,7 +38,7 @@ A few things on the page are happening right now rather than written once:
 
 Everything the live parts see is also kept, so it can be looked back on: [/history](https://onkaryaglewad.in/history)
 searches any week, month or year, and [/now](https://onkaryaglewad.in/now) is what I'm up to this month,
-with a map of who came by today. Its colours follow the sky over wherever I am: white by day, warm
+with a map of who came by this month. Its colours follow the sky over wherever I am: white by day, warm
 at sunset, dark at night, with rain when it rains.
 [/status](https://onkaryaglewad.in/status) lists everything the site does, where to find it, and
 whether it's working right now.

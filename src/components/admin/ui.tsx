@@ -54,13 +54,12 @@ export function useTick(ms = 10_000) {
 
 /* ---- pieces ---- */
 
-/** A section: a rule, a bold label, a quiet note on the right. Like the site's own sections. */
 export function Panel({ title, aside, children, className = "", id }: { title?: React.ReactNode; aside?: React.ReactNode; children: React.ReactNode; className?: string; id?: string }) {
   return (
-    <section id={id} className={`min-w-0 scroll-mt-24 ${className}`}>
+    <section id={id} className={`bg-a-panel border-a-line rounded-2xl border p-4 md:p-5 ${className}`}>
       {title ? (
-        <header className="border-a-ink mb-4 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-t pt-1.5">
-          <h2 className="text-[15px] font-semibold">{title}</h2>
+        <header className="mb-3 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+          <h2 className="text-[17px] font-semibold">{title}</h2>
           {aside ? <div className="text-a-quiet text-[13px]">{aside}</div> : null}
         </header>
       ) : null}
@@ -77,45 +76,6 @@ export function Stat({ value, label, sub }: { value: React.ReactNode; label: Rea
       <p className="text-a-quiet mt-1 text-[13px]">{label}</p>
       {sub ? <p className="text-a-quiet text-[12.5px]">{sub}</p> : null}
     </div>
-  );
-}
-
-type BtnKind = "primary" | "plain" | "quiet" | "danger" | "signal";
-const BTN: Record<BtnKind, string> = {
-  primary: "bg-a-ink text-a-bg hover:opacity-85",
-  signal: "bg-a-signal text-white hover:opacity-90",
-  plain: "border border-a-line hover:border-a-ink",
-  quiet: "text-a-quiet hover:text-a-ink",
-  danger: "border border-a-bad/50 text-a-bad hover:bg-a-bad hover:text-white",
-};
-export function Button({ kind = "plain", busy, className = "", children, ...rest }: React.ButtonHTMLAttributes<HTMLButtonElement> & { kind?: BtnKind; busy?: boolean }) {
-  return (
-    <button
-      type="button"
-      {...rest}
-      disabled={rest.disabled || busy}
-      className={`inline-flex min-h-9 items-center justify-center gap-1.5 px-3 text-[14px] font-medium whitespace-nowrap transition-colors disabled:opacity-40 ${BTN[kind]} ${className}`}
-    >
-      {busy ? <Spinner /> : null}
-      {children}
-    </button>
-  );
-}
-
-export function Spinner() {
-  return <span aria-hidden className="size-3.5 animate-spin rounded-full border-2 border-current border-r-transparent" />;
-}
-
-export function Chip({ on, children, ...rest }: React.ButtonHTMLAttributes<HTMLButtonElement> & { on?: boolean }) {
-  return (
-    <button
-      type="button"
-      aria-pressed={on}
-      {...rest}
-      className={`min-h-8 border px-2.5 text-[13.5px] transition-colors ${on ? "border-a-ink bg-a-ink text-a-bg" : "border-a-line hover:border-a-ink"} ${rest.className ?? ""}`}
-    >
-      {children}
-    </button>
   );
 }
 
@@ -139,6 +99,45 @@ export function Seg<T extends string>({ value, options, onChange, label }: { val
   );
 }
 
+type BtnKind = "primary" | "plain" | "quiet" | "danger" | "signal";
+const BTN: Record<BtnKind, string> = {
+  primary: "bg-a-ink text-a-bg hover:opacity-90",
+  signal: "bg-a-signal text-white hover:opacity-90",
+  plain: "bg-a-soft hover:bg-a-line",
+  quiet: "text-a-quiet hover:text-a-ink hover:bg-a-soft",
+  danger: "bg-a-bad/10 text-a-bad hover:bg-a-bad/20",
+};
+export function Button({ kind = "plain", busy, className = "", children, ...rest }: React.ButtonHTMLAttributes<HTMLButtonElement> & { kind?: BtnKind; busy?: boolean }) {
+  return (
+    <button
+      type="button"
+      {...rest}
+      disabled={rest.disabled || busy}
+      className={`inline-flex min-h-9 items-center justify-center gap-1.5 rounded-lg px-3 text-[14px] font-medium whitespace-nowrap transition-colors disabled:opacity-50 ${BTN[kind]} ${className}`}
+    >
+      {busy ? <Spinner /> : null}
+      {children}
+    </button>
+  );
+}
+
+export function Spinner() {
+  return <span aria-hidden className="size-3.5 animate-spin rounded-full border-2 border-current border-r-transparent" />;
+}
+
+export function Chip({ on, children, ...rest }: React.ButtonHTMLAttributes<HTMLButtonElement> & { on?: boolean }) {
+  return (
+    <button
+      type="button"
+      aria-pressed={on}
+      {...rest}
+      className={`min-h-8 rounded-full border px-3 text-[13.5px] transition-colors ${on ? "border-a-ink bg-a-ink text-a-bg" : "border-a-line hover:border-a-quiet"} ${rest.className ?? ""}`}
+    >
+      {children}
+    </button>
+  );
+}
+
 export function Dot({ tone }: { tone: "ok" | "bad" | "off" | "signal" | "live" }) {
   const c = { ok: "bg-a-ok", bad: "bg-a-bad", off: "border border-a-quiet", signal: "bg-a-signal", live: "bg-a-ok" }[tone];
   return (
@@ -150,14 +149,11 @@ export function Dot({ tone }: { tone: "ok" | "bad" | "off" | "signal" | "live" }
 }
 
 export function Empty({ children }: { children: React.ReactNode }) {
-  return <p className="text-a-quiet py-5 text-[14px]">{children}</p>;
+  return <p className="text-a-quiet py-6 text-center text-[14px]">{children}</p>;
 }
 
-/** A text field: just a line to write on. */
 export const input =
-  "border-a-line focus:border-a-ink w-full border-b bg-transparent px-0 py-2.5 text-[16px] outline-none placeholder:text-a-quiet focus-visible:outline-none";
-/** A boxed field, for longer writing. */
-export const box = "border-a-line focus:border-a-ink w-full border bg-transparent px-3 py-2.5 text-[16px] outline-none placeholder:text-a-quiet focus-visible:outline-none";
+  "border-a-line bg-a-bg focus:border-a-signal w-full rounded-xl border px-3.5 py-2.5 text-[16px] outline-none placeholder:text-a-quiet";
 
 /** "Delete?" → "Yes, delete" / "Keep", inline, so a slip of the thumb never deletes anything. */
 export function Confirm({ label, yes, onYes, busy }: { label: string; yes: string; onYes: () => void; busy?: boolean }) {
@@ -194,11 +190,12 @@ const P: Record<string, string> = {
   refresh: "M16 10a6 6 0 1 1-1.8-4.3M16 3v4h-4",
   search: "M9 15a6 6 0 1 0 0-12 6 6 0 0 0 0 12Zm8 2-3.5-3.5",
   locate: "M10 2v3M10 15v3M2 10h3M15 10h3M10 14a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z",
-  send: "M3 10l14-6-5 14-2.5-5.5z",
   sun: "M10 13.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7ZM10 2v1.5M10 16.5V18M2 10h1.5M16.5 10H18M4.3 4.3l1 1M14.7 14.7l1 1M4.3 15.7l1-1M14.7 5.3l1-1",
   moon: "M16 12.5A6.5 6.5 0 0 1 7.5 4a6.5 6.5 0 1 0 8.5 8.5Z",
+  privacy: "M10 2.5 4 5v4.5c0 3.8 2.6 6.6 6 8 3.4-1.4 6-4.2 6-8V5z",
   shield: "M10 2.5 4 5v4.5c0 3.8 2.6 6.6 6 8 3.4-1.4 6-4.2 6-8V5z",
   chevron: "M8 5l5 5-5 5",
+  send: "M3 10l14-6-5 14-2.5-5.5z",
 };
 export function Icon({ name, className = "size-5" }: { name: keyof typeof P | string; className?: string }) {
   return (
@@ -207,3 +204,6 @@ export function Icon({ name, className = "size-5" }: { name: keyof typeof P | st
     </svg>
   );
 }
+
+/** A boxed field, for longer writing. */
+export const box = "border-a-line focus:border-a-ink w-full border bg-transparent px-3 py-2.5 text-[16px] outline-none placeholder:text-a-quiet focus-visible:outline-none";

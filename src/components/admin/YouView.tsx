@@ -8,7 +8,7 @@ import { Button, Chip, Empty, Icon, Panel, Spinner, ago, clockIn, flag, fmt, inp
 export function YouView({ data }: { data: AdminState }) {
   return (
     // Phones: status, then place, bedtime, health. Wide screens: place gets its own column.
-    <div className="grid grid-cols-1 items-start gap-x-10 gap-y-14 lg:grid-cols-2">
+    <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
       <StatusPanel data={data} />
       <div className="lg:col-start-2 lg:row-span-3 lg:row-start-1">
         <PlacePanel data={data} />
@@ -57,7 +57,7 @@ function StatusPanel({ data }: { data: AdminState }) {
   return (
     <Panel title="Status" aside="Top of the home page and /now">
       {s ? (
-        <div className="border-a-ink mb-5 flex items-start justify-between gap-3 border-l-2 py-1 pl-3.5">
+        <div className="bg-a-soft mb-4 flex items-start justify-between gap-3 rounded-xl px-3.5 py-3">
           <div>
             <p className="font-medium">“{s.text}”</p>
             <p className="text-a-quiet text-[13px]">
@@ -203,7 +203,7 @@ function PlacePanel({ data }: { data: AdminState }) {
       </div>
 
       {p.held ? (
-        <div className="border-a-signal mb-5 flex items-center justify-between gap-3 border-l-2 py-1 pl-3.5 text-[14px]">
+        <div className="bg-a-signal-soft mb-4 flex items-center justify-between gap-3 rounded-xl px-3.5 py-2.5 text-[14px]">
           <span>Held here{p.held.until ? ` for ${until(p.held.until)} more` : " until you let go"}. Your phone&apos;s location shortcut is ignored.</span>
           <Button kind="quiet" busy={busy === "letgo"} onClick={async () => (setBusy("letgo"), await act("letGo", {}, "Your phone can update it again"), setBusy(null))}>
             Let go
@@ -212,7 +212,7 @@ function PlacePanel({ data }: { data: AdminState }) {
       ) : null}
 
       {picked ? (
-        <div className="border-a-ink border-l-2 py-1 pl-3.5">
+        <div className="border-a-signal rounded-xl border-2 p-3.5">
           <p className="font-semibold">
             {flag(picked.cc)} {picked.city}
             <span className="text-a-quiet font-normal">{[picked.region, picked.country].filter(Boolean).length ? `, ${[picked.region, picked.country].filter(Boolean).join(", ")}` : ""}</span>
@@ -250,10 +250,10 @@ function PlacePanel({ data }: { data: AdminState }) {
           </div>
           {results && q.trim().length >= 2 ? (
             results.length ? (
-              <ul className="border-a-line divide-a-line mt-2 divide-y border-y">
+              <ul className="border-a-line divide-a-line mt-2 divide-y overflow-hidden rounded-xl border">
                 {results.map((r) => (
                   <li key={`${r.city}${r.lat}${r.lon}`}>
-                    <button type="button" onClick={() => setPicked(r)} className="hover:bg-a-soft flex w-full items-baseline justify-between gap-3 px-1 py-2.5 text-left">
+                    <button type="button" onClick={() => setPicked(r)} className="hover:bg-a-soft flex w-full items-baseline justify-between gap-3 px-3.5 py-2.5 text-left">
                       <span className="min-w-0 truncate">
                         {flag(r.cc)} <b className="font-medium">{r.city}</b>
                         <span className="text-a-quiet">{[r.region, r.country].filter(Boolean).length ? `, ${[r.region, r.country].filter(Boolean).join(", ")}` : ""}</span>
@@ -311,7 +311,7 @@ function BedtimePanel({ data }: { data: AdminState }) {
   return (
     <Panel title="Bedtime" aside="“Hey Siri, good night”">
       {shown ? (
-        <div className="border-a-ink mb-5 flex items-start justify-between gap-3 border-l-2 py-1 pl-3.5">
+        <div className="bg-a-soft mb-4 flex items-start justify-between gap-3 rounded-xl px-3.5 py-3">
           <div>
             <p className="font-medium">Went to bed at {clockIn(tz, new Date(shown.at))}</p>
             <p className="text-a-quiet text-[13px]">
@@ -390,7 +390,7 @@ function HealthPanel({ days, today, installed }: { days: HealthDay[]; today: str
           <div className="mt-5 flex h-24 items-end gap-1" role="img" aria-label="Steps per day, the last 14 days">
             {span.map((s) => (
               <div key={s.day} className="group relative flex h-full flex-1 items-end" title={`${s.day}: ${s.steps == null ? "nothing sent" : `${fmt(s.steps)} steps`}`}>
-                <div className={`w-full ${s.day === today ? "bg-a-ink" : "bg-a-quiet/40"}`} style={{ height: s.steps == null ? 2 : `${Math.max(3, (s.steps / max) * 100)}%`, opacity: s.steps == null ? 0.3 : 1 }} />
+                <div className={`w-full rounded-t ${s.day === today ? "bg-a-ink" : "bg-a-quiet/40"}`} style={{ height: s.steps == null ? 2 : `${Math.max(3, (s.steps / max) * 100)}%`, opacity: s.steps == null ? 0.3 : 1 }} />
               </div>
             ))}
           </div>

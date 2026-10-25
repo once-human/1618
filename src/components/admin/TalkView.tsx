@@ -26,9 +26,9 @@ export function TalkView({ data, open }: { data: AdminState; open: string | null
   const tg = data.talk.telegram;
 
   return (
-    <div className="space-y-14">
+    <div className="space-y-4">
       {!tg.owner ? (
-        <p className="border-a-signal border-l-2 py-1 pl-4 text-[14.5px]">
+        <p className="bg-a-signal-soft rounded-xl px-4 py-3 text-[14.5px]">
           Telegram isn&apos;t connected, so new messages only show up here.{" "}
           <a href="#site" className="font-semibold underline">
             Connect it
@@ -36,7 +36,7 @@ export function TalkView({ data, open }: { data: AdminState; open: string | null
         </p>
       ) : null}
 
-      <div className="grid grid-cols-1 gap-x-8 gap-y-8 md:grid-cols-[minmax(17rem,22rem)_1fr]">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-[minmax(17rem,22rem)_1fr]">
         {/* On phones the list and the chat take turns. */}
         <div className={`${current ? "hidden md:block" : ""} min-w-0`}>
           <div className="mb-3 flex flex-wrap gap-2">
@@ -48,14 +48,14 @@ export function TalkView({ data, open }: { data: AdminState; open: string | null
           </div>
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search names, towns, messages" className={`${input} mb-3`} aria-label="Search chats" />
           {shown.length ? (
-            <ul className="border-a-line divide-a-line divide-y border-y">
+            <ul className="bg-a-panel border-a-line divide-a-line divide-y overflow-hidden rounded-2xl border">
               {shown.map((t) => (
                 <li key={t.id}>
                   <button
                     type="button"
                     onClick={() => go(`talk/${t.id}`)}
                     aria-current={t.id === open ? "true" : undefined}
-                    className={`block w-full px-2 py-3 text-left ${t.id === open ? "bg-a-soft" : "hover:bg-a-soft/60"}`}
+                    className={`block w-full px-4 py-3 text-left ${t.id === open ? "bg-a-soft" : "hover:bg-a-soft/60"}`}
                   >
                     <span className="flex items-baseline justify-between gap-3">
                       <span className="flex min-w-0 items-center gap-2">
@@ -81,7 +81,7 @@ export function TalkView({ data, open }: { data: AdminState; open: string | null
         </div>
 
         <div className={`${current ? "" : "hidden md:block"} min-w-0`}>
-          {current ? <Conversation key={current.id} t={current} /> : <div className="text-a-quiet border-a-line hidden h-full min-h-[40vh] place-items-center border-t text-[14px] md:grid">Pick a chat.</div>}
+          {current ? <Conversation key={current.id} t={current} /> : <div className="text-a-quiet border-a-line hidden h-full min-h-[40vh] place-items-center rounded-2xl border border-dashed text-[14px] md:grid">Pick a chat.</div>}
         </div>
       </div>
     </div>
@@ -140,7 +140,7 @@ function Conversation({ t }: { t: Thread }) {
   }
 
   return (
-    <section className="border-a-ink flex min-h-[60vh] flex-col border-t md:h-[calc(100svh-9rem)]" aria-label={`Chat with ${who(t)}`}>
+    <section className="bg-a-panel border-a-line flex min-h-[60vh] flex-col rounded-2xl border md:h-[calc(100svh-9rem)]" aria-label={`Chat with ${who(t)}`}>
       <header className="border-a-line flex flex-wrap items-start justify-between gap-3 border-b px-4 py-3">
         <div className="flex min-w-0 items-start gap-2">
           <Button kind="quiet" className="-ml-2 px-1.5 md:hidden" onClick={() => go("talk")} aria-label="Back to chats">
@@ -195,7 +195,7 @@ function Conversation({ t }: { t: Thread }) {
         ) : (
           msgs.map((m) => (
             <li key={m.id} className={`flex ${m.side === "me" ? "justify-end" : "justify-start"}`}>
-              <div className={`max-w-[min(48ch,85%)] px-3.5 py-2 ${m.side === "me" ? "bg-a-ink text-a-bg" : "border-a-line border"}`}>
+              <div className={`max-w-[min(48ch,85%)] rounded-2xl px-3.5 py-2 ${m.side === "me" ? "bg-a-ink text-a-bg rounded-br-md" : "bg-a-soft rounded-bl-md"}`}>
                 <div className="text-[15px] leading-snug">
                   <Rich text={m.text} />
                 </div>

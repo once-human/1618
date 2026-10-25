@@ -113,8 +113,8 @@ export async function checkFeatures(): Promise<Feature[]> {
     {
       id: "visitors",
       group: "With you, live",
-      name: "Today's visitors",
-      what: "A map of where today's visitors came from, by town. Towns and counts only.",
+      name: "This month's visitors",
+      what: "A map of where this month's visitors came from, by town. Towns and counts only.",
       where: [{ href: "/now#visitors", label: "/now" }],
       ok: today ? true : false,
       state: today?.[0] ? `${plural(today[0].people, "person", "people")} from ${plural(today[0].places, "place")} so far today, Pune time.` : "Can't read today's visits.",

@@ -66,7 +66,7 @@ export function PrivacyView({ data, open }: { data: AdminState; open: string | n
           <Stat value={s ? fmt(s.day.bots) : "–"} label="programs" sub={s ? `${fmt(s.day.botPages)} pages fetched` : undefined} />
         </section>
 
-        <Panel title="Visitor log" aside="Every visit in full for 30 days. Times are Pune time.">
+        <Panel title="Visitor log" aside="Pune time">
           <div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div className="flex flex-wrap gap-x-8 gap-y-3">
               <Seg label="Who" value={kind} onChange={setKind} options={[{ id: "person", label: "People" }, { id: "bot", label: "Programs" }, { id: "all", label: "Everyone" }]} />
@@ -74,8 +74,8 @@ export function PrivacyView({ data, open }: { data: AdminState; open: string | n
             </div>
             <label className="relative block w-full lg:w-72">
               <span className="sr-only">Search the log</span>
-              <Icon name="search" className="text-a-quiet absolute top-1/2 left-0 size-4 -translate-y-1/2" />
-              <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Town, page, device, site…" className={`${input} pl-6 text-[15px]`} />
+              <Icon name="search" className="text-a-quiet absolute top-1/2 left-3 size-4 -translate-y-1/2" />
+              <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Town, page, device, site…" className={`${input} pl-9 text-[15px]`} />
             </label>
           </div>
 
@@ -144,35 +144,6 @@ export function PrivacyView({ data, open }: { data: AdminState; open: string | n
           ) : (
             <Empty>No countries yet.</Empty>
           )}
-        </Panel>
-
-        <Panel title="What's kept">
-          <dl className="space-y-3 text-[14px] leading-snug">
-            <div>
-              <dt className="font-semibold">For 30 days</dt>
-              <dd className="text-a-quiet">
-                Each visit in full: town and country, device and browser, language, phone or computer, the site they came from, every page in order, time on each (only while on screen), how far down, links out, and things done (a song sent, a preview played).
-              </dd>
-            </div>
-            <div>
-              <dt className="font-semibold">After 30 days</dt>
-              <dd className="text-a-quiet">Only counts per day: how many people, from which countries, and views per page. Everything else is deleted.</dd>
-            </div>
-            <div>
-              <dt className="font-semibold">Never</dt>
-              <dd className="text-a-quiet">IP addresses, cookies, exact locations, names, or anything typed into a form. Browsers that ask not to be tracked aren&apos;t.</dd>
-            </div>
-            <div>
-              <dt className="font-semibold">Visitors can</dt>
-              <dd className="text-a-quiet">
-                see everything kept about their own browser, delete it, and turn the log off, on{" "}
-                <a href="/privacy#your-visit" target="_blank" rel="noopener" className="text-a-ink underline underline-offset-4">
-                  the privacy page
-                </a>
-                .
-              </dd>
-            </div>
-          </dl>
         </Panel>
 
         <Security data={data} />

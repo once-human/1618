@@ -107,8 +107,8 @@ time once there are a couple of nights.
   50-400 ms, closed tabs <20 ms, closed site 1.5 s, dead machines 1.5-4 s. Free plan: 200 open
   tabs at once; past that, extra tabs show no count. `presence/` holds a tested self-hosted
   alternative (one Bun file) for if that's ever outgrown.
-- **Visitors**: each person once a day (`visitors` table of daily hashes); the nightly job folds
-  past days into one number and deletes the hashes.
+- **Visitors**: each person once a day (`visitors` table of daily hashes); hashes are kept for the
+  calendar month (for the map); the nightly job folds earlier months into one number and deletes them.
 - **🔥**: a count per song, one per visitor per song every 10 minutes.
 - **Talk to me** (`/talk`, `/api/talk`, `/api/talk/cli`, `/api/telegram`, `src/lib/talk/`): one chat
   per browser, under a name or anonymous (everyone is asked first; a new name starts a fresh chat).
@@ -130,8 +130,8 @@ time once there are a couple of nights.
 - **Who's here and where**: towns come from Vercel's IP headers (city level), travel with presence,
   and read as "you, two people in Berlin and someone in Mumbai" (`words.ts`, tested). Scroll
   positions are broadcast at most once a second while 2-8 people are on the site, for the dots.
-- **Today's map** (`/api/visitors/today`, /now): towns of today's visits, coordinates rounded to
-  ~10 km, deleted nightly with the hashes. Land is a 2 KB dot grid from `scripts/make-land.mjs`.
+- **This month's map** (`/api/visitors/month`, /now): towns of this month's visits (from the 1st, Pune time),
+  coordinates rounded to ~10 km, deleted when the month ends with the hashes. Land is a 2 KB dot grid from `scripts/make-land.mjs`.
 - **Played your song**: the sender's browser keeps a random code (stored scrambled with the
   submission); `/api/songs/mine` matches their songs against later plays by song key.
 - **Built to this soundtrack** (`src/lib/history/soundtrack.ts`): a project's commits since my
