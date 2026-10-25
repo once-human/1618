@@ -93,6 +93,11 @@ export async function POST(req: Request) {
     case "clearStatus":
       await kvDelete("status");
       return ok();
+    case "theme": {
+      const theme = b.theme === "light" ? "light" : "dark";
+      await kvSet("admin:theme", theme);
+      return ok({ theme });
+    }
     case "bed": {
       const bedtime = await goToBed("admin");
       return bedtime ? ok({ bedtime }) : no("Couldn't reach the database. Try again?");

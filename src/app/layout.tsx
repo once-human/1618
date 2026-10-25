@@ -9,6 +9,7 @@ import { HereKeeper } from "@/components/site/HereKeeper";
 import { TalkNotice } from "@/components/site/TalkNotice";
 import { PlayedYourSong } from "@/components/site/PlayedYourSong";
 import { SiteOnly } from "@/components/site/SiteOnly";
+import { Tracker } from "@/components/site/Tracker";
 import { SeedLive } from "@/components/site/SeedLive";
 
 const description =
@@ -83,6 +84,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           <HereKeeper />
           <TalkNotice />
           <PlayedYourSong />
+          <Tracker />
         </SiteOnly>
       </body>
     </html>

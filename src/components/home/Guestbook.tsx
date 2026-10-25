@@ -1,5 +1,6 @@
 "use client";
 
+import { track } from "@/lib/visits/client";
 import { useRef, useState } from "react";
 import { addSubmission, useGuestbook, useNow, useVisits } from "@/lib/presence/client";
 import { fmtNum, timeAgo } from "@/lib/time";
@@ -28,6 +29,7 @@ export function Guestbook() {
       const d = await res.json();
       if (!d.ok) return setState({ kind: "error", text: d.reason });
       if (d.submission) addSubmission(d.submission);
+      track("signed the guestbook");
       setMessage("");
       setState({ kind: "done", text: "you're in the book. thank you 🖤" });
     } catch {

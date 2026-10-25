@@ -4,6 +4,7 @@ import { useSyncExternalStore } from "react";
 import type { RealtimeChannel, RealtimeClient } from "@supabase/realtime-js";
 import { HERE_KEY, HERE_URL } from "@/lib/presence/here-config";
 import { traits } from "@/lib/presence/here";
+import { track } from "@/lib/visits/client";
 
 /**
  * The visitor's side of "talk to me": one chat per browser, under one name
@@ -194,6 +195,7 @@ export async function send(text: string): Promise<Result> {
       return { ok: false, reason: d.reason ?? "that didn't go through. try again?" };
     }
     const msg = d.message;
+    track(c ? "wrote to me" : "started a chat");
     if (c) set({ chat: { ...c, name: c.name ?? d.name ?? null, anon: c.anon || !!d.anon, messages: [...(state.chat?.messages ?? []).filter((m) => m.id !== temp.id), msg] } });
     else {
       set({ chat: { id: d.thread, name: d.name ?? null, anon: !!d.anon, messages: [msg], seen: 0 } });

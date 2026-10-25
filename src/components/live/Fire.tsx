@@ -1,5 +1,6 @@
 "use client";
 
+import { track as log } from "@/lib/visits/client";
 import { useState } from "react";
 
 /**
@@ -15,6 +16,7 @@ export function Fire({ track, artist, count }: { track: string; artist: string; 
   async function send() {
     if (done) return;
     setMine({ key, n: (count ?? 0) + 1 });
+    log("liked a song", `${track} — ${artist}`);
     try {
       const res = await fetch("/api/react", {
         method: "POST",

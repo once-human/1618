@@ -45,6 +45,10 @@ export function Footer() {
         <Link href="/privacy" className="hover:underline">
           privacy
         </Link>
+        <span className="text-quiet">, </span>
+        <Link href="/privacy#your-visit" className="hover:underline">
+          your data
+        </Link>
       </p>
       <p className={`${cell} truncate ${latest ? "" : "hidden"} md:block`} aria-live="polite">
         {latest ? (

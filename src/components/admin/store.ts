@@ -62,6 +62,7 @@ export interface RecentPlace {
 }
 export interface AdminState {
   at: string;
+  theme: "dark" | "light";
   place: { city: string; tz: string; lat: number; lon: number; setAt?: string; held: { until: number | null; setAt: string } | null; recent: RecentPlace[] };
   weather: { tempC: number; label: string; cloud?: number | null; rain?: boolean } | null;
   status: { text: string; setAt: string; until: string } | null;

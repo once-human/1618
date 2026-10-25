@@ -2,6 +2,7 @@
 
 import { togglePreview, usePlayer } from "@/lib/presence/client";
 import { artSet } from "@/lib/art";
+import { track } from "@/lib/visits/client";
 
 /**
  * A cover you can press to hear 30 seconds of the song. One clip plays at a
@@ -34,7 +35,10 @@ export function Preview({
   return (
     <button
       type="button"
-      onClick={() => togglePreview(id, url)}
+      onClick={() => {
+        if (!(active && p.playing)) track("played a preview", label);
+        togglePreview(id, url);
+      }}
       aria-label={`${active && p.playing ? "Pause" : "Play"} a preview of ${label}`}
       aria-pressed={active && p.playing}
       className={`group relative block shrink-0 ${className}`}

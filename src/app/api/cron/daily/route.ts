@@ -1,6 +1,7 @@
 import { connection } from "next/server";
 import { q } from "@/lib/db";
 import { runSync } from "@/lib/history/sync";
+import { foldOld } from "@/lib/visits/server";
 
 /**
  * Once a day (Vercel cron): a full sync, and housekeeping of short-lived rows.
@@ -18,9 +19,11 @@ export async function GET(req: Request) {
       db`DELETE FROM visitors WHERE day < (now() AT TIME ZONE 'Asia/Kolkata')::date`,
     ]),
   );
-  await Promise.all([
+  // The visitor log: past 30 days, a visit keeps only its country and counts.
+  const [visits] = await Promise.all([
+    foldOld(),
     q("clean ratelimit", (db) => db`DELETE FROM ratelimit WHERE window_start < now() - interval '2 days'`),
   ]);
-  return Response.json({ sync });
+  return Response.json({ sync, visits });
 }
 export const maxDuration = 120;

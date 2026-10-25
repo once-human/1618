@@ -13,7 +13,7 @@ export async function GET(req: Request) {
   if (!(await isAdmin(req))) return new Response("Not allowed", { status: 401 });
   const day = new Date(Date.now() + 5.5 * 3600_000).toISOString().slice(0, 10);
 
-  const [presence, place, held, recent, music, sources, sync, backfill, counts, health, today, total, threads, posts, shortcuts, logins, me, nights] = await Promise.all([
+  const [presence, place, held, recent, music, sources, sync, backfill, counts, health, today, total, threads, posts, shortcuts, logins, me, nights, theme] = await Promise.all([
     getPresence(),
     getPlace(),
     heldUntil(),
@@ -61,6 +61,7 @@ export async function GET(req: Request) {
     q<{ at: string; data: { via?: string; endedAt?: string } }>("admin nights", (db) =>
       db`SELECT at, data FROM events WHERE kind = 'sleep' ORDER BY at DESC LIMIT 14`,
     ),
+    kvGet<string>("admin:theme"),
   ]);
 
   const songs = (posts ?? []).filter((p) => p.kind === "song" && p.payload?.track);
@@ -72,6 +73,7 @@ export async function GET(req: Request) {
   return Response.json(
     {
       at: new Date().toISOString(),
+      theme: theme?.value === "light" ? "light" : "dark",
       place: { ...place, held, recent },
       weather: presence.weather,
       status: presence.status,

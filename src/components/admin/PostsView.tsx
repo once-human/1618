@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { act, type AdminState, type Post } from "./store";
-import { Button, Chip, Confirm, Empty, Icon, ago, when } from "./ui";
+import { Button, Chip, Confirm, Empty, Icon, Seg, ago, when } from "./ui";
 
 type Kind = "song" | "note";
 type Show = "showing" | "hidden" | "all";
@@ -17,20 +17,17 @@ export function PostsView({ data }: { data: AdminState }) {
   const notes = data.posts.filter((p) => p.kind === "note");
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="bg-a-soft inline-flex rounded-xl p-1" role="tablist">
-          {(
-            [
-              ["song", `Songs ${songs.length}`],
-              ["note", `Guestbook ${notes.length}`],
-            ] as [Kind, string][]
-          ).map(([k, label]) => (
-            <button key={k} role="tab" aria-selected={kind === k} onClick={() => setKind(k)} className={`rounded-lg px-4 py-1.5 text-[14.5px] ${kind === k ? "bg-a-panel font-semibold shadow-sm" : "text-a-quiet"}`}>
-              {label}
-            </button>
-          ))}
-        </div>
+        <Seg
+          label="Which"
+          value={kind}
+          onChange={setKind}
+          options={[
+            { id: "song", label: `Songs ${songs.length}` },
+            { id: "note", label: `Guestbook ${notes.length}` },
+          ]}
+        />
         <div className="flex gap-2">
           {(["showing", "hidden", "all"] as Show[]).map((s) => (
             <Chip key={s} on={show === s} onClick={() => setShow(s)}>
@@ -47,13 +44,13 @@ export function PostsView({ data }: { data: AdminState }) {
       ) : null}
 
       {list.length ? (
-        <ul className="bg-a-panel border-a-line divide-a-line divide-y overflow-hidden rounded-2xl border">
+        <ul className="border-a-line divide-a-line divide-y border-y">
           {list.map((p) => (
             <PostRow key={p.id} p={p} />
           ))}
         </ul>
       ) : (
-        <div className="bg-a-panel border-a-line rounded-2xl border">
+        <div className="border-a-line border-y">
           <Empty>
             {all.length
               ? "Nothing here with this filter."
@@ -79,9 +76,9 @@ function PostRow({ p }: { p: Post }) {
       {p.kind === "song" ? (
         p.song?.art ? (
           // eslint-disable-next-line @next/next/no-img-element -- Apple's artwork, as sent
-          <img src={p.song.art.replace("96x96", "160x160")} alt="" width={56} height={56} className="size-14 shrink-0 rounded-lg object-cover" />
+          <img src={p.song.art.replace("96x96", "160x160")} alt="" width={56} height={56} className="size-14 shrink-0 object-cover" />
         ) : (
-          <span className="bg-a-soft size-14 shrink-0 rounded-lg" />
+          <span className="bg-a-soft size-14 shrink-0" />
         )
       ) : null}
       <div className="min-w-0 flex-1 basis-56">
@@ -100,7 +97,7 @@ function PostRow({ p }: { p: Post }) {
       <div className="flex shrink-0 flex-wrap items-center gap-1">
         {p.song?.preview ? <Preview url={p.song.preview} /> : null}
         {p.song?.link ? (
-          <a href={p.song.link} target="_blank" rel="noopener noreferrer" className="text-a-quiet hover:text-a-ink hover:bg-a-soft inline-flex min-h-9 items-center rounded-lg px-2.5 text-[14px]">
+          <a href={p.song.link} target="_blank" rel="noopener noreferrer" className="text-a-quiet hover:text-a-ink hover:bg-a-soft inline-flex min-h-9 items-center px-2.5 text-[14px]">
             Apple Music
           </a>
         ) : null}

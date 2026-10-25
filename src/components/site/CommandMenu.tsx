@@ -105,6 +105,7 @@ export function CommandMenu() {
       { group: "Pages", label: "All work", hint: "/work", run: go("/work") },
       { group: "Pages", label: "Status: everything this site does, and whether it's working", hint: "/status", run: go("/status") },
       { group: "Pages", label: "Privacy", hint: "/privacy", run: go("/privacy") },
+      { group: "Pages", label: "What this site keeps about you: see it, delete it, turn it off", hint: "/privacy", run: go("/privacy#your-visit") },
     );
     for (const [k, href] of Object.entries(profile.links))
       if (href && k !== "email")

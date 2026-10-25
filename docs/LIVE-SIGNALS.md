@@ -51,7 +51,7 @@ time once there are a couple of nights.
 
 ## Things only I do
 
-- **`/admin`** (log in with the site key): hide or delete guestbook posts and sent songs, set my status,
+- **`/admin`** (log in with the site key; dark or light, saved with the account so every device opens the same): hide or delete guestbook posts and sent songs, set my status,
   see the store's size and last sync, connect Telegram, get the iPhone shortcuts, run a sync.
 - **iPhone shortcuts** (signed, downloadable from /admin; each asks for the site key when added):
   *1618 Health* (today's steps, distance, active calories → `/api/ingest/health`; run it from an
@@ -67,6 +67,26 @@ time once there are a couple of nights.
   them; type without replying to answer the latest chat; `/chats` lists open ones.
 
 ## Visitors
+
+- **The visitor log** (`src/lib/visits/`, tables `visits`, `visit_events`, `visit_days`,
+  `visit_day_pages`). The page (`Tracker` in the layout, `lib/visits/client.ts`) sends batches to
+  `POST /api/track`: pages in order, time on each while visible, scroll depth, links out, and a few
+  actions (song sent, guestbook, chat, preview played). The server adds town/country (Vercel geo
+  headers) and a device name. A visit is one tab, ending after 30 idle minutes; visits from one
+  browser are linked by a random code the browser keeps in localStorage. A visit counts as a
+  person once someone moves, scrolls, taps or types; otherwise it's filed as a program ("didn't
+  move, scroll or tap"), as are automated browsers. Crawlers, link previews and curl don't run
+  JavaScript, so `src/proxy.ts` logs them: its matcher only admits requests whose user agent looks
+  like a program (or has none), so people's page loads never touch it. No IP is stored anywhere.
+- **Retention**: the daily cron (`foldOld`) folds visits older than 30 days (whole Pune days) into
+  `visit_days` (people and visits per country per day) and `visit_day_pages` (views per page), then
+  deletes them with their events.
+- **Visitors' control**: `/privacy#your-visit` shows everything kept for the browser's code
+  (`GET /api/track?me=`), deletes it (`DELETE`, which also blocks late batches from that code for two
+  days), and can turn the log off for that browser. Global Privacy Control and Do Not Track turn it
+  off too.
+- **Admin**: `/admin#privacy` lists visits (24 h / 7 days / 30 days; people, programs or both) with
+  each visit's full trail, plus all-time counts by country (`/api/admin/visitors`).
 
 - **Send me a song / guestbook**: `/api/submit`. Songs are re-looked-up on Apple by id. A light
   filter (`src/lib/moderation.ts`, tested) refuses links, slurs, explicit words, ASCII drawings and

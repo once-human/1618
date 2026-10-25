@@ -1,5 +1,6 @@
 "use client";
 
+import { track } from "@/lib/visits/client";
 import { useEffect, useRef, useState } from "react";
 import { addSubmission, useNow, useSongsSent } from "@/lib/presence/client";
 import { timeAgo } from "@/lib/time";
@@ -55,6 +56,7 @@ export function SendSong() {
       const d = await res.json();
       if (!d.ok) return setState({ kind: "error", text: d.reason });
       if (d.submission) addSubmission(d.submission);
+      track("sent a song", `${picked.track} — ${picked.artist}`);
       try {
         localStorage.setItem("sent-songs", "1");
       } catch {

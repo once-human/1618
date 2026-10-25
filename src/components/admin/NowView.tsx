@@ -15,9 +15,9 @@ export function NowView({ data, people }: { data: AdminState; people: Person[] |
   const here = people?.length ?? null;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-14">
       {/* The moment, in one sentence. */}
-      <p className="wide max-w-[34ch] text-[24px] leading-[1.18] font-semibold tracking-tight md:text-[34px]">
+      <p className="border-a-ink max-w-[44ch] border-t pt-1.5 text-[clamp(1.35rem,2.7vw,2.1rem)] leading-tight tracking-tight">
         {here === null ? "Checking who's on the site…" : here === 0 ? "Nobody's on the site right now." : `${plural(here, "person is", "people are")} on the site right now.`}{" "}
         {waiting.length ? (
           <a href="#talk" className="text-a-signal underline decoration-2 underline-offset-4">
@@ -32,8 +32,8 @@ export function NowView({ data, people }: { data: AdminState; people: Person[] |
         </span>
       </p>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.3fr_1fr]">
-        <div className="space-y-4">
+      <div className="grid grid-cols-1 gap-x-10 gap-y-14 lg:grid-cols-[1.3fr_1fr]">
+        <div className="space-y-14">
           {waiting.length ? (
             <Panel title="Waiting on you" aside={<a href="#talk" className="hover:text-a-ink">All chats</a>}>
               <ul className="divide-a-line divide-y">
@@ -88,7 +88,7 @@ export function NowView({ data, people }: { data: AdminState; people: Person[] |
           </Panel>
         </div>
 
-        <div className="space-y-4">
+        <div className="space-y-14">
           <Panel title="How the site shows you" aside={<a href="#you" className="hover:text-a-ink">Change</a>}>
             <dl className="space-y-3 text-[14.5px]">
               <Row k="Status">

@@ -5,14 +5,15 @@ import { Footer } from "@/components/site/Footer";
 import { profile } from "@/content/profile";
 import { SITE_URL } from "@/lib/site";
 import { PageTransition } from "@/components/site/PageTransition";
+import { YourVisit } from "@/components/pages/YourVisit";
 
 export const metadata: Metadata = pageMeta(
   "Privacy",
-  "What this site knows about you (almost nothing) and how it uses my own Pinterest, music and GitHub data.",
+  "What this site keeps about your visit, for how long, and how to see it, delete it or turn it off.",
   "/privacy",
 );
 
-const UPDATED = "17 October 2026";
+const UPDATED = "25 October 2026";
 const host = SITE_URL.replace(/^https?:\/\//, "");
 
 const link = "underline decoration-1 underline-offset-4 hover:decoration-2";
@@ -51,14 +52,55 @@ export default function Privacy() {
 
           <Part title="The short version">
             <p>
-              This is my personal website. It has no accounts, no cookies, no analytics and no ads.
-              Nothing on it tracks you. The only things it keeps from visitors are what you choose
-              to post (a song for me, or a line in the guestbook) and a few anonymous counts.
+              This is my personal website. It has no accounts, no cookies, no ads and no analytics
+              company watching. It does keep its own log of visits, so I can see how people find it
+              and what they read: the town you&apos;re in, your kind of device, and which pages you
+              open, in what order and for how long. Never your IP address, never your exact
+              location, never your name.
+            </p>
+            <p>
+              Every visit is kept in full for 30 days. After that, all that&apos;s left of it is a
+              count: one more person, from your country, on that day. You can see exactly what the
+              log holds about your browser, delete it, or turn it off,{" "}
+              <a href="#your-visit" className={link}>
+                right here
+              </a>
+              .
             </p>
             <p>
               The live parts of the page (what I&apos;m listening to, what I&apos;ve saved on
               Pinterest, what I&apos;ve pushed to GitHub, my runs) are about me, not you.
             </p>
+          </Part>
+
+          <Part title="The visitor log" id="log">
+            <p>When you visit, your browser tells the site, every few seconds while the page is open:</p>
+            <ul className="list-disc space-y-1 pl-5">
+              <li>which pages you open, in order, how long each was on your screen, and how far down you got;</li>
+              <li>which links to other sites you follow (the site and page, not anything about you);</li>
+              <li>things you do here: sending a song, signing the guestbook, writing to me, playing a preview (that you did it, not what you wrote);</li>
+              <li>the site you came from, as a name only (&ldquo;instagram.com&rdquo;), your browser&apos;s language, and whether you&apos;re on a phone, tablet or computer.</li>
+            </ul>
+            <p>
+              The server adds the town and country your connection comes from (from Vercel, never
+              anything finer) and a device name like &ldquo;iPhone, Safari&rdquo;. To tell one visit
+              of yours from the next, your browser makes up a random code and keeps it in its own
+              storage. It isn&apos;t a cookie, isn&apos;t sent to anyone else, and isn&apos;t made
+              from anything about you; clearing your browser&apos;s data, or deleting it below,
+              makes it disappear. Programs that fetch pages (search engines, link previews, curl)
+              are logged too, by name, so I can tell them apart from people.
+            </p>
+            <p>
+              Only I can read the log. Full detail is kept for 30 days; every night, anything older
+              is reduced to counts per day (people per country, views per page) and the rest is
+              deleted. Nothing in it is sold, shared or used for advertising. If your browser asks
+              sites not to track it (Global Privacy Control, or Do Not Track), the log leaves you
+              out entirely.
+            </p>
+          </Part>
+
+          <Part title="Your visit" id="your-visit">
+            <YourVisit />
           </Part>
 
           <Part title="When you visit">
@@ -70,12 +112,12 @@ export default function Privacy() {
               <Ext href="https://vercel.com/legal/privacy-policy">Vercel privacy policy</Ext>.
             </p>
             <p>
-              No cookies. The clock shows the time where I am, and your own time next to it, both
+              Still no cookies. The clock shows the time where I am, and your own time next to it, both
               worked out in your browser. The weather is for the town I&apos;m in, fetched by the
               server, never based on where you are.
             </p>
             <p>
-              Two counts, nothing more. The visitor count adds you once a day, however often you
+              Separately from the log, two live counts. The visitor count adds you once a day, however often you
               reload, recognising a returning visitor only by the scrambled, daily-changing code
               described below. For the map of today&apos;s visitors on /now, the town your
               connection comes from is kept with it (coordinates rounded to about 10 km) and

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { act, type AdminState } from "./store";
-import { Button, Confirm, Dot, Panel, ago, flag, fmt, town, when } from "./ui";
+import { Button, Dot, Panel, ago, fmt } from "./ui";
 
 const SHORTCUTS: { id: "health" | "location" | "status" | "goodnight"; name: string; what: string; automate: string }[] = [
   { id: "health", name: "1618 Health", what: "Today's steps, distance and active calories.", automate: "Automation → App → Is Opened (an app you open a lot) → Run Immediately. Health can't be read while the phone is locked, so a time-of-day automation won't work." },
@@ -24,8 +24,8 @@ export function SiteView({ data }: { data: AdminState }) {
   const s = data.store;
 
   return (
-    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-      <div className="space-y-4">
+    <div className="grid grid-cols-1 gap-x-10 gap-y-14 lg:grid-cols-2">
+      <div className="space-y-14">
         <Panel title="Live sources" aside={`Checked ${ago(data.sources.checkedAt)}`}>
           <ul className="divide-a-line divide-y">
             {checks.map((c) => (
@@ -73,7 +73,7 @@ export function SiteView({ data }: { data: AdminState }) {
         </Panel>
       </div>
 
-      <div className="space-y-4">
+      <div className="space-y-14">
         <Panel title="Telegram" aside="Talk messages to your phone">
           {!tg.configured ? (
             <ol className="list-inside list-decimal space-y-1 text-[14.5px]">
@@ -91,7 +91,7 @@ export function SiteView({ data }: { data: AdminState }) {
                 <Button busy={busy === "tg"} onClick={async () => (setBusy("tg"), await act("telegramTest", {}, "Sent. Check Telegram."), setBusy(null))}>
                   Send a test
                 </Button>
-                <a href="/api/telegram/connect" className="text-a-quiet hover:text-a-ink hover:bg-a-soft inline-flex min-h-9 items-center rounded-lg px-3 text-[14px]">
+                <a href="/api/telegram/connect" className="text-a-quiet hover:text-a-ink inline-flex min-h-9 items-center px-3 text-[14px]">
                   Reconnect
                 </a>
               </div>
@@ -99,7 +99,7 @@ export function SiteView({ data }: { data: AdminState }) {
           ) : (
             <>
               <p className="text-[14.5px]">The bot is ready. Connect it, then press Start in the chat that opens.</p>
-              <a href="/api/telegram/connect" className="bg-a-signal mt-3 inline-flex min-h-9 items-center rounded-lg px-4 text-[14px] font-semibold text-white">
+              <a href="/api/telegram/connect" className="bg-a-ink text-a-bg mt-3 inline-flex min-h-9 items-center px-4 text-[14px] font-semibold">
                 Connect Telegram
               </a>
             </>
@@ -115,29 +115,6 @@ export function SiteView({ data }: { data: AdminState }) {
           <p className="text-a-quiet mt-2 text-[13px]">Each one asks for the site key once, when you add it, and keeps it on your phone.</p>
         </Panel>
 
-        <Panel title="Security">
-          <p className="text-[14.5px]">Recent logins</p>
-          <ul className="mt-1 mb-3 space-y-1 text-[14px]">
-            {data.logins.length ? (
-              data.logins.slice(0, 5).map((l) => (
-                <li key={l.at} className="text-a-quiet flex justify-between gap-3">
-                  <span className="truncate">
-                    {l.device}, {flag(l.country)} {town(l.city, l.country)}
-                  </span>
-                  <span className="shrink-0">{when(l.at)}</span>
-                </li>
-              ))
-            ) : (
-              <li className="text-a-quiet">None recorded yet.</li>
-            )}
-          </ul>
-          <div className="flex flex-wrap gap-2">
-            <Confirm label="Log out everywhere else" yes="Log them all out" busy={busy === "out"} onYes={async () => (setBusy("out"), await act("logoutAll", {}, "Every other browser is logged out"), setBusy(null))} />
-          </div>
-          <p className="text-a-quiet mt-3 text-[13px]">
-            To change the site key: Vercel → 1618 → Settings → Environment Variables → ADMIN_SECRET → Edit, then redeploy. That logs out every browser, and the phone shortcuts need the new key.
-          </p>
-        </Panel>
       </div>
     </div>
   );
@@ -160,7 +137,7 @@ function Shortcut({ sc, ready }: { sc: (typeof SHORTCUTS)[number]; ready: boolea
         </div>
         {ready ? (
           <div className="flex gap-1">
-            <a href={`/api/shortcuts/${sc.id}`} className="bg-a-soft hover:bg-a-line inline-flex min-h-9 items-center rounded-lg px-3 text-[14px] font-medium">
+            <a href={`/api/shortcuts/${sc.id}`} className="bg-a-ink text-a-bg inline-flex min-h-9 items-center px-3 text-[14px] font-medium hover:opacity-85">
               Install
             </a>
             <Button kind="quiet" onClick={showQr} className="hidden md:inline-flex">
@@ -173,7 +150,7 @@ function Shortcut({ sc, ready }: { sc: (typeof SHORTCUTS)[number]; ready: boolea
       </div>
       {qr ? (
         <div className="mt-3 flex items-center gap-4">
-          <div className="size-32 shrink-0 rounded-lg bg-white p-1.5 [&_svg]:size-full" dangerouslySetInnerHTML={{ __html: qr }} />
+          <div className="size-32 shrink-0 bg-white p-1.5 [&_svg]:size-full" dangerouslySetInnerHTML={{ __html: qr }} />
           <p className="text-a-quiet text-[13px]">Point your iPhone camera at this to install it.</p>
         </div>
       ) : null}

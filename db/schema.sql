@@ -41,3 +41,44 @@ CREATE INDEX IF NOT EXISTS talk_messages_tg ON talk_messages (tg_id) WHERE tg_id
 ALTER TABLE visitors ADD COLUMN IF NOT EXISTS city text, ADD COLUMN IF NOT EXISTS country text, ADD COLUMN IF NOT EXISTS lat real, ADD COLUMN IF NOT EXISTS lon real;
 -- A scrambled code from the sender's browser, so they can be told when I play their song
 ALTER TABLE submissions ADD COLUMN IF NOT EXISTS sender text;
+-- Talk: who's writing, roughly (salted network + device hashes, never an address)
+ALTER TABLE talk_threads ADD COLUMN IF NOT EXISTS net text, ADD COLUMN IF NOT EXISTS device text, ADD COLUMN IF NOT EXISTS ua text, ADD COLUMN IF NOT EXISTS anon boolean NOT NULL DEFAULT false;
+CREATE INDEX IF NOT EXISTS talk_threads_net ON talk_threads (net);
+
+-- The visitor log. Every visit in full for 30 days: where from (city), what
+-- device, which pages in what order, for how long, what they clicked. Never
+-- an IP address. "visitor" is a random code the browser makes for itself.
+-- Programs (crawlers, link previews, curl) are logged server-side, one row a
+-- day per program. After 30 days a visit is folded into visit_days (country
+-- and counts only) and visit_day_pages (views per page), and deleted.
+CREATE TABLE IF NOT EXISTS visits (
+  id text PRIMARY KEY,
+  visitor text,
+  kind text NOT NULL,            -- 'person' or 'bot'
+  reason text,                   -- for bots: how we know
+  started_at timestamptz NOT NULL DEFAULT now(),
+  last_at timestamptz NOT NULL DEFAULT now(),
+  city text,
+  country text,
+  device text,                   -- "iPhone, Safari", or the program's name
+  lang text,
+  screen text,                   -- phone, tablet, desktop
+  referrer text,                 -- where they came from: a site name, never a full address
+  pages int NOT NULL DEFAULT 0,
+  active_ms int NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS visits_started ON visits (started_at DESC);
+CREATE INDEX IF NOT EXISTS visits_visitor ON visits (visitor) WHERE visitor IS NOT NULL;
+CREATE TABLE IF NOT EXISTS visit_events (
+  visit text NOT NULL REFERENCES visits(id) ON DELETE CASCADE,
+  seq int NOT NULL,
+  at timestamptz NOT NULL,
+  type text NOT NULL,            -- page, click, action
+  path text NOT NULL,
+  detail text,
+  ms int,                        -- time on the page, while it was on screen
+  scroll smallint,               -- how far down they got, percent
+  PRIMARY KEY (visit, seq)
+);
+CREATE TABLE IF NOT EXISTS visit_days (day date NOT NULL, country text NOT NULL, kind text NOT NULL, visitors int NOT NULL, visits int NOT NULL, pages int NOT NULL, PRIMARY KEY (day, country, kind));
+CREATE TABLE IF NOT EXISTS visit_day_pages (day date NOT NULL, path text NOT NULL, kind text NOT NULL, views int NOT NULL, PRIMARY KEY (day, path, kind));

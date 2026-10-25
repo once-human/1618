@@ -50,8 +50,12 @@ anywhere to jump around. In a terminal, try:
 curl -L onkaryaglewad.in
 ```
 
-The site has no cookies, analytics or ad tracking. The [privacy page](https://onkaryaglewad.in/privacy)
-explains exactly what it reads, what it keeps, and from where.
+The site has no cookies, no ads and no analytics company. It does keep its own visitor log, so I
+can see how people find it and what they read: the town, the kind of device, and the pages in
+order. Never an IP address. Each visit is kept in full for 30 days, then only as a count per
+country. The [privacy page](https://onkaryaglewad.in/privacy) explains exactly what it keeps, and
+at the bottom shows you everything the log holds about your own browser, with buttons to delete it
+or turn it off. Browsers that ask not to be tracked aren't.
 
 ## What's in the work index
 
