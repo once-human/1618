@@ -1,6 +1,6 @@
 "use client";
 
-import { isBotBrowser, whenHuman } from "@/lib/bots";
+import { isBotAgent, isBotBrowser, whenHuman } from "@/lib/bots";
 import { IDLE_MS, MAX_EVENTS, cleanPath, refHost, type TrackBatch, type TrackEvent } from "./shared";
 
 /**
@@ -120,7 +120,8 @@ function send(final = false) {
 
 /** Start logging this visit (once per page load). */
 export function startTracking() {
-  if (started || typeof window === "undefined" || trackingOff()) return;
+  // A program that says so in its user agent is already logged by the server (src/proxy.ts).
+  if (started || typeof window === "undefined" || trackingOff() || isBotAgent(navigator.userAgent)) return;
   started = true;
   visit = visitId();
   if (isBotBrowser()) bot = "an automated browser";
