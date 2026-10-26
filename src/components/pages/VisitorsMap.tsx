@@ -480,10 +480,8 @@ export function VisitorsMap() {
                     const k = key(p);
                     const on = shown === k;
                     const r = radius(p) * unit;
-                    const you = p.city === me.city && p.country === me.country;
                     return (
                       <g key={k} data-dot style={{ opacity: shown != null && !on ? 0.35 : 1, transition: "opacity .15s" }}>
-                        {p.n > 1 ? <circle cx={x} cy={y} r={r} className="stroke-ink fill-none" strokeOpacity={on ? 0.5 : 0.22} strokeWidth={1 * unit} strokeDasharray={`${2 * unit} ${3 * unit}`} /> : null}
                         {swarm(p.n).pts.map((d, i) => {
                           const cx = x + d.x * unit * (on ? 1.15 : 1);
                           const cy = y + d.y * unit * (on ? 1.15 : 1);
@@ -497,7 +495,6 @@ export function VisitorsMap() {
                             </g>
                           );
                         })}
-                        {you ? <circle cx={x} cy={y} r={r + 4 * unit} className="stroke-ink fill-none" strokeWidth={1.5 * unit} /> : null}
                         <circle
                           cx={x}
                           cy={y}

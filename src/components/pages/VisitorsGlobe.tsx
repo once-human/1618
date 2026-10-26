@@ -498,16 +498,6 @@ export function VisitorsGlobe({ places, live, shown, onHover, onPin, goto, total
         const sw = swarm(f.p.n);
         const kk = f.r / sw.reach; // the swarm shrinks a little toward the limb and grows when you're on it
         const liveCount = P.live.get(f.k) ?? 0;
-        ctx.globalAlpha = fade * (on ? 0.5 : 0.22);
-        if (f.p.n > 1) {
-          ctx.strokeStyle = colours.ink;
-          ctx.lineWidth = 1;
-          ctx.setLineDash([2, 3]);
-          ctx.beginPath();
-          ctx.arc(f.x, f.y, f.r, 0, Math.PI * 2);
-          ctx.stroke();
-          ctx.setLineDash([]);
-        }
         for (let i = 0; i < sw.pts.length; i++) {
           const d = sw.pts[i];
           const dx = f.x + d.x * kk;
@@ -531,13 +521,6 @@ export function VisitorsGlobe({ places, live, shown, onHover, onPin, goto, total
           ctx.stroke();
         }
         ctx.globalAlpha = fade;
-        if (f.p.city === P.me.city && f.p.country === P.me.country) {
-          ctx.beginPath();
-          ctx.arc(f.x, f.y, f.r + 4, 0, Math.PI * 2);
-          ctx.strokeStyle = colours.ink;
-          ctx.lineWidth = 1.5;
-          ctx.stroke();
-        }
         s.hit.push({ k: f.k, x: f.x, y: f.y, r: Math.max(f.r, 14) });
         if (on) Object.assign(shownPos, { x: f.x, y: f.y, r: f.r, lat: f.p.lat!, lon: f.p.lon! });
       }
