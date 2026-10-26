@@ -16,18 +16,6 @@ type State = "active" | "around" | "away";
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 /**
- * Detail that opens up right after a word, in the line itself, on hover or
- * keyboard focus. It's part of the sentence, not something floating over it.
- */
-function Hint({ children }: { children: React.ReactNode }) {
-  return (
-    <span className="inline-block max-w-0 overflow-hidden align-middle whitespace-nowrap opacity-0 transition-[max-width,opacity] duration-200 group-focus-within:max-w-[18rem] group-focus-within:opacity-100 group-hover:max-w-[18rem] group-hover:opacity-100 motion-reduce:transition-none">
-      <span className="border-ink text-quiet ml-2 inline-block border px-1.5 py-1 align-middle text-[13px] leading-none font-normal tracking-normal">{children}</span>
-    </span>
-  );
-}
-
-/**
  * A line from the brain or voice.ts: **bold**, @@repo@@ (underlined, links to
  * the repo) and %%song%% (underlined, plays its 30-second preview).
  */
@@ -49,13 +37,10 @@ function Words({ text, song }: { text: string; song?: { id: string; url: string 
           if (!song?.url) return <span key={k} className="font-semibold">{name}</span>;
           const on = p.key === song.id && p.playing;
           return (
-            <span key={k} className="group">
-              <button type="button" onClick={() => togglePreview(song.id, song.url!)} aria-pressed={on} aria-label={`${on ? "Pause" : "Play"} 30 seconds of ${song.label}`} className="cursor-pointer font-semibold underline decoration-1 underline-offset-4">
-                {name}
-                {on ? <span className="text-quiet font-normal"> ❚❚</span> : null}
-              </button>
-              <Hint>{on ? "Playing · tap to pause" : `${song.label} · tap for 30 seconds`}</Hint>
-            </span>
+            <button key={k} type="button" onClick={() => togglePreview(song.id, song.url!)} aria-pressed={on} aria-label={`${on ? "Pause" : "Play"} 30 seconds of ${song.label}`} className="cursor-pointer font-semibold underline decoration-1 underline-offset-4">
+              {name}
+              {on ? <span className="text-quiet font-normal"> ❚❚</span> : null}
+            </button>
           );
         }
         return chunk.split("**").map((part, i) => (i % 2 ? <span key={`${k}-${i}`} className="font-semibold">{part}</span> : part));
