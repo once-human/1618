@@ -104,7 +104,7 @@ export async function GET(req: Request) {
       })),
       sources,
       store: c ? { ...c, lastSync: sync?.value.at ?? null, backfillDone: !!backfill?.value.done } : null,
-      shortcuts: Object.fromEntries(["health", "location", "status", "goodnight"].map((k) => [k, (shortcuts ?? []).some((s) => s.key === `shortcut:${k}`)])),
+      shortcuts: Object.fromEntries(["health", "location", "status", "goodnight", "goodmorning"].map((k) => [k, (shortcuts ?? []).some((s) => s.key === `shortcut:${k}`)])),
       logins: logins?.value ?? [],
     },
     { headers: { "Cache-Control": "no-store" } },

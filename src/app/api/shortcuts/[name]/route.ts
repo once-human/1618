@@ -6,7 +6,7 @@ import { isAdmin, kvGet, kvSet } from "@/lib/db";
  * They hold no secret: the site key is asked for when the shortcut is added.
  * Built by scripts/shortcuts/build.py, signed, then uploaded here (PUT, admin).
  */
-const NAMES: Record<string, string> = { health: "1618 Health", location: "1618 Location", status: "1618 Status", goodnight: "Good Night" };
+const NAMES: Record<string, string> = { health: "1618 Health", location: "1618 Location", status: "1618 Status", goodnight: "Good Night", goodmorning: "Good Morning" };
 
 export async function GET(_req: Request, ctx: RouteContext<"/api/shortcuts/[name]">) {
   await connection();

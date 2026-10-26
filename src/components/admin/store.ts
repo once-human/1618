@@ -79,7 +79,7 @@ export interface AdminState {
   posts: Post[];
   sources: { checks: SourceCheck[]; checkedAt: string };
   store: { plays: number; first: string | null; pins: number; events: number; plays_today: number; lastSync: string | null; backfillDone: boolean } | null;
-  shortcuts: Record<"health" | "location" | "status" | "goodnight", boolean>;
+  shortcuts: Record<"health" | "location" | "status" | "goodnight" | "goodmorning", boolean>;
   logins: { at: string; city: string | null; country: string | null; device: string }[];
 }
 

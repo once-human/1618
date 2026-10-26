@@ -2,9 +2,10 @@
 
 import { useState } from "react";
 import { act, type AdminState } from "./store";
+import { useDesk } from "@/lib/presence/client";
 import { Button, Dot, Panel, ago, fmt } from "./ui";
 
-const SHORTCUTS: { id: "health" | "location" | "status" | "goodnight"; name: string; what: string; automate: string }[] = [
+const SHORTCUTS: { id: "health" | "location" | "status" | "goodnight" | "goodmorning"; name: string; what: string; automate: string }[] = [
   { id: "health", name: "1618 Health", what: "Today's steps, distance and active calories.", automate: "Automation → App → Is Opened (an app you open a lot) → Run Immediately. Health can't be read while the phone is locked, so a time-of-day automation won't work." },
   { id: "location", name: "1618 Location", what: "Your town, for the clock and weather.", automate: "Automation → Time of Day, a few times a day, or Arrive at a place. Holding a place in You stops it for a while." },
   { id: "status", name: "1618 Status", what: "Set or clear the status line from your phone.", automate: "Put it on the Action Button or Back Tap." },
@@ -14,6 +15,12 @@ const SHORTCUTS: { id: "health" | "location" | "status" | "goodnight"; name: str
     what: "Say “Hey Siri, good night”: Siri wishes you good night and the site says you went to bed, for five hours.",
     automate: "No automation needed: Siri runs it by its name. Keep the name exactly “Good Night”. If you have a Home scene with the same name, rename one of them.",
   },
+  {
+    id: "goodmorning",
+    name: "Good Morning",
+    what: "Say “Hey Siri, good morning”: Siri greets you and the site says you're up, with your wake time on last night's sleep.",
+    automate: "No automation needed: Siri runs it by its name. Keep the name exactly “Good Morning”.",
+  },
 ];
 
 export function SiteView({ data }: { data: AdminState }) {
@@ -22,10 +29,23 @@ export function SiteView({ data }: { data: AdminState }) {
   const checks = data.sources.checks;
   const tg = data.talk.telegram;
   const s = data.store;
+  const desk = useDesk();
 
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
       <div className="space-y-4">
+        <Panel title="Laptop agent" aside={desk?.online ? "online" : desk?.lastSeen ? `last seen ${ago(desk.lastSeen)}` : "never seen"}>
+          <p className="text-[14.5px]">
+            {desk?.online ? `Reporting now: ${desk.doing?.label ?? "at the laptop"}.` : "Not reporting right now."} Samples go to /api/ingest/desk with the site key. Apps and sites by name, never window titles; YouTube is only &ldquo;YouTube&rdquo;.
+          </p>
+          <p className="mt-2 text-[14px]">
+            <a className="underline" href="https://github.com/once-human/desk-agent" target="_blank" rel="noreferrer">
+              github.com/once-human/desk-agent
+            </a>{" "}
+            <span className="text-a-quiet">to install it on a new laptop</span>
+          </p>
+        </Panel>
+
         <Panel title="Live sources" aside={`Checked ${ago(data.sources.checkedAt)}`}>
           <ul className="divide-a-line divide-y">
             {checks.map((c) => (

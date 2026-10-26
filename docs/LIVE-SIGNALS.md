@@ -156,3 +156,12 @@ time once there are a couple of nights.
 - **Apple Health** has no web API, hence the Shortcut.
 - **Vercel's free plan** runs cron once a day; GitHub Actions and visits keep the store fresh in
   between.
+
+## The laptop (desk agent)
+
+A small agent on my Arch/Hyprland laptop (github.com/once-human/desk-agent) posts a sample about once a minute to `POST /api/ingest/desk` (Bearer site key). A sample is: active or idle, the focused app (name and category, never a window title), the browser's site (host name only), the repo, whether Claude Code is working, and what's playing.
+
+- Window titles never leave the laptop. YouTube is only "Watching YouTube" with a count of videos; browser media titles are dropped on the laptop and again in `src/lib/desk/model.ts`. Music players (Spotify and the like) show the track. Adult sites collapse to "Browsing".
+- The newest sample is the live state (`kv desk:last`, `GET /api/desk`). The laptop counts as online for 4 minutes after its last sample; after that the site says "last seen", it never guesses.
+- Samples are kept 7 days (`desk_samples`), folded into spans on read (`GET /api/desk/days`), and the daily cron rolls older days into `desk_days` totals.
+- "Good Morning" (`scripts/shortcuts/goodmorning.py`) ends the night's bedtime, which stamps the wake time.
