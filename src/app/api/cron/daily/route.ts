@@ -1,6 +1,7 @@
 import { connection } from "next/server";
 import { q } from "@/lib/db";
 import { runSync } from "@/lib/history/sync";
+import { foldDesk } from "@/lib/desk/server";
 import { foldOld } from "@/lib/visits/server";
 
 /**
@@ -20,10 +21,11 @@ export async function GET(req: Request) {
     ]),
   );
   // The visitor log: past 30 days, a visit keeps only its country and counts.
-  const [visits] = await Promise.all([
+  const [visits, desk] = await Promise.all([
     foldOld(),
+    foldDesk(),
     q("clean ratelimit", (db) => db`DELETE FROM ratelimit WHERE window_start < now() - interval '2 days'`),
   ]);
-  return Response.json({ sync, visits });
+  return Response.json({ sync, visits, desk });
 }
 export const maxDuration = 120;

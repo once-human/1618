@@ -82,3 +82,6 @@ CREATE TABLE IF NOT EXISTS visit_events (
 );
 CREATE TABLE IF NOT EXISTS visit_days (day date NOT NULL, country text NOT NULL, kind text NOT NULL, visitors int NOT NULL, visits int NOT NULL, pages int NOT NULL, PRIMARY KEY (day, country, kind));
 CREATE TABLE IF NOT EXISTS visit_day_pages (day date NOT NULL, path text NOT NULL, kind text NOT NULL, views int NOT NULL, PRIMARY KEY (day, path, kind));
+-- The laptop agent: one sample about a minute (what's focused, which site/repo, what's playing). Kept 7 days, then a daily rollup.
+CREATE TABLE IF NOT EXISTS desk_samples (at timestamptz PRIMARY KEY, data jsonb NOT NULL);
+CREATE TABLE IF NOT EXISTS desk_days (day date PRIMARY KEY, data jsonb NOT NULL);
