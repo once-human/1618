@@ -16,11 +16,14 @@ export interface GPlace {
 
 const D2R = Math.PI / 180;
 const MAX_LAT = 1.35; // radians: stop short of the poles so it never flips
-const MIN_S = 0.7;
-const MAX_S = 5;
+const MIN_S = 0.75;
+const MAX_S = 6;
+const HOME_S = 1.7; // opens close enough to read the towns, with the limb still showing
+const SPIN = 0.00007; // radians per millisecond: a turn in about 90 seconds
+const EARTH_KM = 6371;
+const MS_PER_RAD = 3600000 / (15 * D2R); // one radian of Earth's turning is about 3.8 hours
 const key = (p: GPlace) => `${p.city}|${p.country}`;
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
-const ease = (t: number) => 1 - Math.pow(1 - t, 3);
 const wrap = (a: number) => ((((a + Math.PI) % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI)) - Math.PI;
 
 /** Unit vectors (x, y, z) of every land cell of a layer, made once. */
@@ -44,8 +47,38 @@ const COARSE_V = vectors(COARSE);
 const dms = (lat: number, lon: number) => `${Math.abs(lat).toFixed(1)}°${lat < 0 ? "S" : "N"} ${Math.abs(lon).toFixed(1)}°${lon < 0 ? "W" : "E"}`;
 function km(a: { lat: number; lon: number }, b: { lat: number; lon: number }) {
   const h = Math.sin(((b.lat - a.lat) * D2R) / 2) ** 2 + Math.cos(a.lat * D2R) * Math.cos(b.lat * D2R) * Math.sin(((b.lon - a.lon) * D2R) / 2) ** 2;
-  return 12742 * Math.asin(Math.sqrt(h));
+  return 2 * EARTH_KM * Math.asin(Math.sqrt(h));
 }
+/** A round length for the scale bar: 1, 2 or 5 × 10ⁿ km. */
+function nice(kmMax: number) {
+  const p = 10 ** Math.floor(Math.log10(kmMax));
+  const m = kmMax / p;
+  return (m >= 5 ? 5 : m >= 2 ? 2 : 1) * p;
+}
+
+/* The sky, worked out here from the clock (standard low-precision formulas, good to about 0.01°).
+   Nothing is fetched and nothing leaves the browser. */
+function sunAt(ms: number) {
+  const n = ms / 86400000 + 2440587.5 - 2451545.0; // days since J2000
+  const L = (280.46 + 0.9856474 * n) % 360;
+  const g = ((357.528 + 0.9856003 * n) % 360) * D2R;
+  const lam = (L + 1.915 * Math.sin(g) + 0.02 * Math.sin(2 * g)) * D2R;
+  const eps = (23.439 - 4e-7 * n) * D2R;
+  const dec = Math.asin(Math.sin(eps) * Math.sin(lam));
+  const ra = Math.atan2(Math.cos(eps) * Math.sin(lam), Math.cos(lam));
+  const gmst = ((18.697374558 + 24.06570982441908 * n) % 24) * 15 * D2R;
+  return { dec, lon: wrap(ra - gmst), au: 1.00014 - 0.01671 * Math.cos(g) - 0.00014 * Math.cos(2 * g), tilt: eps };
+}
+const MOONS = ["new", "waxing crescent", "first quarter", "waxing gibbous", "full", "waning gibbous", "last quarter", "waning crescent"];
+function moonAt(ms: number) {
+  const age = ((((ms / 86400000 + 2440587.5 - 2451550.1) / 29.530588853) % 1) + 1) % 1;
+  return { lit: (1 - Math.cos(2 * Math.PI * age)) / 2, name: MOONS[Math.round(age * 8) % 8] };
+}
+const sunVec = (s: { dec: number; lon: number }) => ({ x: Math.cos(s.dec) * Math.sin(s.lon), y: Math.sin(s.dec), z: Math.cos(s.dec) * Math.cos(s.lon) });
+const clock = (h: number) => {
+  const m = Math.round((((h % 24) + 24) % 24) * 60) % 1440;
+  return `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+};
 
 /** Where to face first: the average direction of the towns that make up 80% of the visitors. */
 function opening(places: GPlace[]): { lon: number; lat: number } {
@@ -81,19 +114,28 @@ interface Props {
 }
 
 /**
- * The visitors on a globe you can turn. Drawn on a canvas, land as dots, only
- * the side that faces you; a town with someone on the site right now pulses.
- * It only redraws while something moves, and not at all while off screen.
+ * The visitors on a globe you can turn. Drawn on a canvas: land as dots, only
+ * the side that faces you, in three tones for day, dusk and night, with the
+ * real sun working out which. It spins the way the Earth does (eastward) and
+ * the day sweeps across it; springs give it weight. A town with someone on
+ * the site right now pulses. It only draws while something moves, and not at
+ * all while off screen.
  */
 export function VisitorsGlobe({ places, live, shown, onHover, onPin, goto, total, me, mine }: Props) {
   const box = useRef<HTMLDivElement>(null);
   const cv = useRef<HTMLCanvasElement>(null);
   const tipEl = useRef<HTMLDivElement>(null);
+  const skyEl = useRef<HTMLParagraphElement>(null);
+  const coordEl = useRef<HTMLSpanElement>(null);
+  const zoomEl = useRef<HTMLSpanElement>(null);
+  const barEl = useRef<HTMLDivElement>(null);
+  const kmEl = useRef<HTMLSpanElement>(null);
   const [size, setSize] = useState<{ w: number; h: number } | null>(null);
   const [fine, setFine] = useState<{ v: Float32Array; deg: number } | null>(null);
-  const [spin, setSpin] = useState(false);
+  const [spin, setSpin] = useState(() => typeof window === "undefined" || !matchMedia("(prefers-reduced-motion: reduce)").matches);
   const [hint, setHint] = useState(false);
   const [atHome, setAtHome] = useState(true);
+  const [facts, setFacts] = useState("");
 
   const placed = useMemo(() => places.filter((p) => p.lat != null && p.lon != null), [places]);
   const max = Math.max(1, ...placed.map((p) => p.n));
@@ -103,12 +145,21 @@ export function VisitorsGlobe({ places, live, shown, onHover, onPin, goto, total
   const st = useRef({
     lon: open.lon,
     lat: open.lat,
-    s: 1,
+    s: HOME_S,
+    sT: HOME_S,
+    sV: 0,
     vLon: 0,
     vLat: 0,
+    fly: null as null | { lon: number; lat: number },
+    fVLon: 0,
+    fVLat: 0,
     dragging: false,
+    spinK: 1,
+    simAdv: 0, // radians turned while spinning: the day moves on by that much
     last: 0,
-    anim: null as null | { t0: number; from: { lon: number; lat: number; s: number }; to: { lon: number; lat: number; s: number } },
+    stamp: 0,
+    ptr: null as null | { x: number; y: number },
+    hov: new Map<string, number>(),
     hit: [] as { k: string; x: number; y: number; r: number }[],
     visible: true,
     raf: 0,
@@ -117,11 +168,11 @@ export function VisitorsGlobe({ places, live, shown, onHover, onPin, goto, total
     pointers: new Map<number, { x: number; y: number }>(),
     started: false,
   });
-  const props = useRef({ placed, live, shown, max, spin, fine, size, open });
+  const props = useRef({ placed, live, shown, max, spin, fine, size, open, me });
   useEffect(() => {
-    props.current = { placed, live, shown, max, spin, fine, size, open };
+    props.current = { placed, live, shown, max, spin, fine, size, open, me };
     st.current.wake();
-  });
+  }, [placed, live, shown, max, spin, fine, size, open, me]);
 
   useEffect(() => {
     const el = box.current;
@@ -144,43 +195,50 @@ export function VisitorsGlobe({ places, live, shown, onHover, onPin, goto, total
     }
   }, [placed.length, open]);
 
-  const close = !!size && fine === null;
+  const wantFine = !!size && fine === null;
   useEffect(() => {
-    if (!close) return;
-    let live2 = true;
+    if (!wantFine) return;
+    let alive = true;
     const t = window.setTimeout(() => {
-      void import("@/content/land-fine").then((m) => {
-        if (!live2) return;
-        const L = decode(m.LAND_FINE);
-        setFine(vectors(L));
-      });
-    }, 1200); // the close-up coastline, after the first picture is up
+      void import("@/content/land-fine").then((m) => alive && setFine(vectors(decode(m.LAND_FINE))));
+    }, 1500); // the close-up coastline, once the first picture is up
     return () => {
-      live2 = false;
+      alive = false;
       clearTimeout(t);
     };
-  }, [close]);
+  }, [wantFine]);
 
-  const fly = (to: { lon: number; lat: number; s: number }) => {
+  // The sun, the tilt and the moon, in words, every few seconds.
+  useEffect(() => {
+    const tick = () => {
+      const now = Date.now();
+      const sun = sunAt(now);
+      const moon = moonAt(now);
+      setFacts(
+        `Sun ${(sun.au * 149.598).toFixed(1)} million km away · overhead at ${dms(sun.dec / D2R, sun.lon / D2R)} · Earth's tilt ${(sun.tilt / D2R).toFixed(1)}° · Moon ${moon.name}, ${Math.round(moon.lit * 100)}% lit`,
+      );
+    };
+    const first = window.setTimeout(tick, 0);
+    const t = setInterval(tick, 20_000);
+    return () => {
+      clearTimeout(first);
+      clearInterval(t);
+    };
+  }, []);
+
+  const flyTo = (to: { lon: number; lat: number }, scale: number) => {
     const s = st.current;
-    const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (reduce) {
-      s.lon = to.lon;
-      s.lat = to.lat;
-      s.s = to.s;
-      s.anim = null;
-    } else {
-      s.anim = { t0: performance.now(), from: { lon: s.lon, lat: s.lat, s: s.s }, to: { lon: s.lon + wrap(to.lon - s.lon), lat: to.lat, s: to.s } };
-    }
+    s.fly = { lon: s.lon + wrap(to.lon - s.lon), lat: clamp(to.lat, -MAX_LAT, MAX_LAT) };
+    s.sT = clamp(scale, MIN_S, MAX_S);
     s.vLon = s.vLat = 0;
     s.wake();
   };
 
-  // The list (or a double-click) asks to turn to a town.
+  // The list asks to turn to a town.
   useEffect(() => {
     if (!goto) return;
     const p = props.current.placed.find((q) => key(q) === goto.k);
-    if (p) fly({ lon: p.lon! * D2R, lat: clamp(p.lat! * D2R, -MAX_LAT, MAX_LAT), s: 2 });
+    if (p) flyTo({ lon: p.lon! * D2R, lat: p.lat! * D2R }, 3);
   }, [goto]);
 
   // The drawing loop: runs only while something moves.
@@ -199,40 +257,88 @@ export function VisitorsGlobe({ places, live, shown, onHover, onPin, goto, total
       if (s.visible) s.wake();
     });
     io.observe(holder);
-    let colours = { ink: "#000", paper: "#fff", font: "sans-serif", at: 0 };
+    let colours = { ink: "#000", paper: "#fff", font: "sans-serif", at: -9999 };
+    const text = (el: HTMLElement | null, v: string) => {
+      if (el && el.textContent !== v) el.textContent = v;
+    };
+    type Proj = (x: number, y: number, z: number) => { x: number; y: number; z: number };
+    const arc = (project: Proj, pts: [number, number, number][]) => {
+      let pen = false;
+      for (const [x, y, z] of pts) {
+        const q = project(x, y, z);
+        if (q.z > 0) {
+          if (pen) ctx.lineTo(q.x, q.y);
+          else ctx.moveTo(q.x, q.y);
+          pen = true;
+        } else pen = false;
+      }
+    };
+    // the graticule never changes: its points are made once
+    const grat: [number, number, number][][] = [];
+    for (let lo = -180; lo < 180; lo += 30) {
+      const line: [number, number, number][] = [];
+      for (let la = -80; la <= 80; la += 5) line.push([Math.cos(la * D2R) * Math.sin(lo * D2R), Math.sin(la * D2R), Math.cos(la * D2R) * Math.cos(lo * D2R)]);
+      grat.push(line);
+    }
+    for (let la = -60; la <= 60; la += 30) {
+      const line: [number, number, number][] = [];
+      for (let lo = -180; lo <= 180; lo += 5) line.push([Math.cos(la * D2R) * Math.sin(lo * D2R), Math.sin(la * D2R), Math.cos(la * D2R) * Math.cos(lo * D2R)]);
+      grat.push(line);
+    }
 
     const draw = (now: number) => {
       s.raf = 0;
       if (!s.visible) return;
       const P = props.current;
-      const dt = Math.min(48, now - (s.last || now));
+      const dt = clamp(now - (s.last || now - 16), 1, 48);
       s.last = now;
+      const dS = dt / 1000;
       let moving = false;
 
-      if (s.anim) {
-        const t = Math.min(1, (now - s.anim.t0) / 800);
-        const e = ease(t);
-        const { from, to } = s.anim;
-        s.lon = wrap(from.lon + (to.lon - from.lon) * e);
-        s.lat = from.lat + (to.lat - from.lat) * e;
-        s.s = Math.exp(Math.log(from.s) + (Math.log(to.s) - Math.log(from.s)) * e);
-        if (t >= 1) s.anim = null;
+      // zoom: a spring, so it overshoots a little and settles
+      if (Math.abs(s.sT - s.s) > 0.002 || Math.abs(s.sV) > 0.002) {
+        s.sV += (150 * (s.sT - s.s) - 16 * s.sV) * dS;
+        s.s = clamp(s.s + s.sV * dS, MIN_S * 0.9, MAX_S * 1.04);
+        moving = true;
+      } else s.sV = 0;
+
+      // turning to a town: a spring too
+      if (s.fly && !s.dragging) {
+        const eLon = wrap(s.fly.lon - s.lon);
+        const eLat = s.fly.lat - s.lat;
+        s.fVLon += (62 * eLon - 11 * s.fVLon) * dS;
+        s.fVLat += (62 * eLat - 11 * s.fVLat) * dS;
+        s.lon = wrap(s.lon + s.fVLon * dS);
+        s.lat = clamp(s.lat + s.fVLat * dS, -MAX_LAT, MAX_LAT);
+        if (Math.abs(eLon) < 0.0006 && Math.abs(eLat) < 0.0006 && Math.abs(s.fVLon) < 0.004 && Math.abs(s.fVLat) < 0.004) s.fly = null;
         moving = true;
       } else if (!s.dragging && (Math.abs(s.vLon) > 1e-5 || Math.abs(s.vLat) > 1e-5)) {
+        // let go: it carries on, then settles
         s.lon = wrap(s.lon + s.vLon * dt);
         s.lat = clamp(s.lat + s.vLat * dt, -MAX_LAT, MAX_LAT);
-        const k = Math.pow(0.0025, dt / 1000); // glide to a stop in about a second
+        const k = Math.pow(0.004, dt / 1000);
         s.vLon *= k;
         s.vLat *= k;
         moving = true;
-      } else if (P.spin && !s.dragging) {
-        s.lon = wrap(s.lon + 0.00006 * dt);
+      }
+
+      // the spin: eastward, like the Earth. It slows while you look at a town, to let you read and tap.
+      const idle = !s.dragging && !s.fly && Math.abs(s.vLon) < 1e-4;
+      const slow = P.shown || s.ptr ? 0.12 : 1;
+      s.spinK += (slow - s.spinK) * Math.min(1, dt / 220);
+      if (P.spin && idle) {
+        const d = SPIN * dt * s.spinK;
+        s.lon = wrap(s.lon - d);
+        s.simAdv += d;
+        moving = true;
+      } else if (!P.spin && s.simAdv > 1e-4) {
+        s.simAdv *= Math.exp(-dt / 450); // the day eases back to the real one
         moving = true;
       }
-      const liveNow = P.live.size > 0;
       if (s.dragging) moving = true;
+      const liveNow = P.live.size > 0;
 
-      if (now - colours.at > 1000) {
+      if (now - colours.at > 1500) {
         const cs = getComputedStyle(canvas);
         colours = { ink: cs.color, paper: getComputedStyle(holder).backgroundColor, font: cs.fontFamily, at: now };
       }
@@ -240,187 +346,255 @@ export function VisitorsGlobe({ places, live, shown, onHover, onPin, goto, total
       const R = Math.min(w, h) * 0.45 * s.s;
       const cx = w / 2;
       const cy = h / 2;
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.clearRect(0, 0, w, h);
-      ctx.save();
-      // the globe is a window: clip to its disc
-      ctx.beginPath();
-      ctx.arc(cx, cy, R, 0, Math.PI * 2);
-      ctx.clip();
-      ctx.fillStyle = colours.ink;
-      ctx.globalAlpha = 0.04;
-      ctx.fillRect(0, 0, w, h);
-
       const cl = Math.cos(s.lon);
       const sl = Math.sin(s.lon);
       const cp = Math.cos(s.lat);
       const sp = Math.sin(s.lat);
-      const project = (x: number, y: number, z: number) => {
+      const project: Proj = (x, y, z) => {
         const x1 = x * cl - z * sl;
         const z1 = x * sl + z * cl;
-        const y2 = y * cp - z1 * sp;
-        const z2 = y * sp + z1 * cp;
-        return { x: cx + x1 * R, y: cy - y2 * R, z: z2 };
+        return { x: cx + x1 * R, y: cy - (y * cp - z1 * sp) * R, z: y * sp + z1 * cp };
       };
 
-      // graticule: every 30°
+      // the sun, now (moved on by however far the spin has carried the day)
+      const when = Date.now() + s.simAdv * MS_PER_RAD;
+      const sun = sunAt(when);
+      const sv = sunVec(sun);
+
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, w, h);
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(cx, cy, R, 0, Math.PI * 2);
+      ctx.clip();
+      ctx.fillStyle = colours.ink;
+      ctx.globalAlpha = 0.045;
+      ctx.fillRect(0, 0, w, h);
+
       ctx.globalAlpha = 0.1;
       ctx.strokeStyle = colours.ink;
       ctx.lineWidth = 1;
       ctx.beginPath();
-      for (let lo = -180; lo < 180; lo += 30) {
-        let pen = false;
-        for (let la = -80; la <= 80; la += 4) {
-          const a = la * D2R;
-          const l = lo * D2R;
-          const q = project(Math.cos(a) * Math.sin(l), Math.sin(a), Math.cos(a) * Math.cos(l));
-          if (q.z > 0) {
-            if (pen) ctx.lineTo(q.x, q.y);
-            else ctx.moveTo(q.x, q.y);
-            pen = true;
-          } else pen = false;
-        }
-      }
-      for (let la = -60; la <= 60; la += 30) {
-        let pen = false;
-        for (let lo = -180; lo <= 180; lo += 4) {
-          const a = la * D2R;
-          const l = lo * D2R;
-          const q = project(Math.cos(a) * Math.sin(l), Math.sin(a), Math.cos(a) * Math.cos(l));
-          if (q.z > 0) {
-            if (pen) ctx.lineTo(q.x, q.y);
-            else ctx.moveTo(q.x, q.y);
-            pen = true;
-          } else pen = false;
-        }
-      }
+      for (const line of grat) arc(project, line);
       ctx.stroke();
 
-      // land: the side that faces you
-      const L = P.fine && s.s > 1.25 ? P.fine : COARSE_V;
-      const base = R * L.deg * D2R * 0.23;
-      ctx.globalAlpha = 0.34;
-      ctx.beginPath();
+      // land: dots as zero-length round strokes (far cheaper than arcs), three tones for day, dusk and night
+      const L = P.fine && s.s > 2.3 ? P.fine : COARSE_V;
+      const dot = Math.max(1.1, R * L.deg * D2R * 0.46);
+      const paths = [new Path2D(), new Path2D(), new Path2D()];
       const v = L.v;
       for (let i = 0; i < v.length; i += 3) {
         const x = v[i];
         const y = v[i + 1];
         const z = v[i + 2];
         const z1 = x * sl + z * cl;
-        const z2 = y * sp + z1 * cp;
-        if (z2 <= 0.02) continue;
+        if (y * sp + z1 * cp <= 0.02) continue;
         const px = cx + (x * cl - z * sl) * R;
         const py = cy - (y * cp - z1 * sp) * R;
-        const r = Math.max(0.55, base * Math.max(0.4, z2));
-        ctx.moveTo(px + r, py);
-        ctx.arc(px, py, r, 0, 6.2832);
+        if (px < -4 || px > w + 4 || py < -4 || py > h + 4) continue;
+        const d = x * sv.x + y * sv.y + z * sv.z;
+        const pth = paths[d > 0.07 ? 0 : d > -0.1 ? 1 : 2];
+        pth.moveTo(px, py);
+        pth.lineTo(px + 0.01, py);
       }
-      ctx.fillStyle = colours.ink;
-      ctx.fill();
+      ctx.lineCap = "round";
+      ctx.lineWidth = dot;
+      ctx.globalAlpha = 0.5;
+      ctx.stroke(paths[0]);
+      ctx.globalAlpha = 0.27;
+      ctx.stroke(paths[1]);
+      ctx.globalAlpha = 0.11;
+      ctx.stroke(paths[2]);
+      ctx.lineCap = "butt";
+
+      // the terminator: the great circle where the day ends
+      {
+        let ax = sv.z;
+        let az = -sv.x;
+        const al = Math.hypot(ax, az) || 1;
+        ax /= al;
+        az /= al;
+        const bx = sv.y * az;
+        const by = sv.z * ax - sv.x * az;
+        const bz = -sv.y * ax;
+        const ring: [number, number, number][] = [];
+        for (let a = 0; a <= 360; a += 4) {
+          const c = Math.cos(a * D2R);
+          const sn = Math.sin(a * D2R);
+          ring.push([c * ax + sn * bx, sn * by, c * az + sn * bz]);
+        }
+        ctx.globalAlpha = 0.4;
+        ctx.lineWidth = 1;
+        ctx.setLineDash([3, 4]);
+        ctx.beginPath();
+        arc(project, ring);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
       ctx.restore();
 
-      // the rim
-      ctx.globalAlpha = 0.5;
+      // the rim, and the Earth's axis leaning out of it
+      ctx.globalAlpha = 0.55;
       ctx.strokeStyle = colours.ink;
       ctx.lineWidth = 1;
       ctx.beginPath();
       ctx.arc(cx, cy, R, 0, Math.PI * 2);
       ctx.stroke();
+      const pole = project(0, 1, 0);
+      const ax = pole.x - cx;
+      const ay = pole.y - cy;
+      const al = Math.hypot(ax, ay);
+      if (al > R * 0.12) {
+        const ux = ax / al;
+        const uy = ay / al;
+        ctx.globalAlpha = 0.35;
+        ctx.beginPath();
+        ctx.moveTo(cx + ux * R, cy + uy * R);
+        ctx.lineTo(cx + ux * R * 1.1, cy + uy * R * 1.1);
+        ctx.moveTo(cx - ux * R, cy - uy * R);
+        ctx.lineTo(cx - ux * R * 1.1, cy - uy * R * 1.1);
+        ctx.stroke();
+      }
       ctx.globalAlpha = 1;
+
+      // the sun overhead, when it faces us
+      const sp3 = project(sv.x, sv.y, sv.z);
+      if (sp3.z > 0.05) {
+        ctx.strokeStyle = colours.ink;
+        ctx.globalAlpha = 0.7;
+        ctx.lineWidth = 1.25;
+        ctx.beginPath();
+        ctx.arc(sp3.x, sp3.y, 5, 0, Math.PI * 2);
+        for (let a = 0; a < 8; a++) {
+          const c = Math.cos((a * Math.PI) / 4);
+          const sn = Math.sin((a * Math.PI) / 4);
+          ctx.moveTo(sp3.x + c * 8, sp3.y + sn * 8);
+          ctx.lineTo(sp3.x + c * 12, sp3.y + sn * 12);
+        }
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+      }
 
       // the towns
       s.hit = [];
       const shownKey = P.shown;
-      const shownPos: { x: number; y: number; r: number } | null = shownKey ? { x: -1, y: -1, r: 0 } : null;
-      const faced: { p: GPlace; x: number; y: number; z: number; r: number }[] = [];
+      const shownPos = { x: -1, y: -1, r: 0, lat: 0, lon: 0 };
+      const faced: { p: GPlace; x: number; y: number; z: number; r: number; k: string }[] = [];
       for (const p of P.placed) {
         const a = p.lat! * D2R;
         const l = p.lon! * D2R;
         const q = project(Math.cos(a) * Math.sin(l), Math.sin(a), Math.cos(a) * Math.cos(l));
         if (q.z <= 0.03) continue;
-        const r = (5 + 9 * Math.sqrt(p.n / P.max)) * (0.85 + 0.15 * Math.min(s.s, 2.5)) * (0.7 + 0.3 * q.z);
-        faced.push({ p, x: q.x, y: q.y, z: q.z, r });
+        const k = key(p);
+        // a dot springs up when you're on it
+        const target = shownKey === k ? 1 : 0;
+        const cur = s.hov.get(k) ?? 0;
+        const nxt = cur + (target - cur) * Math.min(1, dt / 90);
+        s.hov.set(k, nxt);
+        if (Math.abs(nxt - target) > 0.01) moving = true;
+        const r = (5 + 9 * Math.sqrt(p.n / P.max)) * (0.85 + 0.15 * Math.min(s.s, 2.5)) * (0.72 + 0.28 * q.z) * (1 + 0.3 * nxt);
+        faced.push({ p, x: q.x, y: q.y, z: q.z, r, k });
       }
       const t = (now % 2200) / 2200;
       for (const f of faced) {
-        const k = key(f.p);
-        const on = shownKey === k;
-        ctx.globalAlpha = shownKey && !on ? 0.4 : 1;
-        if (P.live.has(k)) {
+        const on = shownKey === f.k;
+        const fade = shownKey && !on ? 0.4 : 1;
+        if (P.live.has(f.k)) {
           ctx.beginPath();
-          ctx.arc(f.x, f.y, f.r + t * 22, 0, Math.PI * 2);
+          ctx.arc(f.x, f.y, f.r + t * 24, 0, Math.PI * 2);
           ctx.strokeStyle = colours.ink;
-          ctx.globalAlpha = (1 - t) * 0.8 * (shownKey && !on ? 0.5 : 1);
+          ctx.globalAlpha = (1 - t) * 0.8 * fade;
           ctx.lineWidth = 1.5;
           ctx.stroke();
-          ctx.globalAlpha = shownKey && !on ? 0.4 : 1;
         }
+        ctx.globalAlpha = fade;
         ctx.beginPath();
-        ctx.arc(f.x, f.y, f.r * (on ? 1.18 : 1), 0, Math.PI * 2);
+        ctx.arc(f.x, f.y, f.r, 0, Math.PI * 2);
         ctx.fillStyle = colours.ink;
         ctx.fill();
         ctx.lineWidth = 2;
         ctx.strokeStyle = colours.paper;
         ctx.stroke();
-        if (f.p.city === me.city && f.p.country === me.country) {
+        if (f.p.city === P.me.city && f.p.country === P.me.country) {
           ctx.beginPath();
           ctx.arc(f.x, f.y, f.r + 4, 0, Math.PI * 2);
           ctx.strokeStyle = colours.ink;
           ctx.lineWidth = 1.5;
           ctx.stroke();
         }
-        s.hit.push({ k, x: f.x, y: f.y, r: Math.max(f.r, 14) });
-        if (on && shownPos) {
-          shownPos.x = f.x;
-          shownPos.y = f.y;
-          shownPos.r = f.r;
-        }
+        s.hit.push({ k: f.k, x: f.x, y: f.y, r: Math.max(f.r, 14) });
+        if (on) Object.assign(shownPos, { x: f.x, y: f.y, r: f.r, lat: f.p.lat!, lon: f.p.lon! });
       }
       ctx.globalAlpha = 1;
 
       // names beside the towns that have room, the biggest first
       ctx.font = `12px ${colours.font}`;
+      ctx.textAlign = "left";
       ctx.textBaseline = "middle";
       const spots: { x: number; y: number }[] = [];
       for (const f of [...faced].sort((a, b) => b.p.n - a.p.n)) {
-        if (f.z < 0.4 || key(f.p) === shownKey) continue;
-        if (spots.some((o) => Math.abs(o.x - f.x) < 110 && Math.abs(o.y - f.y) < 22)) continue;
+        if (f.z < 0.3 || f.k === shownKey) continue;
+        if (f.x < 0 || f.x > w || f.y < 0 || f.y > h) continue;
+        if (spots.some((o) => Math.abs(o.x - f.x) < 96 && Math.abs(o.y - f.y) < 17)) continue;
         spots.push({ x: f.x, y: f.y });
         const label = f.p.city ?? placeName(null, f.p.country);
+        const count = String(f.p.n);
+        const lw = ctx.measureText(`${label} `).width;
         ctx.fillStyle = colours.paper;
-        ctx.globalAlpha = 0.8;
-        const tw = ctx.measureText(`${label} ${f.p.n}`).width;
-        ctx.fillRect(f.x + f.r + 3, f.y - 8, tw + 6, 16);
+        ctx.globalAlpha = 0.82;
+        ctx.fillRect(f.x + f.r + 3, f.y - 8, lw + ctx.measureText(count).width + 6, 16);
         ctx.globalAlpha = 1;
         ctx.fillStyle = colours.ink;
         ctx.fillText(label, f.x + f.r + 6, f.y);
-        const lw = ctx.measureText(`${label} `).width;
         ctx.globalAlpha = 0.5;
-        ctx.fillText(String(f.p.n), f.x + f.r + 6 + lw, f.y);
+        ctx.fillText(count, f.x + f.r + 6 + lw, f.y);
         ctx.globalAlpha = 1;
       }
 
-      // the card for the town you're on
+      // the card for the town you're on, with its sky
       const tip = tipEl.current;
       if (tip) {
-        if (shownPos && shownPos.x >= 0) {
+        if (shownPos.x >= 0) {
           tip.style.display = "block";
-          const tx = clamp(shownPos.x, 100, w - 100);
-          const ty = Math.max(shownPos.y - shownPos.r - 12, 78);
-          tip.style.transform = `translate(${tx}px, ${ty}px) translate(-50%, -100%)`;
+          tip.style.transform = `translate(${clamp(shownPos.x, 100, w - 100)}px, ${Math.max(shownPos.y - shownPos.r - 12, 100)}px) translate(-50%, -100%)`;
+          const a = shownPos.lat * D2R;
+          const l = shownPos.lon * D2R;
+          const el = Math.asin(clamp(Math.cos(a) * Math.sin(l) * sv.x + Math.sin(a) * sv.y + Math.cos(a) * Math.cos(l) * sv.z, -1, 1)) / D2R;
+          const utcH = (((when / 3600000) % 24) + 24) % 24;
+          text(skyEl.current, `${el > 0 ? "Day" : el > -6 ? "Dusk" : "Night"} there · sun ${Math.abs(el).toFixed(0)}° ${el >= 0 ? "up" : "below"} · ${clock(utcH + shownPos.lon / 15)} by the sun`);
         } else tip.style.display = "none";
       }
-      // is it still showing the opening view?
-      const homeNow = Math.abs(wrap(s.lon - P.open.lon)) < 0.01 && Math.abs(s.lat - P.open.lat) < 0.01 && Math.abs(s.s - 1) < 0.01;
+
+      // the scale (at the middle of the disc), the zoom, and the coordinates under the pointer
+      const kmPx = EARTH_KM / R;
+      const bar = nice(kmPx * 110);
+      if (barEl.current) barEl.current.style.width = `${(bar / kmPx).toFixed(1)}px`;
+      text(kmEl.current, `${fmtNum(bar)} km`);
+      text(zoomEl.current, `×${s.s.toFixed(1)}`);
+      if (s.ptr) {
+        const nx = (s.ptr.x - cx) / R;
+        const ny = (cy - s.ptr.y) / R;
+        const rr = nx * nx + ny * ny;
+        if (rr <= 1) {
+          const z2 = Math.sqrt(1 - rr);
+          const y1 = ny * cp + z2 * sp;
+          const z1 = -ny * sp + z2 * cp;
+          const wx = nx * cl + z1 * sl;
+          const wz = z1 * cl - nx * sl;
+          text(coordEl.current, dms(Math.asin(clamp(y1, -1, 1)) / D2R, Math.atan2(wx, wz) / D2R));
+        } else text(coordEl.current, "");
+      } else text(coordEl.current, `${dms(s.lat / D2R, s.lon / D2R)} · centre`);
+
+      const homeNow = Math.abs(wrap(s.lon - P.open.lon)) < 0.01 && Math.abs(s.lat - P.open.lat) < 0.01 && Math.abs(s.s - HOME_S) < 0.02;
       setAtHome((c) => (c === homeNow ? c : homeNow));
 
-      if (moving || liveNow) {
-        // pulses at about 30 frames a second; motion at the screen's pace
-        s.raf = requestAnimationFrame(moving ? draw : tick);
-      } else s.last = 0;
+      if (moving) s.raf = requestAnimationFrame(draw);
+      else if (liveNow) s.raf = requestAnimationFrame(tick);
+      else s.last = 0;
     };
+    // pulses alone need about 30 frames a second, not 60
     const tick = (n: number) => {
-      if (n - s.last < 33) s.raf = requestAnimationFrame(tick);
+      if (n - s.last < 32) s.raf = requestAnimationFrame(tick);
       else draw(n);
     };
     s.wake = () => {
@@ -433,12 +607,16 @@ export function VisitorsGlobe({ places, live, shown, onHover, onPin, goto, total
       io.disconnect();
       s.wake = () => {};
     };
-  }, [size, me.city, me.country]);
+  }, [size]);
 
+  const local = (e: React.PointerEvent | React.MouseEvent) => {
+    const r = box.current!.getBoundingClientRect();
+    return { x: e.clientX - r.left, y: e.clientY - r.top };
+  };
   const down = (e: React.PointerEvent) => {
     const s = st.current;
     s.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    s.anim = null;
+    s.fly = null;
     if (s.pointers.size === 1) {
       s.dragging = false;
       s.vLon = s.vLat = 0;
@@ -450,13 +628,14 @@ export function VisitorsGlobe({ places, live, shown, onHover, onPin, goto, total
     if (!P.size) return;
     const R = Math.min(P.size.w, P.size.h) * 0.45 * s.s;
     const prev = s.pointers.get(e.pointerId);
-    const r = box.current!.getBoundingClientRect();
+    const at = local(e);
+    if (e.pointerType === "mouse") {
+      s.ptr = at;
+      s.wake();
+    }
     if (!prev) {
       if (e.pointerType === "mouse") {
-        // hover: the nearest town under the pointer
-        const x = e.clientX - r.left;
-        const y = e.clientY - r.top;
-        const hit = s.hit.find((h) => Math.hypot(h.x - x, h.y - y) <= h.r + 4);
+        const hit = s.hit.find((h) => Math.hypot(h.x - at.x, h.y - at.y) <= h.r + 4);
         onHover(hit?.k ?? null);
       }
       return;
@@ -467,7 +646,8 @@ export function VisitorsGlobe({ places, live, shown, onHover, onPin, goto, total
       const other = a === prev ? b : a;
       const before = Math.hypot(prev.x - other.x, prev.y - other.y) || 1;
       const after = Math.hypot(now.x - other.x, now.y - other.y) || 1;
-      s.s = clamp(s.s * (after / before), MIN_S, MAX_S);
+      s.s = s.sT = clamp(s.s * (after / before), MIN_S, MAX_S);
+      s.sV = 0;
       s.pointers.set(e.pointerId, now);
       s.wake();
       return;
@@ -478,15 +658,15 @@ export function VisitorsGlobe({ places, live, shown, onHover, onPin, goto, total
     if (!s.dragging && Math.hypot(dx, dy) < 3) return;
     if (!s.dragging) (e.currentTarget as Element).setPointerCapture(e.pointerId);
     s.dragging = true;
-    const k = 1 / Math.max(120, R);
-    const dLon = -dx * k * 1.15;
-    const dLat = dy * k * 1.15;
+    const k = 1 / Math.max(140, R);
+    const dLon = -dx * k * 1.1;
+    const dLat = dy * k * 1.1;
     s.lon = wrap(s.lon + dLon);
     s.lat = clamp(s.lat + dLat, -MAX_LAT, MAX_LAT);
-    const dtm = Math.max(8, e.timeStamp - (s.last || e.timeStamp - 16));
-    s.vLon = dLon / Math.min(dtm, 40);
-    s.vLat = dLat / Math.min(dtm, 40);
-    s.last = e.timeStamp;
+    const dtm = clamp(e.timeStamp - s.stamp, 8, 40);
+    s.stamp = e.timeStamp;
+    s.vLon = dLon / dtm;
+    s.vLat = dLat / dtm;
     s.wake();
   };
   const up = (e: React.PointerEvent) => {
@@ -497,16 +677,10 @@ export function VisitorsGlobe({ places, live, shown, onHover, onPin, goto, total
       s.dragging = false;
       if (!was) {
         // a tap: pin the town under it, or let go
-        const r = box.current!.getBoundingClientRect();
-        const x = e.clientX - r.left;
-        const y = e.clientY - r.top;
-        const hit = s.hit.find((h) => Math.hypot(h.x - x, h.y - y) <= h.r + 6);
+        const at = local(e);
+        const hit = s.hit.find((h) => Math.hypot(h.x - at.x, h.y - at.y) <= h.r + 6);
         onPin(hit ? (shown === hit.k ? null : hit.k) : null);
-      } else if (e.pointerType === "touch") {
-        s.vLon *= 0.6;
-        s.vLat *= 0.6;
       }
-      s.last = 0;
       s.wake();
     }
   };
@@ -524,8 +698,7 @@ export function VisitorsGlobe({ places, live, shown, onHover, onPin, goto, total
         return;
       }
       e.preventDefault();
-      s.anim = null;
-      s.s = clamp(s.s * Math.exp(-e.deltaY * 0.01), MIN_S, MAX_S);
+      s.sT = clamp(s.sT * Math.exp(-e.deltaY * 0.01), MIN_S, MAX_S);
       s.wake();
     };
     el.addEventListener("wheel", onWheel, { passive: false });
@@ -536,62 +709,83 @@ export function VisitorsGlobe({ places, live, shown, onHover, onPin, goto, total
   }, []);
 
   const focus = shown ? placed.find((p) => key(p) === shown) : null;
-  const btn = "border-ink bg-paper hover:bg-ink hover:text-paper grid size-9 place-items-center border text-[18px] leading-none disabled:opacity-30";
-  const pill = "border-ink bg-paper hover:bg-ink hover:text-paper border px-2.5 py-1 disabled:opacity-30";
-  const zoom = (f: number) => fly({ lon: st.current.lon, lat: st.current.lat, s: clamp(st.current.s * f, MIN_S, MAX_S) });
+  const btn = "border-ink bg-paper hover:bg-ink hover:text-paper grid size-9 place-items-center border text-[18px] leading-none transition-transform active:scale-90";
+  const pill = "border-ink bg-paper hover:bg-ink hover:text-paper border px-2.5 py-1 transition-transform active:scale-95 disabled:opacity-30";
+  const zoom = (f: number) => {
+    const s = st.current;
+    s.sT = clamp(s.sT * f, MIN_S, MAX_S);
+    s.wake();
+  };
 
   return (
-    <div
-      ref={box}
-      className="border-ink/15 bg-paper relative aspect-[4/3] w-full cursor-grab touch-pan-y overflow-hidden border select-none active:cursor-grabbing sm:aspect-[16/10]"
-      onPointerDown={down}
-      onPointerMove={move}
-      onPointerUp={up}
-      onPointerCancel={up}
-      onPointerLeave={() => onHover(null)}
-      onDoubleClick={() => zoom(1.8)}
-    >
-      <canvas ref={cv} className="text-ink absolute inset-0 size-full" role="img" aria-label={`Globe of this month's visitors: ${places.map((p) => placeName(p.city, p.country)).join(", ") || "none yet"}`} />
-
+    <>
       <div
-        ref={tipEl}
-        role="status"
-        className="border-ink bg-paper pointer-events-none absolute top-0 left-0 z-10 hidden w-max max-w-[17rem] border px-3 py-2 text-[13px] leading-snug shadow-[3px_3px_0_0_var(--color-ink)]"
+        ref={box}
+        className="border-ink/15 bg-paper relative aspect-[4/3] w-full cursor-grab touch-pan-y overflow-hidden border select-none active:cursor-grabbing sm:aspect-[16/10]"
+        onPointerDown={down}
+        onPointerMove={move}
+        onPointerUp={up}
+        onPointerCancel={up}
+        onPointerLeave={() => {
+          st.current.ptr = null;
+          st.current.wake();
+          onHover(null);
+        }}
+        onDoubleClick={() => zoom(1.8)}
       >
-        {focus ? (
-          <>
-            <p className="font-semibold">{placeName(focus.city, focus.country)}</p>
-            <p className="text-quiet tnum">
-              {fmtNum(focus.n)} {focus.n === 1 ? "person" : "people"} · {Math.round((focus.n / (total || 1)) * 100)}% of the month
-              {live.has(key(focus)) ? ` · ${live.get(key(focus))} here now` : ""}
-            </p>
-            <p className="text-quiet tnum">
-              {dms(focus.lat!, focus.lon!)}
-              {mine && focus !== mine ? ` · ${fmtNum(Math.round(km({ lat: mine.lat!, lon: mine.lon! }, { lat: focus.lat!, lon: focus.lon! })))} km from you` : focus === mine ? " · that's you" : ""}
-            </p>
-          </>
-        ) : null}
-      </div>
+        <canvas ref={cv} className="text-ink absolute inset-0 size-full" role="img" aria-label={`Globe of this month's visitors: ${places.map((p) => placeName(p.city, p.country)).join(", ") || "none yet"}`} />
 
-      <div className="absolute top-2 right-2 z-10 flex flex-col gap-1" onPointerDown={(e) => e.stopPropagation()} onPointerUp={(e) => e.stopPropagation()}>
-        <button type="button" className={btn} aria-label="Zoom in" onClick={() => zoom(1.6)}>
-          +
-        </button>
-        <button type="button" className={btn} aria-label="Zoom out" onClick={() => zoom(1 / 1.6)}>
-          −
-        </button>
+        <div
+          ref={tipEl}
+          role="status"
+          className="border-ink bg-paper pointer-events-none absolute top-0 left-0 z-10 hidden w-max max-w-[19rem] border px-3 py-2 text-[13px] leading-snug shadow-[3px_3px_0_0_var(--color-ink)]"
+        >
+          {focus ? (
+            <>
+              <p className="font-semibold">{placeName(focus.city, focus.country)}</p>
+              <p className="text-quiet tnum">
+                {fmtNum(focus.n)} {focus.n === 1 ? "person" : "people"} · {Math.round((focus.n / (total || 1)) * 100)}% of the month
+                {live.has(key(focus)) ? ` · ${live.get(key(focus))} here now` : ""}
+              </p>
+              <p className="text-quiet tnum">
+                {dms(focus.lat!, focus.lon!)}
+                {mine && focus !== mine ? ` · ${fmtNum(Math.round(km({ lat: mine.lat!, lon: mine.lon! }, { lat: focus.lat!, lon: focus.lon! })))} km from you` : focus === mine ? " · that's you" : ""}
+              </p>
+              <p ref={skyEl} className="text-quiet tnum" />
+            </>
+          ) : null}
+        </div>
+
+        <div className="absolute top-2 right-2 z-10 flex flex-col gap-1" onPointerDown={(e) => e.stopPropagation()} onPointerUp={(e) => e.stopPropagation()}>
+          <button type="button" className={btn} aria-label="Zoom in" onClick={() => zoom(1.7)}>
+            +
+          </button>
+          <button type="button" className={btn} aria-label="Zoom out" onClick={() => zoom(1 / 1.7)}>
+            −
+          </button>
+        </div>
+        <div className="absolute bottom-2 left-2 z-10 flex flex-wrap gap-1 text-[13px]" onPointerDown={(e) => e.stopPropagation()} onPointerUp={(e) => e.stopPropagation()}>
+          <button type="button" className={pill} disabled={atHome} onClick={() => flyTo(open, HOME_S)}>
+            Busiest part
+          </button>
+          <button type="button" className={`${pill} ${spin ? "bg-ink text-paper" : ""}`} aria-pressed={spin} onClick={() => setSpin((v) => !v)}>
+            {spin ? "Spinning" : "Spin"}
+          </button>
+        </div>
+        <div className="pointer-events-none absolute right-2 bottom-2 z-10 text-right text-[12px] leading-none">
+          <p className="tnum text-quiet mb-1">
+            <span ref={coordEl} /> · <span ref={zoomEl} />
+          </p>
+          <div ref={barEl} className="border-ink ml-auto h-1.5 border-x border-b" />
+          <p className="tnum mt-1">
+            <span ref={kmEl} /> <span className="text-quiet">at the middle</span>
+          </p>
+        </div>
+        <p aria-hidden className={`bg-paper/90 pointer-events-none absolute top-2 left-1/2 z-10 -translate-x-1/2 px-3 py-1 text-[13px] transition-opacity ${hint ? "opacity-100" : "opacity-0"}`}>
+          Hold Ctrl (⌘ on a Mac) and scroll to zoom
+        </p>
       </div>
-      <div className="absolute bottom-2 left-2 z-10 flex flex-wrap gap-1 text-[13px]" onPointerDown={(e) => e.stopPropagation()} onPointerUp={(e) => e.stopPropagation()}>
-        <button type="button" className={pill} disabled={atHome} onClick={() => fly({ lon: open.lon, lat: open.lat, s: 1 })}>
-          Busiest part
-        </button>
-        <button type="button" className={`${pill} ${spin ? "bg-ink text-paper" : ""}`} aria-pressed={spin} onClick={() => setSpin((v) => !v)}>
-          Spin
-        </button>
-      </div>
-      <p aria-hidden className={`bg-paper/90 pointer-events-none absolute top-2 left-1/2 z-10 -translate-x-1/2 px-3 py-1 text-[13px] transition-opacity ${hint ? "opacity-100" : "opacity-0"}`}>
-        Hold Ctrl (⌘ on a Mac) and scroll to zoom
-      </p>
-    </div>
+      {facts ? <p className="text-quiet tnum mt-2 text-[13px]">{facts}</p> : null}
+    </>
   );
 }
