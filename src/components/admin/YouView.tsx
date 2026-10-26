@@ -30,7 +30,7 @@ const DURATIONS: { label: string; minutes: () => number }[] = [
   { label: "Until tonight", minutes: () => minutesUntil(23, 59) },
   { label: "Until tomorrow", minutes: () => minutesUntil(9, 0, true) },
 ];
-/** Minutes until hh:mm Pune time (tomorrow if `next`, or if it's already past). */
+/** Minutes until hh:mm India time (tomorrow if `next`, or if it's already past). */
 function minutesUntil(h: number, m: number, next = false) {
   const nowIst = new Date(Date.now() + 5.5 * 3600_000);
   const target = new Date(Date.UTC(nowIst.getUTCFullYear(), nowIst.getUTCMonth(), nowIst.getUTCDate() + (next ? 1 : 0), h, m));

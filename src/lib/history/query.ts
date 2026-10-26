@@ -185,7 +185,7 @@ export async function summarise(from: Date, to: Date): Promise<RangeSummary> {
   };
 }
 
-/* ---- Named ranges in Pune time ---- */
+/* ---- Named ranges in India time ---- */
 
 const OFFSET = 5.5 * 3600_000;
 const puneDate = (d = new Date()) => new Date(d.getTime() + OFFSET).toISOString().slice(0, 10);
