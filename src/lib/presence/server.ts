@@ -274,8 +274,22 @@ export interface AppleSong {
   tint: string | null;
 }
 
+/**
+ * Songs Apple's search can't find, filled in by hand: tracks that only exist
+ * inside a DJ mix album, whose songs the public API doesn't list. The cover
+ * and link are the mix album's own. Matched on the title and the version.
+ */
+const CURATED: { has: string[]; art: string; link: string }[] = [
+  {
+    // "No Love (Fred again.. Remix) [Mixed]", from Fred again.. Rooftop Live (Arun's Roof, London)
+    has: ["no love", "fred again remix"],
+    art: "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/ad/cb/84/adcb843c-6a14-4338-b058-498ab420b289/cc6771fb-1913-4ddf-83cb-e806f7759a3a.jpg/100x100bb.jpg",
+    link: "https://music.apple.com/in/album/fred-again-rooftop-live-aruns-roof-london-dj-mix-dj-mix/1767527509",
+  },
+];
+
 /** Bump when AppleSong gains fields, so weeks-old cached lookups are redone. */
-const APPLE_SHAPE = 2;
+const APPLE_SHAPE = 3;
 
 /** The dominant colour of a cover image, as #rrggbb. */
 async function coverTint(url: string | null): Promise<string | null> {
@@ -399,6 +413,13 @@ export async function appleSong(
 ): Promise<AppleSong | null> {
   "use cache: remote";
   void shape; // part of the cache key only
+
+  const flat = norm(track);
+  const hand = CURATED.find((c) => c.has.every((w) => flat.includes(w)));
+  if (hand) {
+    cacheLife("weeks");
+    return { art: appleArt(hand.art), link: hand.link, preview: null, durationMs: null, tint: await coverTint(hand.art) };
+  }
 
   const artists = splitArtists(artist);
   const title = baseTitle(track);

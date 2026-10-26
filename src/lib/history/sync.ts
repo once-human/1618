@@ -209,7 +209,7 @@ async function syncLengths(): Promise<number> {
   );
   if (!todo?.length) return 0;
   const found = await Promise.all(
-    todo.map((t) => appleSong(t.artist, t.track, t.album, 2).catch(() => null)),
+    todo.map((t) => appleSong(t.artist, t.track, t.album, 3).catch(() => null)),
   );
   await q("lengths insert", (db) =>
     db`INSERT INTO track_meta (track_key, duration_ms, image, link)

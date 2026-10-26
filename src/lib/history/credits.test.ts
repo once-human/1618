@@ -41,6 +41,13 @@ test("store clutter is removed, versions that sound different are kept", () => {
   assert.equal(parseCredit("Glass Hours (Live)", "Ostra").title, "Glass Hours (Live)");
 });
 
+test("a remixer is credited as an artist, the title keeps its remix", () => {
+  const c = parseCredit("No Love (Fred again.. Remix) [Mixed]", "Summer Walker & SZA");
+  assert.equal(c.title, "No Love (Fred again.. Remix)");
+  assert.equal(c.credit, "Summer Walker, SZA & Fred again..");
+  assert.equal(parseCredit("Glass Hours (Radio Remix)", "Ostra").credit, "Ostra");
+});
+
 test("the same song in a different credit order is one song", () => {
   const a = parseCredit("Glass Hours", "Mira & Lune again..");
   const b = parseCredit("Glass Hours [Mixed]", "Lune Again.. & Mira");

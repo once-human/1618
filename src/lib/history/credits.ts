@@ -26,6 +26,10 @@ const TITLE_FEATURE = /\s*[([]\s*(?:feat\.?|ft\.?|featuring|with)\s+([^)\]]+)[)\
 // "Song feat. X" with no brackets, at the end of the title.
 const TRAILING_FEATURE = /\s+(?:feat\.?|ft\.?|featuring)\s+(.+)$/i;
 
+// "(Fred again.. Remix)": the remixer is an artist on the song too.
+const REMIXER = /[([]\s*([^)\]]+?)\s+(?:remix|rework|flip|bootleg)\s*[)\]]/gi;
+const NOT_A_NAME = /^(?:original|radio|club|extended|official|vip|dub|acoustic|instrumental|live|studio|album|single|the|a)$/i;
+
 // Store and mix clutter that doesn't make a different recording.
 const CLUTTER = [
   /\s*[([](?:mixed|mix cut|mixed version)[)\]]/gi,
@@ -83,6 +87,10 @@ export function parseCredit(rawTitle: string, rawCredit: string, isSingleAct?: (
   if (trailing) {
     featured.push(...splitCredit(trailing[1], isSingleAct));
     title = title.slice(0, trailing.index).trim();
+  }
+  for (const m of title.matchAll(REMIXER)) {
+    const who = m[1].trim();
+    if (who && !NOT_A_NAME.test(who)) featured.push(...splitCredit(who, isSingleAct));
   }
   for (const re of CLUTTER) title = title.replace(re, "");
   title = title.replace(/\s{2,}/g, " ").trim() || rawTitle.trim();
