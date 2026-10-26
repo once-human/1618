@@ -199,12 +199,17 @@ export function focusClause(focus: { name: string; category: string; share: numb
   }
 }
 
-/** The laptop, in one short line for under the sentence: battery, and how busy it is. */
+/** The laptop, in one short line for under the sentence: battery, and how busy it is. Only while I'm actually at it. */
 export function laptopLine(desk: DeskLive | null): string | null {
-  const r = desk?.online ? desk.recent : null;
+  const r = desk?.online && desk.active ? desk.recent : null;
   if (!r) return null;
   const bits: string[] = [];
   if (r.battery) bits.push(`Laptop at ${r.battery.pct}%${r.battery.charging ? (r.battery.pct >= 100 ? ", plugged in" : ", charging") : ""}`);
-  if (r.sys) bits.push(`CPU ${Math.round(r.sys.cpu)}%, ${r.sys.memGB} of ${r.sys.totalGB} GB RAM in use`);
+  if (r.sys) {
+    // Memory as one pool: RAM plus swap (zram included).
+    const used = Math.round((r.sys.memGB + (r.sys.swapGB ?? 0)) * 10) / 10;
+    const total = Math.round((r.sys.totalGB + (r.sys.swapTotalGB ?? 0)) * 10) / 10;
+    bits.push(`CPU ${Math.round(r.sys.cpu)}%, ${used} of ${total} GB memory in use`);
+  }
   return bits.length ? bits.join(". ") + "." : null;
 }

@@ -25,7 +25,7 @@ export interface Sample {
   /** Seconds each app was focused in this sample's 30 seconds, longest first. */
   focus: { id: string; name: string; category: string; s: number }[];
   /** How hard the laptop is working, and what the agent costs. */
-  sys: { cpu: number; mem: number; memGB: number; totalGB: number; agentMB: number; agentCPU: number; guiMB: number; uptimeH: number } | null;
+  sys: { cpu: number; mem: number; memGB: number; totalGB: number; swapGB: number; swapTotalGB: number; agentMB: number; agentCPU: number; guiMB: number; uptimeH: number } | null;
 }
 
 /** Things that never go on the site, whatever the agent says. */
@@ -109,7 +109,7 @@ export function cleanSample(raw: unknown): Sample | null {
     t: new Date(t).toISOString(),
     focus,
     sys: sys
-      ? { cpu: num(sys.cpu, 100), mem: num(sys.mem, 100), memGB: num(sys.memGB, 4096), totalGB: num(sys.totalGB, 4096), agentMB: num(sys.agentMB, 100000), agentCPU: num(sys.agentCPU, 1600), guiMB: num(sys.guiMB, 100000), uptimeH: num(sys.uptimeH, 100000) }
+      ? { cpu: num(sys.cpu, 100), mem: num(sys.mem, 100), memGB: num(sys.memGB, 4096), totalGB: num(sys.totalGB, 4096), swapGB: num(sys.swapGB, 4096), swapTotalGB: num(sys.swapTotalGB, 4096), agentMB: num(sys.agentMB, 100000), agentCPU: num(sys.agentCPU, 1600), guiMB: num(sys.guiMB, 100000), uptimeH: num(sys.uptimeH, 100000) }
       : null,
     active: o.active === true,
     idleS: typeof o.idleS === "number" && o.idleS >= 0 ? Math.min(86400, Math.round(o.idleS)) : 0,
