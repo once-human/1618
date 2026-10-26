@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { LAND } from "@/content/land";
 import { myTown } from "@/lib/presence/here";
 import { placeName } from "@/lib/geo";
@@ -17,25 +17,49 @@ interface Place {
   lon: number | null;
   n: number;
 }
+interface Data {
+  people: number;
+  places: Place[];
+  days?: { day: string; n: number }[];
+}
 
-/** The land as one path of round dots: cheap to draw, crisp at any size. Units are the coarse grid's, whatever the layer's own step. */
-function landPath(land: { step: number; rows: string[] }) {
-  const cols = 360 / land.step;
-  const k = land.step / LAND.step;
+/** The land as one path of round dots (the admin's small static map uses this). */
+function landPath() {
   let d = "";
-  land.rows.forEach((row, y) => {
+  LAND.rows.forEach((row, y) => {
     const bits = [...row].map((c) => A.indexOf(c).toString(2).padStart(6, "0")).join("");
-    for (let x = 0; x < cols; x++) if (bits[x] === "1") d += `M${((x + 0.5) * k).toFixed(3)} ${((y + 0.5) * k).toFixed(3)}h0`;
+    for (let x = 0; x < COLS; x++) if (bits[x] === "1") d += `M${x + 0.5} ${y + 0.5}h0`;
   });
   return d;
 }
-
-export const LAND_PATH = landPath(LAND);
-
+export const LAND_PATH = landPath();
 export const MAP = { cols: COLS, rows: ROWS };
 export const project = (lat: number, lon: number) => ({ x: (lon + 180) / LAND.step, y: (LAND.top - lat) / LAND.step });
+const unproject = (x: number, y: number) => ({ lon: x * LAND.step - 180, lat: LAND.top - y * LAND.step });
 
-/* ---- the view: a centre and a width, in map units; the height follows the box ---- */
+/* ---- the land, as bits to draw only what's on screen (a canvas, not tens of thousands of SVG dots) ---- */
+
+interface Layer {
+  c: number; // cell size in map units
+  cols: number;
+  rows: number;
+  bits: Uint8Array;
+}
+function decode(land: { step: number; rows: string[] }): Layer {
+  const cols = 360 / land.step;
+  const bits = new Uint8Array(cols * land.rows.length);
+  land.rows.forEach((row, y) => {
+    let x = 0;
+    for (const ch of row) {
+      const v = A.indexOf(ch);
+      for (let b = 5; b >= 0 && x < cols; b--, x++) bits[y * cols + x] = (v >> b) & 1;
+    }
+  });
+  return { c: land.step / LAND.step, cols, rows: land.rows.length, bits };
+}
+const COARSE = decode(LAND);
+
+/* ---- the view: a centre and a width in map units; the height follows the box ---- */
 
 interface View {
   cx: number;
@@ -46,9 +70,11 @@ interface Box {
   w: number;
   h: number;
 }
-const MIN_W = 6;
+const MIN_W = 3;
 const key = (p: Place) => `${p.city}|${p.country}`;
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
+const ease = (t: number) => 1 - Math.pow(1 - t, 3);
+const hOf = (v: View, box: Box) => (v.w * box.h) / box.w;
 
 /** Keep the view on the map: no zooming out past the world, no panning into the void. */
 function fit(v: View, box: Box): View {
@@ -78,32 +104,51 @@ function home(places: Place[], box: Box): View {
   const x1 = Math.max(...pts.map((p) => p.x));
   const y0 = Math.min(...pts.map((p) => p.y));
   const y1 = Math.max(...pts.map((p) => p.y));
-  const aspect = box.w / box.h;
-  const w = Math.max(22, (x1 - x0) * 1.7, (y1 - y0) * 1.7 * aspect);
+  const w = Math.max(22, (x1 - x0) * 1.7, (y1 - y0) * 1.7 * (box.w / box.h));
   return fit({ cx: (x0 + x1) / 2, cy: (y0 + y1) / 2, w }, box);
 }
 
-const ease = (t: number) => 1 - Math.pow(1 - t, 3);
+/* ---- small geography ---- */
+
+const KM_PER_DEG = 111.32;
+function km(a: { lat: number; lon: number }, b: { lat: number; lon: number }) {
+  const r = Math.PI / 180;
+  const h = Math.sin(((b.lat - a.lat) * r) / 2) ** 2 + Math.cos(a.lat * r) * Math.cos(b.lat * r) * Math.sin(((b.lon - a.lon) * r) / 2) ** 2;
+  return 12742 * Math.asin(Math.sqrt(h));
+}
+const dms = (lat: number, lon: number) => `${Math.abs(lat).toFixed(1)}°${lat < 0 ? "S" : "N"} ${Math.abs(lon).toFixed(1)}°${lon < 0 ? "W" : "E"}`;
+/** A round length for the scale bar: 1, 2 or 5 × 10ⁿ km. */
+function nice(kmMax: number) {
+  const p = 10 ** Math.floor(Math.log10(kmMax));
+  const m = kmMax / p;
+  return (m >= 5 ? 5 : m >= 2 ? 2 : 1) * p;
+}
 
 /**
- * Who came by this month, as dots on a map: towns only, and how many from each.
- * India's calendar month (IST), so it starts fresh on the 1st. It opens on wherever
- * most of them are; drag to move, the buttons (or ctrl + scroll, or a pinch)
- * to zoom, and hover or tap a dot for the town.
+ * Who came by this month: towns only, and how many from each, on a map that
+ * opens where most of them are. The land is drawn on a canvas, only what's
+ * on screen, so moving and zooming stay smooth.
+ *
+ * Drag to move; zoom with the buttons, double-click, Ctrl/⌘ + scroll or a
+ * pinch; hover or tap a dot for the town. The list beside it is the same
+ * towns, ranked.
  */
 export function VisitorsMap() {
-  const [data, setData] = useState<{ people: number; places: Place[] } | null>(null);
+  const [data, setData] = useState<Data | null>(null);
   const [box, setBox] = useState<Box | null>(null);
   const [moved, setMoved] = useState<View | null>(null); // null: still on the opening view
   const [hover, setHover] = useState<string | null>(null);
   const [pinned, setPinned] = useState<string | null>(null);
   const [hint, setHint] = useState(false);
-  const [fine, setFine] = useState<string | null>(null); // the close-up land, fetched only once you zoom in
+  const [fine, setFine] = useState<Layer | null>(null); // the close-up coastline, fetched only once you zoom in
   const wrap = useRef<HTMLDivElement>(null);
+  const canvas = useRef<HTMLCanvasElement>(null);
+  const readout = useRef<HTMLSpanElement>(null);
   const anim = useRef(0);
   const pointers = useRef(new Map<number, { x: number; y: number }>());
   const drag = useRef<{ x: number; y: number; moved: boolean } | null>(null);
   const hintTimer = useRef(0);
+  const viewRef = useRef<View | null>(null);
 
   useEffect(() => {
     let live = true;
@@ -120,7 +165,6 @@ export function VisitorsMap() {
     };
   }, []);
 
-  // The size of the map on screen, so dots and text stay the same size however far in you are.
   const ready = !!data;
   useEffect(() => {
     const el = wrap.current;
@@ -143,21 +187,79 @@ export function VisitorsMap() {
   const places = useMemo(() => data?.places ?? [], [data]);
   const opening = useMemo(() => (box && data ? home(places, box) : null), [box, data, places]);
   const view = moved ?? opening;
+  useEffect(() => {
+    viewRef.current = view;
+  });
   const close = !!view && view.w < 110;
 
   useEffect(() => {
     if (!close || fine) return;
     let live = true;
-    void import("@/content/land-fine").then((m) => live && setFine(landPath(m.LAND_FINE)));
+    void import("@/content/land-fine").then((m) => live && setFine(decode(m.LAND_FINE)));
     return () => {
       live = false;
     };
   }, [close, fine]);
 
-  // Ctrl or ⌘ + scroll zooms (plain scroll still scrolls the page); a plain scroll over the map says so, once.
+  // Draw the land: only the dots that are on screen.
+  useEffect(() => {
+    const cv = canvas.current;
+    if (!cv || !box || !view) return;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    if (cv.width !== Math.round(box.w * dpr) || cv.height !== Math.round(box.h * dpr)) {
+      cv.width = Math.round(box.w * dpr);
+      cv.height = Math.round(box.h * dpr);
+    }
+    const ctx = cv.getContext("2d");
+    if (!ctx) return;
+    const L = close && fine ? fine : COARSE;
+    const s = (box.w / view.w) * dpr; // device pixels per map unit
+    const left = view.cx - view.w / 2;
+    const top = view.cy - hOf(view, box) / 2;
+    const r = Math.max(0.6 * dpr, 0.23 * L.c * s);
+    const x0 = Math.max(0, Math.floor(left / L.c) - 1);
+    const x1 = Math.min(L.cols - 1, Math.ceil((left + view.w) / L.c) + 1);
+    const y0 = Math.max(0, Math.floor(top / L.c) - 1);
+    const y1 = Math.min(L.rows - 1, Math.ceil((top + hOf(view, box)) / L.c) + 1);
+    ctx.clearRect(0, 0, cv.width, cv.height);
+    ctx.fillStyle = getComputedStyle(cv).color;
+    ctx.globalAlpha = 0.26;
+    ctx.beginPath();
+    for (let y = y0; y <= y1; y++) {
+      for (let x = x0; x <= x1; x++) {
+        if (!L.bits[y * L.cols + x]) continue;
+        const px = ((x + 0.5) * L.c - left) * s;
+        const py = ((y + 0.5) * L.c - top) * s;
+        ctx.moveTo(px + r, py);
+        ctx.arc(px, py, r, 0, Math.PI * 2);
+      }
+    }
+    ctx.fill();
+  }, [view, box, fine, close, data]);
+
+  const set = useCallback(
+    (v: View) => {
+      if (box) setMoved(fit(v, box));
+    },
+    [box],
+  );
+  const zoomAt = useCallback(
+    (factor: number, px: number, py: number) => {
+      const v = viewRef.current;
+      if (!box || !v) return;
+      const w = clamp(v.w / factor, MIN_W, COLS);
+      const h = (w * box.h) / box.w;
+      const mx = v.cx - v.w / 2 + (px / box.w) * v.w;
+      const my = v.cy - hOf(v, box) / 2 + (py / box.h) * hOf(v, box);
+      set({ w, cx: mx - (px / box.w - 0.5) * w, cy: my - (py / box.h - 0.5) * h });
+    },
+    [box, set],
+  );
+
+  // Ctrl or ⌘ + scroll zooms (a plain scroll still scrolls the page); a plain scroll over the map says so, briefly.
   useEffect(() => {
     const el = wrap.current;
-    if (!el || !box || !view) return;
+    if (!el || !box) return;
     const onWheel = (e: WheelEvent) => {
       if (!e.ctrlKey && !e.metaKey) {
         setHint(true);
@@ -172,7 +274,7 @@ export function VisitorsMap() {
     };
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => el.removeEventListener("wheel", onWheel);
-  });
+  }, [box, zoomAt, ready]);
 
   if (!data) return <div className="min-h-[16rem] md:min-h-[23rem] xl:min-h-[38rem]" aria-hidden />;
 
@@ -180,27 +282,23 @@ export function VisitorsMap() {
   const towns = places.filter((p) => p.city || p.country);
   const placed = places.filter((p) => p.lat != null && p.lon != null);
   const max = Math.max(1, ...placed.map((p) => p.n));
+  const total = data.people || 1;
+  const countries = new Set(places.map((p) => p.country).filter(Boolean)).size;
+  const top = places[0];
+  const mine = places.find((p) => p.city === me.city && p.country === me.country && p.lat != null);
+  const dayList = data.days ?? [];
 
   const unit = box && view ? view.w / box.w : 0; // map units per screen pixel
-  const toScreen = (x: number, y: number) => (box && view ? { x: (x - (view.cx - view.w / 2)) / unit, y: (y - (view.cy - (view.w * box.h) / box.w / 2)) / unit } : { x: 0, y: 0 });
+  const origin = box && view ? { x: view.cx - view.w / 2, y: view.cy - hOf(view, box) / 2 } : { x: 0, y: 0 };
+  const toScreen = (p: Place) => {
+    const { x, y } = project(p.lat!, p.lon!);
+    return { x: (x - origin.x) / unit, y: (y - origin.y) / unit };
+  };
 
-  function set(v: View) {
-    if (box) setMoved(fit(v, box));
-  }
-  function zoomAt(factor: number, px: number, py: number) {
-    if (!box || !view) return;
-    const v = view;
-    const w = clamp(v.w / factor, MIN_W, COLS);
-    const h = (w * box.h) / box.w;
-    const vh = (v.w * box.h) / box.w;
-    const mx = v.cx - v.w / 2 + (px / box.w) * v.w;
-    const my = v.cy - vh / 2 + (py / box.h) * vh;
-    set({ w, cx: mx - (px / box.w - 0.5) * w, cy: my - (py / box.h - 0.5) * h });
-  }
   function fly(to: View, then?: () => void) {
-    if (!box || !view) return;
+    const from = viewRef.current;
+    if (!box || !from) return;
     cancelAnimationFrame(anim.current);
-    const from = view;
     const target = fit(to, box);
     if (matchMedia("(prefers-reduced-motion: reduce)").matches) {
       setMoved(target);
@@ -209,9 +307,9 @@ export function VisitorsMap() {
     }
     const t0 = performance.now();
     const step = (now: number) => {
-      const t = Math.min(1, (now - t0) / 650);
+      const t = Math.min(1, (now - t0) / 600);
       const e = ease(t);
-      // Zoom in the log of the width, so it feels even.
+      // zoom in the log of the width, so it feels even
       const w = Math.exp(Math.log(from.w) + (Math.log(target.w) - Math.log(from.w)) * e);
       setMoved(fit({ w, cx: from.cx + (target.cx - from.cx) * e, cy: from.cy + (target.cy - from.cy) * e }, box));
       if (t < 1) anim.current = requestAnimationFrame(step);
@@ -219,12 +317,12 @@ export function VisitorsMap() {
     };
     anim.current = requestAnimationFrame(step);
   }
-  const zoomButton = (factor: number) => box && view && fly({ ...view, w: view.w / factor });
+  const zoomButton = (factor: number) => view && fly({ ...view, w: view.w / factor });
   const toPlace = (p: Place) => {
     if (p.lat == null || p.lon == null) return;
     const { x, y } = project(p.lat, p.lon);
     setPinned(key(p));
-    fly({ cx: x, cy: y, w: 12 });
+    fly({ cx: x, cy: y, w: 10 });
   };
 
   function onDown(e: React.PointerEvent) {
@@ -236,6 +334,12 @@ export function VisitorsMap() {
   }
   function onMove(e: React.PointerEvent) {
     if (!box || !view) return;
+    // The coordinates under the pointer, written straight into the page (no re-render).
+    const r = wrap.current!.getBoundingClientRect();
+    if (readout.current) {
+      const g = unproject(origin.x + (e.clientX - r.left) * unit, origin.y + (e.clientY - r.top) * unit);
+      readout.current.textContent = Math.abs(g.lat) <= 90 ? dms(g.lat, g.lon) : "";
+    }
     const prev = pointers.current.get(e.pointerId);
     if (!prev) return;
     const now = { x: e.clientX, y: e.clientY };
@@ -245,18 +349,14 @@ export function VisitorsMap() {
       const other = a === prev ? b : a;
       const before = Math.hypot(prev.x - other.x, prev.y - other.y) || 1;
       const after = Math.hypot(now.x - other.x, now.y - other.y) || 1;
-      const r = wrap.current!.getBoundingClientRect();
       const mid = { x: (now.x + other.x) / 2 - r.left, y: (now.y + other.y) / 2 - r.top };
       pointers.current.set(e.pointerId, now);
       cancelAnimationFrame(anim.current);
-      const dx = (now.x - prev.x) / 2;
-      const dy = (now.y - prev.y) / 2;
       const w = clamp(view.w / (after / before), MIN_W, COLS);
       const k = w / box.w;
-      const vh = (view.w * box.h) / box.w;
-      const mx = view.cx - view.w / 2 + (mid.x / box.w) * view.w;
-      const my = view.cy - vh / 2 + (mid.y / box.h) * vh;
-      set({ w, cx: mx - (mid.x / box.w - 0.5) * w - dx * k, cy: my - (mid.y / box.h - 0.5) * ((w * box.h) / box.w) - dy * k });
+      const mx = origin.x + mid.x * unit;
+      const my = origin.y + mid.y * unit;
+      set({ w, cx: mx - (mid.x / box.w - 0.5) * w - ((now.x - prev.x) / 2) * k, cy: my - (mid.y / box.h - 0.5) * ((w * box.h) / box.w) - ((now.y - prev.y) / 2) * k });
       return;
     }
     pointers.current.set(e.pointerId, now);
@@ -282,178 +382,247 @@ export function VisitorsMap() {
 
   const shown = hover ?? pinned;
   const focus = shown ? placed.find((p) => key(p) === shown) : null;
-  const tip = focus && view ? toScreen(project(focus.lat!, focus.lon!).x, project(focus.lat!, focus.lon!).y) : null;
-  const total = data.people || 1;
+  const tip = focus && box && view ? toScreen(focus) : null;
+  const radius = (p: Place) => 6 + 12 * Math.sqrt(p.n / max); // px, the same at any zoom
 
   // Names beside the dots that have room: the biggest first, skipping any that would sit on another's.
   const labels: Place[] = [];
   if (box && view) {
+    const spots: { x: number; y: number }[] = [];
     for (const p of [...placed].sort((a, b) => b.n - a.n)) {
-      const s = toScreen(project(p.lat!, p.lon!).x, project(p.lat!, p.lon!).y);
+      const s = toScreen(p);
       if (s.x < 0 || s.y < 0 || s.x > box.w || s.y > box.h) continue;
-      const clash = labels.some((q) => {
-        const t = toScreen(project(q.lat!, q.lon!).x, project(q.lat!, q.lon!).y);
-        return Math.abs(t.x - s.x) < 120 && Math.abs(t.y - s.y) < 26;
-      });
-      if (!clash) labels.push(p);
+      if (!spots.some((t) => Math.abs(t.x - s.x) < 120 && Math.abs(t.y - s.y) < 26)) {
+        labels.push(p);
+        spots.push(s);
+      }
     }
   }
   const atHome = !!opening && !!view && Math.abs(view.w - opening.w) < 0.05 && Math.abs(view.cx - opening.cx) < 0.05 && Math.abs(view.cy - opening.cy) < 0.05;
   const btn = "border-ink bg-paper hover:bg-ink hover:text-paper grid size-9 place-items-center border text-[18px] leading-none disabled:opacity-30";
+  const pill = "border-ink bg-paper hover:bg-ink hover:text-paper border px-2.5 py-1 disabled:opacity-30";
+
+  // Scale bar: how far a round number of kilometres is, at the middle of the view, now.
+  let scale: { km: number; px: number } | null = null;
+  if (box && view) {
+    const latMid = unproject(view.cx, view.cy).lat;
+    const kmPerPx = (LAND.step * KM_PER_DEG * Math.cos((clamp(latMid, -80, 80) * Math.PI) / 180)) / (box.w / view.w);
+    const k = nice(kmPerPx * 110);
+    scale = { km: k, px: k / kmPerPx };
+  }
+  const zoom = view ? COLS / view.w : 1;
+
+  const today = new Date(Date.now() + 5.5 * 3600_000).toISOString().slice(0, 10);
+  const maxDay = Math.max(1, ...dayList.map((d) => d.n));
+  const dim = new Date(Number(today.slice(0, 4)), Number(today.slice(5, 7)), 0).getDate();
+  const byDay = new Map(dayList.map((d) => [Number(d.day.slice(8, 10)), d.n]));
+  const dayNow = Number(today.slice(8, 10));
 
   return (
     <section id="visitors" className="scroll-mt-24">
       <h2 className="border-ink mb-6 flex flex-wrap justify-between gap-x-4 border-t pt-1.5 font-semibold">
         Who came by this month
         <span className="text-quiet font-normal">
-          {!data.people
-            ? "nobody yet this month"
-            : `${fmtNum(data.people)} ${data.people === 1 ? "person" : "people"}${towns.length ? ` from ${towns.length} ${towns.length === 1 ? "place" : "places"}` : ""} so far`}
+          {!data.people ? "nobody yet this month" : `${fmtNum(data.people)} ${data.people === 1 ? "person" : "people"} so far, since the 1st`}
         </span>
       </h2>
 
-      <div
-        ref={wrap}
-        className="border-ink/15 relative aspect-[4/3] w-full cursor-grab touch-pan-y overflow-hidden border select-none active:cursor-grabbing sm:aspect-[2/1] xl:aspect-[16/7]"
-        onPointerDown={onDown}
-        onPointerMove={onMove}
-        onPointerUp={onUp}
-        onPointerCancel={onUp}
-        onDoubleClick={(e) => {
-          const r = wrap.current!.getBoundingClientRect();
-          zoomAt(2, e.clientX - r.left, e.clientY - r.top);
-        }}
-      >
-        {box && view ? (
-          <>
-            <svg
-              viewBox={`${view.cx - view.w / 2} ${view.cy - (view.w * box.h) / box.w / 2} ${view.w} ${(view.w * box.h) / box.w}`}
-              className="absolute inset-0 size-full"
-              role="img"
-              aria-label={`Map of this month's visitors: ${towns.map((p) => placeName(p.city, p.country)).join(", ") || "none yet"}`}
-            >
-              <path d={close && fine ? fine : LAND_PATH} className="stroke-ink/25" strokeWidth={close && fine ? 0.13 : 0.42} strokeLinecap="round" fill="none" />
-              {placed.map((p) => {
-                const { x, y } = project(p.lat!, p.lon!);
+      <dl className="mb-6 grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-4">
+        {[
+          { k: "People", v: fmtNum(data.people), s: "each counted once a day" },
+          { k: "Places", v: fmtNum(towns.length), s: `${countries} ${countries === 1 ? "country" : "countries"}` },
+          { k: "Busiest", v: top?.city ?? "–", s: top ? `${Math.round((top.n / total) * 100)}% · ${fmtNum(top.n)} people` : "" },
+          { k: "Active days", v: `${byDay.size}`, s: `of ${dayNow} so far` },
+        ].map((x) => (
+          <div key={x.k} className="border-ink/20 border-t pt-1.5">
+            <dt className="text-quiet text-[13px]">{x.k}</dt>
+            <dd className="tnum truncate text-[clamp(1.4rem,2.6vw,2rem)] leading-tight font-semibold">{x.v}</dd>
+            <dd className="text-quiet truncate text-[13px]">{x.s}</dd>
+          </div>
+        ))}
+      </dl>
+
+      <div className="grid grid-cols-1 gap-x-8 gap-y-6 lg:grid-cols-[minmax(0,1fr)_18rem]">
+        <div>
+          <div
+            ref={wrap}
+            className="border-ink/15 relative aspect-[4/3] w-full cursor-grab touch-pan-y overflow-hidden border select-none active:cursor-grabbing sm:aspect-[16/10]"
+            onPointerDown={onDown}
+            onPointerMove={onMove}
+            onPointerUp={onUp}
+            onPointerCancel={onUp}
+            onPointerLeave={() => readout.current && (readout.current.textContent = "")}
+            onDoubleClick={(e) => {
+              const r = wrap.current!.getBoundingClientRect();
+              zoomAt(2, e.clientX - r.left, e.clientY - r.top);
+            }}
+          >
+            <canvas ref={canvas} className="text-ink absolute inset-0 size-full" aria-hidden />
+            {box && view ? (
+              <>
+                <svg
+                  viewBox={`${origin.x} ${origin.y} ${view.w} ${hOf(view, box)}`}
+                  className="absolute inset-0 size-full"
+                  role="img"
+                  aria-label={`Map of this month's visitors: ${towns.map((p) => placeName(p.city, p.country)).join(", ") || "none yet"}`}
+                >
+                  {placed.map((p) => {
+                    const { x, y } = project(p.lat!, p.lon!);
+                    const k = key(p);
+                    const on = shown === k;
+                    const r = radius(p) * unit;
+                    const you = p.city === me.city && p.country === me.country;
+                    return (
+                      <g key={k} data-dot style={{ opacity: shown != null && !on ? 0.35 : 1, transition: "opacity .15s" }}>
+                        <circle cx={x} cy={y} r={r * (on ? 1.18 : 1)} className="fill-ink" />
+                        <circle cx={x} cy={y} r={r} className="stroke-ink animate-ping fill-none motion-reduce:hidden" strokeWidth={1.5 * unit} style={{ transformBox: "fill-box", transformOrigin: "center", animationDuration: "3s" }} />
+                        {you ? <circle cx={x} cy={y} r={r + 4 * unit} className="stroke-ink fill-none" strokeWidth={1.5 * unit} /> : null}
+                        <circle
+                          cx={x}
+                          cy={y}
+                          r={Math.max(r, 14 * unit)}
+                          fill="transparent"
+                          tabIndex={0}
+                          role="button"
+                          aria-label={`${placeName(p.city, p.country)}: ${p.n}`}
+                          className="cursor-pointer outline-none"
+                          onPointerEnter={(e) => e.pointerType === "mouse" && setHover(k)}
+                          onPointerLeave={() => setHover(null)}
+                          onFocus={() => setHover(k)}
+                          onBlur={() => setHover(null)}
+                          onClick={() => setPinned((c) => (c === k ? null : k))}
+                          onDoubleClick={(e) => (e.stopPropagation(), toPlace(p))}
+                          onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), toPlace(p))}
+                        />
+                      </g>
+                    );
+                  })}
+                </svg>
+
+                {labels.map((p) => {
+                  const s = toScreen(p);
+                  return key(p) === shown ? null : (
+                    <span key={key(p)} className="pointer-events-none absolute text-[12px] leading-none whitespace-nowrap" style={{ left: s.x + radius(p) + 5, top: s.y, transform: "translateY(-50%)" }}>
+                      {p.city ?? placeName(null, p.country)} <span className="text-quiet tnum">{p.n}</span>
+                    </span>
+                  );
+                })}
+
+                {focus && tip ? (
+                  <div
+                    role="status"
+                    className="border-ink bg-paper pointer-events-none absolute z-10 w-max max-w-[17rem] border px-3 py-2 text-[13px] leading-snug shadow-[3px_3px_0_0_var(--color-ink)]"
+                    style={{ left: clamp(tip.x, 100, box.w - 100), top: Math.max(tip.y - radius(focus) - 10, 70), transform: "translate(-50%, -100%)" }}
+                  >
+                    <p className="font-semibold">{placeName(focus.city, focus.country)}</p>
+                    <p className="text-quiet tnum">
+                      {fmtNum(focus.n)} {focus.n === 1 ? "person" : "people"} · {Math.round((focus.n / total) * 100)}% of the month
+                    </p>
+                    <p className="text-quiet tnum">
+                      {dms(focus.lat!, focus.lon!)}
+                      {mine && focus !== mine ? ` · ${fmtNum(Math.round(km({ lat: mine.lat!, lon: mine.lon! }, { lat: focus.lat!, lon: focus.lon! })))} km from you` : focus === mine ? " · that's you" : ""}
+                    </p>
+                  </div>
+                ) : null}
+
+                <div className="absolute top-2 right-2 z-10 flex flex-col gap-1" onPointerDown={(e) => e.stopPropagation()}>
+                  <button type="button" className={btn} aria-label="Zoom in" onClick={() => zoomButton(2)} disabled={view.w <= MIN_W + 0.01}>
+                    +
+                  </button>
+                  <button type="button" className={btn} aria-label="Zoom out" onClick={() => zoomButton(0.5)} disabled={view.w >= COLS - 0.01}>
+                    −
+                  </button>
+                </div>
+                <div className="absolute bottom-2 left-2 z-10 flex flex-wrap gap-1 text-[13px]" onPointerDown={(e) => e.stopPropagation()}>
+                  <button type="button" className={pill} disabled={atHome} onClick={() => opening && fly(opening, () => setMoved(null))}>
+                    Busiest part
+                  </button>
+                  <button type="button" className={pill} disabled={view.w >= COLS - 0.01} onClick={() => fly({ cx: COLS / 2, cy: ROWS / 2, w: COLS })}>
+                    World
+                  </button>
+                </div>
+                {scale ? (
+                  <div className="pointer-events-none absolute right-2 bottom-2 z-10 text-right text-[12px] leading-none">
+                    <p className="tnum text-quiet mb-1">×{zoom < 10 ? zoom.toFixed(1) : Math.round(zoom)}</p>
+                    <div className="border-ink ml-auto h-1.5 border-x border-b" style={{ width: scale.px }} />
+                    <p className="tnum mt-1">{fmtNum(scale.km)} km</p>
+                  </div>
+                ) : null}
+                <p
+                  aria-hidden
+                  className={`bg-paper/90 pointer-events-none absolute top-2 left-1/2 z-10 -translate-x-1/2 px-3 py-1 text-[13px] transition-opacity ${hint ? "opacity-100" : "opacity-0"}`}
+                >
+                  Hold Ctrl (⌘ on a Mac) and scroll to zoom
+                </p>
+              </>
+            ) : null}
+          </div>
+          <p className="text-quiet mt-2 flex flex-wrap justify-between gap-x-4 text-[13px]">
+            <span>Drag to move · double-click or +/− to zoom · pinch on a phone</span>
+            <span ref={readout} className="tnum" aria-hidden />
+          </p>
+        </div>
+
+        <div className="min-w-0">
+          <h3 className="border-ink/20 mb-2 flex justify-between border-t pt-1.5 text-[14px] font-semibold">
+            Towns <span className="text-quiet font-normal">people · share</span>
+          </h3>
+          {towns.length ? (
+            <ol className="text-[14px]">
+              {towns.slice(0, 10).map((p) => {
                 const k = key(p);
-                const on = shown === k;
-                const dim = shown != null && !on;
-                const r = (7 + 13 * Math.sqrt(p.n / max)) * unit;
-                const mine = p.city === me.city && p.country === me.country;
+                const share = p.n / total;
                 return (
-                  <g key={k} data-dot style={{ opacity: dim ? 0.35 : 1, transition: "opacity .15s" }}>
-                    <circle cx={x} cy={y} r={r * (on ? 1.18 : 1)} className="fill-ink" style={{ transition: "r .15s" }} />
-                    <circle
-                      cx={x}
-                      cy={y}
-                      r={r}
-                      className="stroke-ink animate-ping fill-none motion-reduce:hidden"
-                      strokeWidth={1.5 * unit}
-                      style={{ transformBox: "fill-box", transformOrigin: "center", animationDuration: "3s" }}
-                    />
-                    {mine ? <circle cx={x} cy={y} r={r + 4 * unit} className="stroke-ink fill-none" strokeWidth={1.5 * unit} /> : null}
-                    {/* a bigger invisible target, so a dot is easy to hit */}
-                    <circle
-                      cx={x}
-                      cy={y}
-                      r={Math.max(r, 14 * unit)}
-                      fill="transparent"
-                      tabIndex={0}
-                      role="button"
-                      aria-label={`${placeName(p.city, p.country)}: ${p.n}`}
-                      className="cursor-pointer outline-none"
+                  <li key={k}>
+                    <button
+                      type="button"
+                      className={`hover:bg-ink/[0.05] relative block w-full py-1.5 text-left ${shown === k ? "bg-ink/[0.05]" : ""}`}
                       onPointerEnter={(e) => e.pointerType === "mouse" && setHover(k)}
                       onPointerLeave={() => setHover(null)}
-                      onFocus={() => setHover(k)}
-                      onBlur={() => setHover(null)}
-                      onClick={() => setPinned((c) => (c === k ? null : k))}
-                      onDoubleClick={(e) => (e.stopPropagation(), toPlace(p))}
-                      onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), toPlace(p))}
-                    />
-                  </g>
+                      onClick={() => toPlace(p)}
+                    >
+                      <span className="flex justify-between gap-3">
+                        <span className="truncate">{placeName(p.city, p.country)}</span>
+                        <span className="tnum shrink-0">
+                          {fmtNum(p.n)} <span className="text-quiet">· {Math.round(share * 100)}%</span>
+                        </span>
+                      </span>
+                      <span className="bg-ink/10 mt-1 block h-[3px]">
+                        <span className="bg-ink block h-full" style={{ width: `${(p.n / max) * 100}%` }} />
+                      </span>
+                    </button>
+                  </li>
                 );
               })}
-            </svg>
+              {towns.length > 10 ? <li className="text-quiet py-1.5">and {towns.length - 10} more</li> : null}
+            </ol>
+          ) : (
+            <p className="text-quiet py-2 text-[14px]">Nobody yet.</p>
+          )}
 
-            {/* names beside the dots that have room */}
-            {labels.map((p) => {
-              const s = toScreen(project(p.lat!, p.lon!).x, project(p.lat!, p.lon!).y);
-              const r = 7 + 13 * Math.sqrt(p.n / max);
-              return key(p) === shown ? null : (
+          <h3 className="border-ink/20 mt-6 mb-2 flex justify-between border-t pt-1.5 text-[14px] font-semibold">
+            By day <span className="text-quiet font-normal">people</span>
+          </h3>
+          <div className="flex h-14 items-end gap-px" role="img" aria-label="People per day this month">
+            {Array.from({ length: dim }, (_, i) => {
+              const n = byDay.get(i + 1) ?? 0;
+              const future = i + 1 > dayNow;
+              return (
                 <span
-                  key={key(p)}
-                  className="pointer-events-none absolute text-[12px] leading-none whitespace-nowrap"
-                  style={{ left: s.x + r + 5, top: s.y, transform: "translateY(-50%)" }}
-                >
-                  {p.city ?? placeName(null, p.country)} <span className="text-quiet tnum">{p.n}</span>
-                </span>
+                  key={i}
+                  title={`${i + 1}: ${n}`}
+                  className={`flex-1 ${i + 1 === dayNow ? "bg-ink" : "bg-ink/40"} ${future ? "opacity-20" : ""}`}
+                  style={{ height: future || !n ? 2 : `${Math.max(8, (n / maxDay) * 100)}%` }}
+                />
               );
             })}
-
-            {/* the one under the pointer */}
-            {focus && tip ? (
-              <div
-                role="status"
-                className="border-ink bg-paper pointer-events-none absolute z-10 w-max max-w-[16rem] border px-3 py-2 text-[13px] leading-snug shadow-[3px_3px_0_0_var(--color-ink)]"
-                style={{ left: clamp(tip.x, 90, (box?.w ?? 0) - 90), top: Math.max(tip.y - (10 + 13 * Math.sqrt(focus.n / max)) - 10, 56), transform: "translate(-50%, -100%)" }}
-              >
-                <p className="font-semibold">{placeName(focus.city, focus.country)}</p>
-                <p className="text-quiet">
-                  {fmtNum(focus.n)} {focus.n === 1 ? "person" : "people"} · {Math.round((focus.n / total) * 100)}% of this month
-                  {focus.city === me.city && focus.country === me.country ? " · that's you" : ""}
-                </p>
-              </div>
-            ) : null}
-
-            {/* zoom */}
-            <div className="absolute top-2 right-2 z-10 flex flex-col gap-1" onPointerDown={(e) => e.stopPropagation()}>
-              <button type="button" className={btn} aria-label="Zoom in" onClick={() => zoomButton(2)} disabled={view.w <= MIN_W + 0.01}>
-                +
-              </button>
-              <button type="button" className={btn} aria-label="Zoom out" onClick={() => zoomButton(0.5)} disabled={view.w >= COLS - 0.01}>
-                −
-              </button>
-            </div>
-            <div className="absolute bottom-2 left-2 z-10 flex gap-1 text-[13px]" onPointerDown={(e) => e.stopPropagation()}>
-              <button type="button" className="border-ink bg-paper hover:bg-ink hover:text-paper border px-2.5 py-1 disabled:opacity-30" disabled={atHome} onClick={() => opening && fly(opening, () => setMoved(null))}>
-                Back to the busiest part
-              </button>
-              <button type="button" className="border-ink bg-paper hover:bg-ink hover:text-paper border px-2.5 py-1 disabled:opacity-30" disabled={view.w >= COLS - 0.01} onClick={() => fly({ cx: COLS / 2, cy: ROWS / 2, w: COLS })}>
-                The world
-              </button>
-            </div>
-            <p
-              aria-hidden
-              className={`bg-paper/90 pointer-events-none absolute bottom-2 left-1/2 z-10 -translate-x-1/2 px-3 py-1 text-[13px] transition-opacity ${hint ? "opacity-100" : "opacity-0"}`}
-            >
-              Hold Ctrl (⌘ on a Mac) and scroll to zoom
-            </p>
-          </>
-        ) : null}
+          </div>
+          <p className="text-quiet tnum mt-1 flex justify-between text-[12px]">
+            <span>1</span>
+            <span>{dim}</span>
+          </p>
+        </div>
       </div>
-      <p className="text-quiet mt-2 text-[13px]">Drag to move, double-click to zoom in, hover a dot for the town. On a phone: pinch with two fingers.</p>
-
-      {towns.length > 0 && (
-        <p className="text-quiet mt-4 flex flex-wrap gap-x-5 gap-y-1">
-          {towns.slice(0, 12).map((p) => {
-            const k = key(p);
-            return (
-              <button
-                key={k}
-                type="button"
-                className={`hover:text-ink text-left ${shown === k ? "text-ink" : ""}`}
-                onPointerEnter={(e) => e.pointerType === "mouse" && setHover(k)}
-                onPointerLeave={() => setHover(null)}
-                onClick={() => toPlace(p)}
-              >
-                <span className={p.city === me.city && p.country === me.country ? "text-ink" : ""}>{placeName(p.city, p.country)}</span>{" "}
-                <span className="tnum">{p.n}</span>
-              </button>
-            );
-          })}
-          {towns.length > 12 ? <span>and {towns.length - 12} more</span> : null}
-        </p>
-      )}
     </section>
   );
 }

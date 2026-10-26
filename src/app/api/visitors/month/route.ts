@@ -12,9 +12,14 @@ export async function GET() {
          FROM visitors WHERE day >= ${day.slice(0, 8) + "01"}::date
          GROUP BY city, country ORDER BY n DESC, city LIMIT 200`,
   );
+  const days = await q<{ day: string; n: number }>(
+    "visitors by day",
+    (db) =>
+      db`SELECT day::text, count(*)::int AS n FROM visitors WHERE day >= ${day.slice(0, 8) + "01"}::date GROUP BY day ORDER BY day`,
+  );
   const places = (rows ?? []).map((r) => ({ ...r, lat: r.lat == null ? null : Number(r.lat), lon: r.lon == null ? null : Number(r.lon) }));
   return Response.json(
-    { month: day.slice(0, 7), people: places.reduce((a, p) => a + p.n, 0), places },
+    { month: day.slice(0, 7), people: places.reduce((a, p) => a + p.n, 0), places, days: days ?? [] },
     { headers: { "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300" } },
   );
 }
