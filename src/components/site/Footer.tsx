@@ -1,5 +1,6 @@
 "use client";
 
+import { PlayDot } from "@/components/live/PlayDot";
 import Link from "next/link";
 import { useMusic, usePresence, useNow } from "@/lib/presence/client";
 import { clockIn, timeAgo } from "@/lib/time";
@@ -52,6 +53,8 @@ export function Footer() {
       </p>
       <p className={`${cell} truncate ${latest ? "" : "hidden"} md:block`} aria-live="polite">
         {latest ? (
+          <>
+          <PlayDot id={`now-${latest.track}`} url={latest.preview} label={`${latest.track} by ${latest.artist}`} className="mr-1.5" />
           <a
             href={latest.url}
             target="_blank"
@@ -70,6 +73,7 @@ export function Footer() {
               </>
             )}
           </a>
+          </>
         ) : null}
       </p>
       <p className={`${cell} tnum truncate text-right`}>

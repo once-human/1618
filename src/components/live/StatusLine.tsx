@@ -1,5 +1,6 @@
 "use client";
 
+import { PlayDot } from "@/components/live/PlayDot";
 import { useHere, useMusic, useNow, usePresence, useSaved } from "@/lib/presence/client";
 import { myTown, useOthers } from "@/lib/presence/here";
 import { whoIsHere, type Town } from "@/lib/presence/words";
@@ -53,7 +54,7 @@ export function StatusLine({ className = "" }: { className?: string }) {
     line = (
       <>
         Awake, listening to <span className="font-semibold">{playing.track}</span> by{" "}
-        {playing.artist}.
+        {playing.artist}. <PlayDot id={`now-${playing.track}`} url={playing.preview} label={`${playing.track} by ${playing.artist}`} />
       </>
     );
   } else if (since < 15 * 60_000 && latest) {

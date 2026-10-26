@@ -52,7 +52,7 @@ export async function getTimeline(): Promise<{ hours: number; events: TodayEvent
     plays.set(`${s.uts}|${s.track}`, s);
   const list = [...plays.values()].sort((a, b) => a.uts - b.uts);
   let session: Scrobble[] = [];
-  const singles: { at: number; s: Scrobble }[] = []; // single songs, to get their cover and clip
+  const rawOf = new Map<object, Scrobble>(); // each listed song -> the scrobble it came from, for the lookup
   const flush = () => {
     if (!session.length) return;
     // Count every artist on every song, so "mostly X" means the artist I actually heard most.
@@ -61,7 +61,6 @@ export async function getTimeline(): Promise<{ hours: number; events: TodayEvent
     for (const c of parsed) for (const a of c.artists) count.set(a, (count.get(a) ?? 0) + 1);
     const top = [...count.entries()].sort((a, b) => b[1] - a[1]);
     const one = session.length === 1;
-    if (one) singles.push({ at: out.length, s: session[0] });
     out.push({
       kind: "music",
       at: new Date(session[0].uts * 1000).toISOString(),
@@ -76,6 +75,13 @@ export async function getTimeline(): Promise<{ hours: number; events: TodayEvent
               .map(([a]) => a)
               .join(" · "),
       url: null,
+      songs: parsed
+        .map((c, i) => {
+          const song = { track: c.title, artist: c.credit, album: session[i].album, image: null, preview: null, url: null };
+          rawOf.set(song, session[i]);
+          return song;
+        })
+        .reverse(),
     });
     session = [];
   };
@@ -85,15 +91,26 @@ export async function getTimeline(): Promise<{ hours: number; events: TodayEvent
   }
   flush();
 
-  // A single song gets its cover and 30-second clip (the newest few; lookups are cached).
-  await Promise.all(
-    singles.slice(-8).map(async ({ at, s }) => {
-      const song = await appleSong(s.artist, s.track, s.album, 3).catch(() => null);
-      if (!song) return;
-      out[at].image = song.art;
-      out[at].preview = song.preview;
-    }),
-  );
+  // Every song gets its cover and 30-second clip where the store has them (newest first; lookups are
+  // cached for weeks, so only the first visit is slow, and a late one shows on the next refresh).
+  {
+    const todo = out
+      .filter((e) => e.kind === "music")
+      .reverse()
+      .flatMap((e) => e.songs ?? [])
+      .slice(0, 60);
+    let next = 0;
+    const worker = async () => {
+      while (next < todo.length) {
+        const s = todo[next++];
+        const raw = rawOf.get(s)!;
+        const song = await appleSong(raw.artist, raw.track, raw.album, 4).catch(() => null);
+        if (song) Object.assign(s, { image: song.art, preview: song.preview, url: song.link });
+      }
+    };
+    await Promise.race([Promise.all([worker(), worker(), worker(), worker()]), new Promise((r) => setTimeout(r, 7000))]);
+    for (const e of out) if (e.kind === "music" && e.songs?.length === 1) Object.assign(e, { image: e.songs[0].image, preview: e.songs[0].preview });
+  }
 
   // Code: pushes per repo, merged when within an hour of each other.
   const pushes = new Map<string, { at: string; repo: string }>();

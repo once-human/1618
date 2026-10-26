@@ -172,6 +172,8 @@ export interface TodayEvent {
   image?: string | null;
   /** A 30-second clip, for a single song, when the store has one. */
   preview?: string | null;
+  /** For music: every song in the run, each playable when the store has a clip. */
+  songs?: { track: string; artist: string; album: string | null; image: string | null; preview: string | null; url: string | null }[];
 }
 
 /** A song or note a visitor sent, once I've approved it. */

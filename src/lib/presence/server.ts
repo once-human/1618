@@ -279,17 +279,19 @@ export interface AppleSong {
  * inside a DJ mix album, whose songs the public API doesn't list. The cover
  * and link are the mix album's own. Matched on the title and the version.
  */
-const CURATED: { has: string[]; art: string; link: string }[] = [
+const CURATED: { has: string[]; art: string; link: string; preview: string | null }[] = [
   {
     // "No Love (Fred again.. Remix) [Mixed]", from Fred again.. Rooftop Live (Arun's Roof, London)
     has: ["no love", "fred again remix"],
     art: "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/ad/cb/84/adcb843c-6a14-4338-b058-498ab420b289/cc6771fb-1913-4ddf-83cb-e806f7759a3a.jpg/100x100bb.jpg",
     link: "https://music.apple.com/in/album/fred-again-rooftop-live-aruns-roof-london-dj-mix-dj-mix/1767527509",
+    // Apple has no clip of the remix itself: this is the clip of the original song, which is the same song underneath.
+    preview: "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/69/b6/cc/69b6cc4e-3606-74e4-f361-25a327f50063/mzaf_15989864170927854996.plus.aac.p.m4a",
   },
 ];
 
 /** Bump when AppleSong gains fields, so weeks-old cached lookups are redone. */
-const APPLE_SHAPE = 3;
+const APPLE_SHAPE = 4;
 
 /** The dominant colour of a cover image, as #rrggbb. */
 async function coverTint(url: string | null): Promise<string | null> {
@@ -418,7 +420,7 @@ export async function appleSong(
   const hand = CURATED.find((c) => c.has.every((w) => flat.includes(w)));
   if (hand) {
     cacheLife("weeks");
-    return { art: appleArt(hand.art), link: hand.link, preview: null, durationMs: null, tint: await coverTint(hand.art) };
+    return { art: appleArt(hand.art), link: hand.link, preview: hand.preview, durationMs: null, tint: await coverTint(hand.art) };
   }
 
   const artists = splitArtists(artist);

@@ -70,6 +70,22 @@ export function Timeline({ limit = 40 }: { limit?: number }) {
                   ) : (
                     <div className={cls}>{body}</div>
                   )}
+                  {e.songs && e.songs.length > 1 ? (
+                    <details className="pb-2 md:pl-[7.5rem]">
+                      <summary className="cursor-pointer text-[13px] text-quiet hover:text-ink">The {e.songs.length} songs, each one playable</summary>
+                      <ul className="mt-1">
+                        {e.songs.map((song, j) => (
+                          <li key={j} className="flex items-center gap-3 py-1">
+                            <Preview id={`tl-${e.at}-${j}`} url={song.preview} image={song.image} label={`${song.track} by ${song.artist}`} size={32} />
+                            <span className="min-w-0">
+                              <span className="block truncate">{song.track}</span>
+                              <span className="block truncate text-[13px] text-quiet">{song.artist}</span>
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    </details>
+                  ) : null}
                 </li>
               );
             })}

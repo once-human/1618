@@ -1,5 +1,6 @@
 "use client";
 
+import { PlayDot } from "@/components/live/PlayDot";
 import Link from "next/link";
 import { useListening, useNow, usePresence, useSaved, useTimeline } from "@/lib/presence/client";
 import { fmtNum, timeAgo } from "@/lib/time";
@@ -31,6 +32,7 @@ export function NowPage() {
           v: `${listening.onRepeat[0].track}, ${listening.onRepeat[0].artist}`,
           d: `${fmtNum(listening.onRepeat[0].plays)} plays this month`,
           href: listening.onRepeat[0].url,
+          preview: listening.onRepeat[0].preview ?? null,
         }
       : null,
     presence?.github
@@ -55,7 +57,7 @@ export function NowPage() {
         }
       : null,
     presence?.weather ? { k: `In ${presence.place?.city ?? "Pune"}`, v: `${presence.weather.tempC}°, ${presence.weather.label}`, d: "right now" } : null,
-  ].filter((x): x is { k: string; v: string; d: string; href?: string } => !!x);
+  ].filter((x): x is { k: string; v: string; d: string; href?: string; preview?: string | null } => !!x);
 
   return (
     <div className="space-y-20">
@@ -93,6 +95,7 @@ export function NowPage() {
                 ) : (
                   <span className="font-semibold">{p.v}</span>
                 )}
+                {p.preview ? <PlayDot id={`repeat-${p.v}`} url={p.preview} label={p.v} className="ml-2" /> : null}
                 {p.d ? <span className="block text-quiet">{p.d}</span> : null}
               </dd>
             </div>
