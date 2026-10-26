@@ -7,7 +7,7 @@ import type { SavedPin, TodayEvent } from "@/lib/presence/types";
 import { appleSong, ghEvents } from "@/lib/presence/server";
 import { parseCredit } from "./credits";
 import { spansBetween } from "@/lib/desk/server";
-import { nightsIn } from "@/lib/presence/sleep";
+import { bursts, nightsIn } from "@/lib/presence/sleep";
 import { sleepInputs } from "@/lib/presence/sleepData";
 import { puneClock } from "@/lib/time";
 
@@ -303,25 +303,42 @@ async function buildTimeline(HOURS: number): Promise<{ hours: number; events: To
       if (repo) e.detail = `${e.detail ? `${e.detail} · ` : ""}while working on ${repo}`;
     }
 
-  // Nights. The ones I said good night to, with how long I slept when I said good morning; the others worked out from the quiet.
-  const told = (nights ?? []).map((n) => ({ at: Date.parse(n.at), ended: n.data?.endedAt ? Date.parse(n.data.endedAt) : null, siri: n.data?.via === "siri" }));
-  for (const n of told)
-    out.push({
-      kind: "sleep",
-      at: new Date(n.at).toISOString(),
-      until: n.ended ? new Date(n.ended).toISOString() : undefined,
-      title: n.ended ? `Slept ${hours(n.ended - n.at)}` : "Went to bed",
-      detail: n.ended ? `good night at ${puneClock(new Date(n.at).toISOString())}, good morning at ${puneClock(new Date(n.ended).toISOString())}` : n.siri ? "said good night to Siri" : null,
-      url: null,
-    });
-  if (sleepIn) {
-    for (const n of nightsIn({ now, tz: "Asia/Kolkata", bursts: sleepIn.bursts, past: sleepIn.past })) {
-      if (n.kind === "allnighter") {
-        out.push({ kind: "sleep", at: new Date(n.at).toISOString(), title: "Pulled an all-nighter", detail: "no sleep that night, going by everything else", url: null });
-        continue;
-      }
+  // Nights. A good night counts as sleep only if I then went quiet for an hour or more (see nightsIn); one I
+  // stayed up through says so. Anything else is worked out from the quiet, and a night I never slept is an
+  // all-nighter, set at that night's midnight. Music doesn't count as being up: I fall asleep to it.
+  const told = (nights ?? []).map((n) => ({ at: Date.parse(n.at), ended: n.data?.endedAt ? Date.parse(n.data.endedAt) : null }));
+  const handsOn: number[] = [];
+  for (const p of sortedPushes) handsOn.push(Date.parse(p.at));
+  for (const p of pins) handsOn.push(Date.parse(p.at!));
+  for (const m of moves ?? []) handsOn.push(Date.parse(m.at));
+  for (const sp of spans) {
+    if (sp.kind === "idle") continue;
+    const from = Date.parse(sp.start);
+    const to = Date.parse(sp.end);
+    for (let t = from; t < to; t += 5 * 60_000) handsOn.push(t);
+    handsOn.push(to);
+  }
+  const clockOf = (ms: number) => puneClock(new Date(ms).toISOString());
+  const night = nightsIn({ now, tz: "Asia/Kolkata", bursts: bursts(handsOn.filter(Number.isFinite)), past: sleepIn?.past ?? [], horizon: HOURS * 3600_000, told });
+  for (const n of night) {
+    if (n.kind === "allnighter") {
+      out.push({ kind: "sleep", at: new Date(n.at).toISOString(), title: "Pulled an all-nighter", detail: "no sleep that night, still up after 7 am", url: null });
+    } else if (n.kind === "restless") {
+      out.push({ kind: "sleep", at: new Date(n.at).toISOString(), title: "Said good night, didn't sleep", detail: n.upAt ? `up again at ${clockOf(n.upAt)}` : "still up", url: null });
+    } else if (n.told) {
+      const parts = [`good night at ${clockOf(n.goodNight!)}`];
+      if (n.from - n.goodNight! >= 30 * 60_000) parts.push(`asleep by ${clockOf(n.from)}`);
+      if (n.upAt) parts.push(`up at ${clockOf(n.upAt)}`);
+      out.push({
+        kind: "sleep",
+        at: new Date(n.from).toISOString(),
+        until: n.ongoing ? undefined : new Date(n.to).toISOString(),
+        title: n.ongoing ? "Went to bed" : `Slept ${hours(n.to - n.from)}`,
+        detail: parts.join(", "),
+        url: null,
+      });
+    } else {
       if (n.from < now - HOURS * 3600_000 + 3600_000) continue; // starts before the window: can't say when I fell asleep
-      if (told.some((t) => t.at >= n.from - 3 * 3600_000 && t.at <= n.to)) continue;
       out.push({
         kind: "sleep",
         at: new Date(n.from).toISOString(),

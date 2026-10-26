@@ -40,3 +40,63 @@ test("getting up from a night's sleep is noticed", () => {
   assert.equal(r.woke?.hours, 8);
   assert.equal(nightsIn(input(pts, at(1, 8, 5)))[0].kind, "slept");
 });
+
+// ---- good nights, the one-hour minimum, and all-nighters ----
+const night = (pts: number[], now: number, told: { at: number; ended: number | null }[], past: { at: number; endedAt: number | null }[] = []) =>
+  nightsIn({ now, tz: TZ, bursts: bursts(pts), past, told });
+
+test("a good night I was up from within the hour is not sleep", () => {
+  const gn = at(1, 3, 42);
+  const n = night(every(at(0, 20), at(1, 3, 40)), at(1, 4, 14), [{ at: gn, ended: at(1, 4, 8) }]);
+  assert.equal(n.filter((x) => x.kind === "slept").length, 0);
+  const r = n.find((x) => x.kind === "restless");
+  assert.ok(r && r.kind === "restless" && r.at === gn && r.upAt === at(1, 4, 8));
+});
+test("a good night followed by real quiet is a sleep that starts when I went quiet", () => {
+  const gn = at(0, 23, 30);
+  // Still working until 00:20, then nothing until 08:00.
+  const pts = [...every(at(0, 20), at(1, 0, 20)), ...every(at(1, 8), at(1, 9))];
+  const n = night(pts, at(1, 9, 30), [{ at: gn, ended: null }]);
+  const s = n.find((x) => x.kind === "slept");
+  assert.ok(s && s.kind === "slept" && s.told);
+  assert.equal(s.from, at(1, 0, 20));
+  assert.equal(s.to, at(1, 8));
+  assert.equal(s.goodNight, gn);
+});
+test("good morning ends a sleep, and under an hour it never counted", () => {
+  const gn = at(0, 23, 30);
+  const long = night(every(at(0, 20), at(0, 23, 30)), at(1, 9), [{ at: gn, ended: at(1, 7) }]);
+  assert.ok(long.some((x) => x.kind === "slept" && x.to === at(1, 7)));
+  const short = night(every(at(0, 20), at(0, 23, 30)), at(1, 9), [{ at: gn, ended: at(0, 23, 55) }]);
+  assert.ok(short.some((x) => x.kind === "restless"));
+  assert.ok(!short.some((x) => x.kind === "slept"));
+});
+test("a daytime good night under an hour isn't noted either", () => {
+  const gn = at(1, 14);
+  const n = night(every(at(1, 10), at(1, 14)), at(1, 17), [{ at: gn, ended: at(1, 14, 40) }]);
+  assert.ok(!n.some((x) => x.kind === "slept"));
+});
+test("no all-nighter before 7 am, then one at that night's midnight", () => {
+  const pts = every(at(0, 18), at(1, 6, 30));
+  assert.ok(!night(pts, at(1, 6, 30), []).some((x) => x.kind === "allnighter"));
+  assert.equal(run(pts, at(1, 6, 30)).state, "late");
+  const morning = [...pts, ...every(at(1, 7), at(1, 8))];
+  const a = night(morning, at(1, 8), []).find((x) => x.kind === "allnighter");
+  assert.ok(a && a.kind === "allnighter");
+  assert.equal(a.at, at(1, 0));
+  assert.equal(run(morning, at(1, 8)).state, "allnighter");
+});
+test("a sleep of an hour or more cancels the all-nighter", () => {
+  // Up through 01:00–03:59, said good night at 04:00, quiet until working again at 07:10.
+  const pts = [...every(at(0, 18), at(1, 3, 59)), ...every(at(1, 7, 10), at(1, 8))];
+  const n = night(pts, at(1, 8), [{ at: at(1, 4), ended: null }]);
+  assert.ok(n.some((x) => x.kind === "slept" && x.told));
+  assert.ok(!n.some((x) => x.kind === "allnighter"));
+});
+test("quiet at the laptop that ends with a good night was not sleep", () => {
+  // Away from 00:40 to 03:40, back, said good night at 03:42.
+  const pts = [...every(at(0, 18), at(1, 0, 40)), ...every(at(1, 3, 40), at(1, 3, 42))];
+  const past = [{ at: at(1, 3, 42), endedAt: at(1, 4, 8) }];
+  const r = sleepNow({ now: at(1, 4, 14), tz: TZ, bursts: bursts([...pts, ...every(at(1, 4, 8), at(1, 4, 14))]), past });
+  assert.equal(r.woke, null);
+});

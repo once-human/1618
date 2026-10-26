@@ -309,7 +309,7 @@ function BedtimePanel({ data }: { data: AdminState }) {
   const typical = nights.length > 1 ? typicalBedtime(nights.map((n) => n.at), tz) : null;
 
   return (
-    <Panel title="Bedtime" aside="“Hey Siri, good night”">
+    <Panel title="Bedtime" aside="“Hey Siri, good night” · “Hey Siri, good morning”">
       {shown ? (
         <div className="bg-a-soft mb-4 flex items-start justify-between gap-3 rounded-xl px-3.5 py-3">
           <div>
@@ -334,6 +334,29 @@ function BedtimePanel({ data }: { data: AdminState }) {
           </Button>
         </div>
       )}
+
+      <ul className="divide-a-line mb-4 divide-y text-[14px]">
+        {(
+          [
+            ["goodnight", "Good Night", "Says you went to bed."],
+            ["goodmorning", "Good Morning", "Says you're up, and how long you slept."],
+          ] as const
+        ).map(([id, name, what]) => (
+          <li key={id} className="flex flex-wrap items-center justify-between gap-2 py-2">
+            <span className="min-w-0 flex-1 basis-40">
+              <span className="font-medium">{name}</span>
+              <span className="text-a-quiet block text-[13px]">{what}</span>
+            </span>
+            {data.shortcuts[id] ? (
+              <a href={`/api/shortcuts/${id}`} className="bg-a-soft hover:bg-a-line inline-flex min-h-9 items-center rounded-lg px-3 text-[14px] font-medium">
+                Install
+              </a>
+            ) : (
+              <span className="text-a-quiet text-[13px]">Not uploaded yet</span>
+            )}
+          </li>
+        ))}
+      </ul>
 
       {nights.length ? (
         <>

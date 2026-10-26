@@ -41,6 +41,10 @@ export const PROBABLY_AFTER = 45 * MIN;
 export const SURE_AFTER = 2 * HOUR;
 const CRASH_AFTER = 90 * MIN;
 const MAIN_SLEEP = 3 * HOUR;
+/** Shorter than this, night or day, it wasn't sleep and isn't noted. */
+export const MIN_SLEEP = HOUR;
+/** How long the site says "in bed" after a good night (see presence/bedtime.ts). */
+const BED_MS = 7 * HOUR;
 const FIXED: [number, number] = [23 * 60, 10 * 60];
 
 /** Points in time → merged bursts (anything within ten minutes of the last is the same stretch). */
@@ -60,7 +64,9 @@ export const localMin = (ms: number, tz: string) => {
 };
 
 /** The learned night (two hours before my usual bedtime to two and a half after my usual wake), once there are three nights to learn from. */
-export function learnedWindow(past: PastSleep[], tz: string): [number, number] | null {
+export function learnedWindow(allPast: PastSleep[], tz: string): [number, number] | null {
+  // A good night I was up from within the hour wasn't a night's sleep: it says nothing about when I sleep.
+  const past = allPast.filter((p) => !p.endedAt || p.endedAt - p.at >= MIN_SLEEP);
   const fromNoon = (ms: number) => (localMin(ms, tz) - 720 + 1440) % 1440;
   const beds = past.slice(0, 14).map((p) => fromNoon(p.at));
   const ups = past.filter((p) => p.endedAt).slice(0, 14).map((p) => fromNoon(p.endedAt!));
@@ -105,14 +111,16 @@ function gapsOf(b: Burst[], now: number, since: number): Gap[] {
   return gaps;
 }
 
-interface Input { now: number; tz: string; bursts: Burst[]; past: PastSleep[] }
+interface Input { now: number; tz: string; bursts: Burst[]; past: PastSleep[]; horizon?: number }
 
-function prepare({ now, tz, bursts: raw, past }: Input) {
+function prepare({ now, tz, bursts: raw, past, horizon = 40 * HOUR }: Input) {
   const b = raw.filter(([, e]) => e <= now + 5 * MIN);
   const isNight = nightTest(past, tz);
-  const start = b.length ? Math.max(now - 40 * HOUR, b[0][0]) : now;
+  const start = b.length ? Math.max(now - horizon, b[0][0]) : now;
   const gaps = b.length ? gapsOf(b, now, start) : [];
-  const isMain = (g: Gap) => g.to - g.from >= MAIN_SLEEP && share(g.from, g.to, isNight) >= 0.5;
+  // Quiet at the laptop isn't sleep if I said good night soon after it ended: I was up, just somewhere else.
+  const wentToBedAfter = (g: Gap) => !g.ongoing && past.some((p) => p.at >= g.to - 5 * MIN && p.at - g.to < 2 * HOUR);
+  const isMain = (g: Gap) => g.to - g.from >= MAIN_SLEEP && share(g.from, g.to, isNight) >= 0.5 && !wentToBedAfter(g);
   return { b, isNight, gaps, isMain, knowsFrom: b.length ? b[0][0] : now };
 }
 
@@ -132,9 +140,9 @@ export function sleepNow(input: Input): SleepNow {
   const woke = woken && !cur ? { at: woken.to, hours: Math.round(((woken.to - woken.from) / HOUR) * 2) / 2 } : null;
 
   if (!cur) {
-    if (noSleep && hour >= 4 && hour < 11) return { state: "allnighter", since: null, woke: null, noSleep };
+    if (noSleep && hour >= 7 && hour < 11) return { state: "allnighter", since: null, woke: null, noSleep };
     const sleptTonight = main.some((g) => g.to > now - 12 * HOUR);
-    if (!sleptTonight && (hour >= 1 && hour < 5)) return { state: "late", since: null, woke, noSleep };
+    if (!sleptTonight && (hour >= 1 && hour < 7)) return { state: "late", since: null, woke, noSleep };
     return { state: "awake", since: null, woke, noSleep };
   }
   const len = now - cur.from;
@@ -153,31 +161,84 @@ export function sleepNow(input: Input): SleepNow {
   return { state: "out", since: cur.from, woke: null, noSleep };
 }
 
-/** For the timeline: every real sleep in the window, and every night I didn't sleep at all. */
-export function nightsIn(input: Input): ({ kind: "slept"; from: number; to: number; ongoing: boolean } | { kind: "allnighter"; at: number })[] {
+/** A night I said good night to ("Hey Siri, good night"), and when I said good morning or got up, if I did. */
+export interface Told { at: number; ended: number | null }
+
+export type Night =
+  /** A sleep of at least an hour. `goodNight` is when I said so, if I did; `upAt` when I got up (null while it's still going). */
+  | { kind: "slept"; from: number; to: number; ongoing: boolean; told: boolean; goodNight: number | null; upAt: number | null }
+  /** Said good night but stayed up (or was up again within the hour): not a sleep. */
+  | { kind: "restless"; at: number; upAt: number | null }
+  /** Still up after 7 am with no sleep since the evening before. `at` is that night's midnight. */
+  | { kind: "allnighter"; at: number };
+
+const localDate = (ms: number, tz: string) => new Intl.DateTimeFormat("en-CA", { timeZone: tz }).format(new Date(ms));
+
+/**
+ * For the timeline: every sleep of an hour or more, every good night that
+ * didn't turn into sleep, and every night I never slept. Pass `bursts` of
+ * things only I do (the laptop in use, pushes, pins), not music: I fall asleep
+ * to it, so it can't say I'm up.
+ *
+ * - A good night starts a sleep once I've been quiet an hour: anything I do
+ *   within the hour after it (or after the last thing I did) means I wasn't
+ *   asleep yet. The sleep ends at good morning, or the next thing I do.
+ * - Under an hour, night or day, isn't sleep: it's shown as "said good night,
+ *   didn't sleep".
+ * - Quiet that I didn't say good night to counts only if it's long, at night.
+ * - An all-nighter needs me up in at least three of the hours 01–06 and still
+ *   doing things after 07:00, with no sleep in between. It's set at that
+ *   night's midnight, so it sits in the same day as the night.
+ */
+export function nightsIn(input: Input & { told?: Told[] }): Night[] {
   const { now, tz } = input;
   const { b, isNight, gaps, isMain } = prepare(input);
-  const out: ({ kind: "slept"; from: number; to: number; ongoing: boolean } | { kind: "allnighter"; at: number })[] = gaps
-    .filter((g) => isMain(g) || (g.ongoing && g.to - g.from >= SURE_AFTER && isNight(g.to)))
-    .map((g) => ({ kind: "slept" as const, ...g }));
-  // A night with activity in at least three of the hours 01:00–06:00 and no real sleep between 21:00 and 11:00 is an all-nighter.
-  const seen = new Map<string, Set<number>>();
+  const told = [...(input.told ?? [])].sort((x, y) => x.at - y.at);
+  const out: Night[] = [];
+
+  told.forEach((t, i) => {
+    const next = told[i + 1]?.at ?? Infinity;
+    let cur = t.at; // when I actually went quiet
+    for (const [s, e] of b) {
+      if (e <= cur) continue;
+      if (s - cur < MIN_SLEEP) cur = Math.max(cur, e);
+      else break;
+    }
+    const wake = b.find(([s]) => s > cur)?.[0] ?? Infinity;
+    // Ends at good morning or the next thing I do; with neither, the site's own seven hours.
+    const known = Math.min(t.ended ?? Infinity, wake, next);
+    const stop = known < Infinity ? known : cur + BED_MS;
+    const ongoing = stop > now;
+    const end = ongoing ? now : stop;
+    const up = t.ended ?? (wake < Infinity ? wake : null);
+    if (end - cur < MIN_SLEEP) {
+      if (ongoing && end >= t.at) out.push({ kind: "slept", from: t.at, to: now, ongoing: true, told: true, goodNight: t.at, upAt: null });
+      else out.push({ kind: "restless", at: t.at, upAt: up });
+      return;
+    }
+    out.push({ kind: "slept", from: cur, to: end, ongoing, told: true, goodNight: t.at, upAt: ongoing ? null : end });
+  });
+
+  for (const g of gaps) {
+    if (!(isMain(g) || (g.ongoing && g.to - g.from >= SURE_AFTER && isNight(g.to)))) continue;
+    if (told.some((t) => t.at >= g.from - 3 * HOUR && t.at <= g.to + 2 * HOUR)) continue; // the good night says it better
+    out.push({ kind: "slept", from: g.from, to: g.to, ongoing: g.ongoing, told: false, goodNight: null, upAt: g.ongoing ? null : g.to });
+  }
+
+  const days = new Map<string, { hours: Set<number>; after7: boolean; ref: number }>();
   for (const [s, e] of b)
     for (let t = s; t <= e; t += 10 * MIN) {
       const m = localMin(t, tz);
-      if (m >= 60 && m < 360) {
-        const key = new Date(t - 12 * HOUR).toISOString().slice(0, 10);
-        (seen.get(key) ?? seen.set(key, new Set()).get(key)!).add(Math.floor(m / 60));
-      }
+      const d = localDate(t, tz);
+      const x = days.get(d) ?? days.set(d, { hours: new Set(), after7: false, ref: t }).get(d)!;
+      if (m >= 60 && m < 360) x.hours.add(Math.floor(m / 60));
+      if (m >= 420 && m < 720) x.after7 = true;
     }
-  for (const [key, hours] of seen) {
-    if (hours.size < 3) continue;
-    const mid = Date.parse(`${key}T12:00:00Z`) + 12 * HOUR; // around midnight UTC of that night: good enough to bound it
-    const slept = out.some((n) => n.kind === "slept" && n.from < mid + 14 * HOUR && n.to > mid - 6 * HOUR);
-    if (!slept) {
-      const last = b.filter(([s]) => s < mid + 12 * HOUR && s > mid).pop();
-      out.push({ kind: "allnighter", at: Math.min(now, last ? last[1] : mid + 6 * HOUR) });
-    }
+  for (const x of days.values()) {
+    if (x.hours.size < 3 || !x.after7) continue;
+    const midnight = Math.round((x.ref - localMin(x.ref, tz) * MIN) / MIN) * MIN;
+    const slept = out.some((n) => n.kind === "slept" && n.from < midnight + 7 * HOUR && n.to > midnight - 3 * HOUR);
+    if (!slept) out.push({ kind: "allnighter", at: midnight });
   }
   return out;
 }
