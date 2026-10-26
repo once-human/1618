@@ -285,13 +285,12 @@ const CURATED: { has: string[]; art: string; link: string; preview: string | nul
     has: ["no love", "fred again remix"],
     art: "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/ad/cb/84/adcb843c-6a14-4338-b058-498ab420b289/cc6771fb-1913-4ddf-83cb-e806f7759a3a.jpg/100x100bb.jpg",
     link: "https://music.apple.com/in/album/fred-again-rooftop-live-aruns-roof-london-dj-mix-dj-mix/1767527509",
-    // Apple has no clip of the remix itself: this is the clip of the original song, which is the same song underneath.
-    preview: "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/69/b6/cc/69b6cc4e-3606-74e4-f361-25a327f50063/mzaf_15989864170927854996.plus.aac.p.m4a",
+    preview: null, // no clip of the remix exists on any store; a clip of your own can go in /public and be named here
   },
 ];
 
 /** Bump when AppleSong gains fields, so weeks-old cached lookups are redone. */
-const APPLE_SHAPE = 4;
+const APPLE_SHAPE = 5;
 
 /** The dominant colour of a cover image, as #rrggbb. */
 async function coverTint(url: string | null): Promise<string | null> {

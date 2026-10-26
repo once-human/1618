@@ -28,7 +28,7 @@ export async function getListening(): Promise<ListeningStats | null> {
     stats.onRepeat = month.music.topTracks.slice(0, 5).map((t) => ({ track: t.track, artist: t.artist, plays: t.plays }));
     stats.topArtists = month.music.topArtists.slice(0, 3);
   }
-  const apple = await Promise.all(stats.onRepeat.map((t) => appleSong(t.artist, t.track, null, 4).catch(() => null)));
+  const apple = await Promise.all(stats.onRepeat.map((t) => appleSong(t.artist, t.track, null, 5).catch(() => null)));
   stats.onRepeat = stats.onRepeat.map((t, i) => ({
     ...t,
     image: apple[i]?.art ?? null,
