@@ -277,20 +277,20 @@ export interface AppleSong {
 /**
  * Songs Apple's search can't find, filled in by hand: tracks that only exist
  * inside a DJ mix album, whose songs the public API doesn't list. The cover
- * and link are the mix album's own. Matched on the title and the version.
+ * and link fall back to the mix album's own. Matched on the title and the version.
  */
-const CURATED: { has: string[]; art: string; link: string; preview: string | null }[] = [
+const CURATED: { has: string[]; id: number; art: string; link: string }[] = [
   {
     // "No Love (Fred again.. Remix) [Mixed]", from Fred again.. Rooftop Live (Arun's Roof, London)
     has: ["no love", "fred again remix"],
+    id: 1767527519, // the song's own Apple id: the API finds it by id, though search never lists it
     art: "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/ad/cb/84/adcb843c-6a14-4338-b058-498ab420b289/cc6771fb-1913-4ddf-83cb-e806f7759a3a.jpg/100x100bb.jpg",
     link: "https://music.apple.com/in/album/fred-again-rooftop-live-aruns-roof-london-dj-mix-dj-mix/1767527509",
-    preview: null, // no clip of the remix exists on any store; a clip of your own can go in /public and be named here
   },
 ];
 
 /** Bump when AppleSong gains fields, so weeks-old cached lookups are redone. */
-const APPLE_SHAPE = 5;
+const APPLE_SHAPE = 6;
 
 /** The dominant colour of a cover image, as #rrggbb. */
 async function coverTint(url: string | null): Promise<string | null> {
@@ -418,8 +418,18 @@ export async function appleSong(
   const flat = norm(track);
   const hand = CURATED.find((c) => c.has.every((w) => flat.includes(w)));
   if (hand) {
-    cacheLife("weeks");
-    return { art: appleArt(hand.art), link: hand.link, preview: hand.preview, durationMs: null, tint: await coverTint(hand.art) };
+    const { ok, results } = await fetchJson<{ results?: ItunesResult[] }>(`${ITUNES}/lookup?id=${hand.id}&country=in`, "apple lookup by id").then((r) => ({ ok: r.ok, results: r.data?.results ?? [] }));
+    const one = results[0];
+    if (ok && one) cacheLife("weeks");
+    else cacheLife({ stale: 30, revalidate: 120, expire: 600 });
+    const art = appleArt(one?.artworkUrl100 ?? hand.art);
+    return {
+      art,
+      link: one?.trackViewUrl ? appleLink(one.trackViewUrl) : hand.link,
+      preview: one?.previewUrl ?? null,
+      durationMs: one?.trackTimeMillis ?? null,
+      tint: await coverTint(art),
+    };
   }
 
   const artists = splitArtists(artist);
