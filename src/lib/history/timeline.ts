@@ -68,23 +68,6 @@ async function buildTimeline(HOURS: number): Promise<{ hours: number; events: To
     sleepInputs().catch(() => null),
   ]);
 
-  // What was playing around a moment, for "built to …": the plays from 45 minutes before to 10 after.
-  const builtTo = (fromMs: number, toMs: number): string | null => {
-    const near = list.filter((s) => s.uts * 1000 >= fromMs - 45 * 60_000 && s.uts * 1000 <= toMs + 10 * 60_000).map((s) => parseCredit(s.track, s.artist));
-    if (!near.length) return null;
-    const tracks = new Map<string, { n: number; title: string; credit: string }>();
-    const artists = new Map<string, number>();
-    for (const c of near) {
-      const k = `${c.title}|${c.credit}`;
-      tracks.set(k, { n: (tracks.get(k)?.n ?? 0) + 1, title: c.title, credit: c.credit });
-      for (const a of c.artists) artists.set(a, (artists.get(a) ?? 0) + 1);
-    }
-    const top = [...tracks.values()].sort((a, b) => b.n - a.n)[0];
-    if (top.n >= 2 || tracks.size <= 2) return `built to ${top.title} by ${top.credit}`;
-    const as = [...artists].sort((a, b) => b[1] - a[1]).map(([a]) => a);
-    return `built to ${as.slice(0, 2).join(" and ")}`;
-  };
-
   const out: TodayEvent[] = [];
 
   // Music: merge live and stored plays, then sessions of plays under 30 minutes apart.
@@ -94,6 +77,7 @@ async function buildTimeline(HOURS: number): Promise<{ hours: number; events: To
   const list = [...plays.values()].sort((a, b) => a.uts - b.uts);
   let session: Scrobble[] = [];
   const rawOf = new Map<object, Scrobble>(); // each listed song -> the scrobble it came from, for the lookup
+  const songOf = new Map<string, NonNullable<TodayEvent["songs"]>[number]>(); // scrobble -> its song, so a work session can list what played
   const flush = () => {
     if (!session.length) return;
     // Count every artist on every song, so "mostly X" means the artist I actually heard most.
@@ -120,6 +104,7 @@ async function buildTimeline(HOURS: number): Promise<{ hours: number; events: To
         .map((c, i) => {
           const song = { track: c.title, artist: c.credit, album: session[i].album, image: null, preview: null, url: null };
           rawOf.set(song, session[i]);
+          songOf.set(`${session[i].uts}|${session[i].track}`, song);
           return song;
         })
         .reverse(),
@@ -249,22 +234,38 @@ async function buildTimeline(HOURS: number): Promise<{ hours: number; events: To
       sessions.push({ from: run.from, to: run.to, active: 0, claude: 0, repos: new Map([[run.repo, 1]]), apps: new Set(), pushes: run.n });
     }
   }
+  const repoOf = (x: Session) => [...x.repos].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
   for (const x of sessions) {
-    const repo = [...x.repos].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+    // The project comes first. If the laptop didn't see which one, take the nearest push or session that did.
+    let repo = repoOf(x);
+    if (!repo && x.claude >= 20 * 60_000) {
+      const near = [...runs.map((r) => ({ repo: r.repo, from: r.from, to: r.to })), ...sessions.filter((y) => y !== x && repoOf(y)).map((y) => ({ repo: repoOf(y)!, from: y.from, to: y.to }))]
+        .map((r) => ({ repo: r.repo, gap: Math.max(r.from - x.to, x.from - r.to, 0) }))
+        .filter((r) => r.gap <= 3 * 3600_000)
+        .sort((a, b) => a.gap - b.gap)[0];
+      repo = near?.repo ?? null;
+    }
     if (!repo && x.claude < 20 * 60_000) continue;
     if (!x.pushes && x.active < 15 * 60_000) continue;
     const withClaude = x.claude >= 5 * 60_000 || (x.claude > 0 && x.pushes > 0);
-    const tool = withClaude ? " with Claude Code" : "";
     const length = x.active >= 10 * 60_000 ? `, ${hm(x.active)}` : "";
-    const music = builtTo(x.from + 45 * 60_000, x.to - 10 * 60_000);
+    // What played during it (or just around it): every song, each once, newest first.
+    const seenSong = new Set<string>();
+    const songs = list
+      .filter((p) => p.uts * 1000 >= x.from - 10 * 60_000 && p.uts * 1000 <= x.to + 10 * 60_000)
+      .map((p) => songOf.get(`${p.uts}|${p.track}`))
+      .filter((song): song is NonNullable<typeof song> => !!song && !seenSong.has(`${song.track}|${song.artist}`) && !!seenSong.add(`${song.track}|${song.artist}`))
+      .reverse();
+    const builtTo = songs.length ? `built to ${songs[0].track} by ${songs[0].artist}${songs.length > 1 ? ` and ${songs.length - 1} more` : ""}` : null;
     const pushes = x.pushes ? `${x.pushes} push${x.pushes === 1 ? "" : "es"}` : null;
     out.push({
       kind: "code",
       at: new Date(x.from).toISOString(),
       until: x.to - x.from > 60_000 ? new Date(x.to).toISOString() : undefined,
-      title: repo ? `Worked on ${repo}${tool}${length}` : `Worked with Claude Code${length}`,
-      detail: [pushes, music].filter(Boolean).join(" · ") || null,
+      title: repo ? `Worked on ${repo}${length}` : `Worked on something${length}`,
+      detail: [withClaude ? "with Claude Code" : null, pushes, builtTo].filter(Boolean).join(" · ") || null,
       url: repo ? `https://github.com/${GH_USER}/${repo}` : null,
+      songs: songs.length > 1 ? songs : undefined,
     });
   }
 

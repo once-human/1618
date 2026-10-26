@@ -42,6 +42,13 @@ export function Timeline({ limit = 40 }: { limit?: number }) {
             {g.items.map((e, i) => {
               const many = !!e.songs && e.songs.length > 1;
               const open = many && openSongs === e.at;
+              // A row that is also a link (a work session on its repo) opens its songs from the chevron and the detail line.
+              const linked = many && !!e.url;
+              const chevron = (
+                <svg aria-hidden viewBox="0 0 12 12" className={`size-3 shrink-0 transition-transform duration-150 motion-reduce:transition-none ${open ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth="1.5">
+                  <path d="M2 4.5 6 8.5 10 4.5" />
+                </svg>
+              );
               const body = (
                 <>
                   <span className="tnum leading-tight text-quiet">
@@ -58,13 +65,31 @@ export function Timeline({ limit = 40 }: { limit?: number }) {
                   <span className="min-w-0">
                     <span className="flex items-center gap-1.5">
                       {many ? (
-                        <svg aria-hidden viewBox="0 0 12 12" className={`size-3 shrink-0 transition-transform duration-150 motion-reduce:transition-none ${open ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth="1.5">
-                          <path d="M2 4.5 6 8.5 10 4.5" />
-                        </svg>
+                        linked ? (
+                          <button type="button" aria-expanded={open} aria-label={open ? "Hide the songs" : "Show the songs"} onClick={() => setOpenSongs(open ? null : e.at)} className="-m-1 shrink-0 cursor-pointer p-1">
+                            {chevron}
+                          </button>
+                        ) : (
+                          chevron
+                        )
                       ) : null}
-                      <span className="block truncate">{e.title}</span>
+                      {linked ? (
+                        <a href={e.url!} target="_blank" rel="noopener noreferrer" className="block truncate hover:underline">
+                          {e.title}
+                        </a>
+                      ) : (
+                        <span className="block truncate">{e.title}</span>
+                      )}
                     </span>
-                    {e.detail ? <span className="block truncate text-quiet">{e.detail}</span> : null}
+                    {e.detail ? (
+                      linked ? (
+                        <button type="button" onClick={() => setOpenSongs(open ? null : e.at)} className="block w-full cursor-pointer truncate text-left text-quiet">
+                          {e.detail}
+                        </button>
+                      ) : (
+                        <span className="block truncate text-quiet">{e.detail}</span>
+                      )
+                    ) : null}
                   </span>
                   {e.preview ? (
                     <Preview id={`tl-${e.at}`} url={e.preview} image={e.image ?? null} label={e.title} size={40} />
@@ -79,7 +104,9 @@ export function Timeline({ limit = 40 }: { limit?: number }) {
               const cls = "grid grid-cols-[3.5rem_1fr_2.5rem] items-center gap-x-3 border-t border-ink/20 py-2 md:grid-cols-[6.5rem_4rem_1fr_2.5rem]";
               return (
                 <li key={`${e.kind}${e.at}${i}`}>
-                  {many ? (
+                  {linked ? (
+                    <div className={`${cls} hover:bg-ink/[0.03]`}>{body}</div>
+                  ) : many ? (
                     <button type="button" aria-expanded={open} onClick={() => setOpenSongs(open ? null : e.at)} className={`${cls} w-full cursor-pointer text-left hover:bg-ink/[0.03]`}>
                       {body}
                     </button>
