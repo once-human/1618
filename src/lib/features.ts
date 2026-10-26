@@ -205,7 +205,7 @@ export async function checkFeatures(): Promise<Feature[]> {
       id: "laptop",
       group: "From my day",
       name: "My laptop",
-      what: "A small agent on my laptop says what I'm doing there: the app or site by name, the repo I'm in, whether Claude Code is working, what's playing. Never window titles, and YouTube is only ever \"YouTube\".",
+      what: "A small agent on my laptop tells the site what I'm up to there: what I'm building, what I'm on, what's playing.",
       where: [
         { href: "/", label: "the Pulse" },
         { href: "/now", label: "/now" },

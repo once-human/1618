@@ -33,7 +33,7 @@ export function DeskDays() {
     <section>
       <h2 className="border-ink mb-6 flex justify-between gap-4 border-t pt-1.5 font-semibold">
         The laptop
-        <span className="font-normal text-quiet">apps and sites by name, never titles. YouTube is only ever &ldquo;YouTube&rdquo;</span>
+        <span className="font-normal text-quiet">the last seven days, midnight to midnight</span>
       </h2>
       <ol className="space-y-5">
         {[...d.days].reverse().map(({ day, spans, summary }) => (
