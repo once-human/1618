@@ -1,7 +1,7 @@
 import { connection } from "next/server";
 import { q } from "@/lib/db";
 
-/** This month's visitors (Pune's calendar month, from the 1st), by town: for the map on /now. Only towns and counts. */
+/** This month's visitors (India's calendar month (IST), from the 1st), by town: for the map on /now. Only towns and counts. */
 export async function GET() {
   await connection();
   const day = new Date(Date.now() + 5.5 * 3600_000).toISOString().slice(0, 10);

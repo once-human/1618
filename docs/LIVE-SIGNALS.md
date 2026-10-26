@@ -78,7 +78,7 @@ time once there are a couple of nights.
   move, scroll or tap"), as are automated browsers. Crawlers, link previews and curl don't run
   JavaScript, so `src/proxy.ts` logs them: its matcher only admits requests whose user agent looks
   like a program (or has none), so people's page loads never touch it. No IP is stored anywhere.
-- **Retention**: the daily cron (`foldOld`) folds visits older than 30 days (whole Pune days) into
+- **Retention**: the daily cron (`foldOld`) folds visits older than 30 days (whole days in India time) into
   `visit_days` (people and visits per country per day) and `visit_day_pages` (views per page), then
   deletes them with their events.
 - **Visitors' control**: `/privacy#your-visit` shows everything kept for the browser's code
@@ -130,7 +130,7 @@ time once there are a couple of nights.
 - **Who's here and where**: towns come from Vercel's IP headers (city level), travel with presence,
   and read as "you, two people in Berlin and someone in Mumbai" (`words.ts`, tested). Scroll
   positions are broadcast at most once a second while 2-8 people are on the site, for the dots.
-- **This month's map** (`/api/visitors/month`, /now): towns of this month's visits (from the 1st, Pune time),
+- **This month's map** (`/api/visitors/month`, /now): towns of this month's visits (from the 1st, India time),
   coordinates rounded to ~10 km, deleted when the month ends with the hashes. Land is a 2 KB dot grid from `scripts/make-land.mjs`.
 - **Played your song**: the sender's browser keeps a random code (stored scrambled with the
   submission); `/api/songs/mine` matches their songs against later plays by song key.

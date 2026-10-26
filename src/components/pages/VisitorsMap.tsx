@@ -87,7 +87,7 @@ const ease = (t: number) => 1 - Math.pow(1 - t, 3);
 
 /**
  * Who came by this month, as dots on a map: towns only, and how many from each.
- * Pune's calendar month, so it starts fresh on the 1st. It opens on wherever
+ * India's calendar month (IST), so it starts fresh on the 1st. It opens on wherever
  * most of them are; drag to move, the buttons (or ctrl + scroll, or a pinch)
  * to zoom, and hover or tap a dot for the town.
  */

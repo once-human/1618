@@ -137,7 +137,7 @@ export function StatusPage({ initial = null }: { initial?: Data | null }) {
       </section>
 
       <p className="text-quiet text-[13px]">
-        Checked {new Date(data.checkedAt).toLocaleTimeString("en-GB", { timeZone: "Asia/Kolkata" })} Pune time. Refreshes every minute.
+        Checked {new Date(data.checkedAt).toLocaleTimeString("en-GB", { timeZone: "Asia/Kolkata" })} India time. Refreshes every minute.
       </p>
     </div>
   );

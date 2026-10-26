@@ -117,7 +117,7 @@ export async function checkFeatures(): Promise<Feature[]> {
       what: "A map of where this month's visitors came from, by town. Towns and counts only.",
       where: [{ href: "/now#visitors", label: "/now" }],
       ok: today ? true : false,
-      state: today?.[0] ? `${plural(today[0].people, "person", "people")} from ${plural(today[0].places, "place")} so far today, Pune time.` : "Can't read today's visits.",
+      state: today?.[0] ? `${plural(today[0].people, "person", "people")} from ${plural(today[0].places, "place")} so far today, India time.` : "Can't read today's visits.",
     },
     {
       id: "played",

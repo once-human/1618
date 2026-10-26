@@ -66,7 +66,7 @@ export function PrivacyView({ data, open }: { data: AdminState; open: string | n
           <Stat value={s ? fmt(s.day.bots) : "–"} label="programs" sub={s ? `${fmt(s.day.botPages)} pages fetched` : undefined} />
         </section>
 
-        <Panel title="Visitor log" aside="Pune time">
+        <Panel title="Visitor log" aside="India time (IST)">
           <div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div className="flex flex-wrap gap-x-8 gap-y-3">
               <Seg label="Who" value={kind} onChange={setKind} options={[{ id: "person", label: "People" }, { id: "bot", label: "Programs" }, { id: "all", label: "Everyone" }]} />

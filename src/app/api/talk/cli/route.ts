@@ -39,7 +39,7 @@ function render(code: string, name: string | null, msgs: { side: string; text: s
   const lines = msgs.map((m) => {
     const who = m.side === "me" ? "onkar" : (name ?? "you").toLowerCase();
     const body = m.text.split("\n").join("\n" + " ".repeat(14));
-    return `  ${who.padEnd(10).slice(0, 10)}  ${body}\n  ${" ".repeat(10)}  \x1b[2m${time(m.at)} Pune time\x1b[22m`;
+    return `  ${who.padEnd(10).slice(0, 10)}  ${body}\n  ${" ".repeat(10)}  \x1b[2m${time(m.at)} India time\x1b[22m`;
   });
   const waiting = msgs.at(-1)?.side !== "me";
   return `\n${lines.join("\n\n")}\n\n  ${waiting ? "No reply yet. Run this again in a bit." : ""}\n  write more:  curl -L -d "..." ${host}/talk/${code}\n  in a browser: ${SITE_URL}/talk#${code}\n`;
