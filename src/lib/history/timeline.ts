@@ -4,7 +4,7 @@ import { q } from "@/lib/db";
 import { scrobbles, type Scrobble } from "@/lib/presence/lastfm";
 import { getSaved } from "@/lib/presence/pinterest";
 import type { SavedPin, TodayEvent } from "@/lib/presence/types";
-import { appleSong, ghEvents } from "@/lib/presence/server";
+import { appleSong, ghEvents, ghRecentCommits } from "@/lib/presence/server";
 import { parseCredit } from "./credits";
 import { spansBetween } from "@/lib/desk/server";
 import { nightsIn, withMusic } from "@/lib/presence/sleep";
@@ -47,12 +47,13 @@ async function buildTimeline(HOURS: number): Promise<{ hours: number; events: To
   const fromSec = Math.floor(now / 1000) - HOURS * 3600;
   const fromIso = new Date(fromSec * 1000).toISOString();
 
-  const [livePlays, storedPlays, gh, storedCode, saved, archived, moves, nights, deskRows, sleepIn] = await Promise.all([
+  const [livePlays, storedPlays, gh, recentCommits, storedCode, saved, archived, moves, nights, deskRows, sleepIn] = await Promise.all([
     scrobbles(fromSec, Math.floor(now / 1000), 6),
     q<{ track: string; artist: string; album: string | null; uts: string }>("tl plays", (db) =>
       db`SELECT track, artist, album, uts::text FROM scrobbles WHERE uts >= ${fromSec} ORDER BY uts`,
     ),
     ghEvents().catch(() => null),
+    ghRecentCommits(fromIso.slice(0, 10)).catch(() => null),
     q<{ id: string; at: string; data: { repo: string; commits: number | null } }>("tl code", (db) =>
       db`SELECT id, at, data FROM events WHERE kind = 'code' AND at >= ${fromIso}`,
     ),
@@ -144,6 +145,11 @@ async function buildTimeline(HOURS: number): Promise<{ hours: number; events: To
     if (e.type === "PushEvent" && e.created_at >= fromIso)
       pushes.set(`gh:${e.id}`, { at: e.created_at, repo: e.repo.name.split("/")[1] });
   for (const r of storedCode ?? []) pushes.set(r.id, { at: new Date(r.at).toISOString(), repo: r.data.repo });
+  // GitHub's public events feed can trail a push by hours. Commits are live, so any commit newer than the
+  // newest push the feed knows about in that repo stands in for the push it hasn't listed yet.
+  const newest = new Map<string, string>();
+  for (const p of pushes.values()) if (p.at > (newest.get(p.repo) ?? "")) newest.set(p.repo, p.at);
+  for (const c of recentCommits ?? []) if (c.at > (newest.get(c.repo) ?? "")) pushes.set(`c:${c.sha}`, { at: c.at, repo: c.repo });
   const sortedPushes = [...pushes.values()].sort((a, b) => a.at.localeCompare(b.at));
   const open = new Map<string, { at: string; until: string; n: number }>();
   // Runs of pushes; they become "worked on" rows together with the laptop's own record, below.
@@ -239,10 +245,9 @@ async function buildTimeline(HOURS: number): Promise<{ hours: number; events: To
     // The project comes first. If the laptop didn't see which one, take the nearest push or session that did.
     let repo = repoOf(x);
     if (!repo && x.claude >= 20 * 60_000) {
-      // Up to half a day away: with no push of its own, it is almost always the project just worked on.
       const near = [...runs.map((r) => ({ repo: r.repo, from: r.from, to: r.to })), ...sessions.filter((y) => y !== x && repoOf(y)).map((y) => ({ repo: repoOf(y)!, from: y.from, to: y.to }))]
         .map((r) => ({ repo: r.repo, gap: Math.max(r.from - x.to, x.from - r.to, 0) }))
-        .filter((r) => r.gap <= 12 * 3600_000)
+        .filter((r) => r.gap <= 3 * 3600_000)
         .sort((a, b) => a.gap - b.gap)[0];
       repo = near?.repo ?? null;
     }

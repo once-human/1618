@@ -72,6 +72,28 @@ export async function ghEvents(): Promise<PublicEvent[] | null> {
   return getJson<PublicEvent[]>(`https://api.github.com/users/${GH_USER}/events/public?per_page=100`, ghHeaders());
 }
 
+/**
+ * Recent commits on the repos I pushed to lately. The public events feed can be hours behind a push, but
+ * the commit list is live, so the timeline uses it to cover the stretch the feed hasn't caught up on.
+ */
+export async function ghRecentCommits(sinceIso: string): Promise<{ at: string; repo: string; sha: string }[]> {
+  "use cache: remote";
+  cacheLife({ stale: 60, revalidate: 120, expire: 900 });
+  cacheTag("github");
+  const since = `${sinceIso.slice(0, 10)}T00`; // day-sized, so the cache key holds all day
+  const repos = await getJson<{ name: string; pushed_at: string; fork: boolean }[]>(`https://api.github.com/users/${GH_USER}/repos?sort=pushed&per_page=8`, ghHeaders());
+  const recent = (repos ?? []).filter((r) => !r.fork && r.pushed_at >= `${since}:00:00Z`).slice(0, 5);
+  const lists = await Promise.all(
+    recent.map((r) =>
+      getJson<{ sha: string; commit: { committer: { date: string } } }[]>(
+        `https://api.github.com/repos/${GH_USER}/${r.name}/commits?since=${since}:00:00Z&per_page=100`,
+        ghHeaders(),
+      ).then((l) => (l ?? []).map((c) => ({ at: new Date(c.commit.committer.date).toISOString(), repo: r.name, sha: c.sha }))),
+    ),
+  );
+  return lists.flat();
+}
+
 export async function getGithub(): Promise<Pick<Presence, "github" | "repos">> {
   "use cache: remote";
   cacheLife({ stale: 120, revalidate: 600, expire: 3600 });

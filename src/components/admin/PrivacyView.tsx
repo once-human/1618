@@ -4,10 +4,10 @@ import { useEffect, useMemo, useState } from "react";
 import { act, type AdminState } from "./store";
 import { go } from "./AdminApp";
 import { Confirm, Empty, Icon, Panel, Seg, Spinner, Stat, ago, flag, fmt, input, town, when } from "./ui";
-import type { EventRow, VisitRow } from "@/lib/visits/shared";
+import type { EventRow, PersonRow, VisitRow } from "@/lib/visits/shared";
 import type { VisitSummary } from "@/lib/visits/server";
 
-type Kind = "person" | "bot" | "all";
+type View = "people" | "visits" | "bots" | "all";
 type Range = "24" | "168" | "720";
 
 /** How long something took: "40 s", "3 min", "1 h 5 min". */
@@ -23,18 +23,19 @@ const nth = (n: number) => `${n}${n % 10 === 1 && n % 100 !== 11 ? "st" : n % 10
 /** /admin → privacy: who came, what they did, what's kept, and who can get in. */
 export function PrivacyView({ data, open }: { data: AdminState; open: string | null }) {
   const [range, setRange] = useState<Range>("24");
-  const [kind, setKind] = useState<Kind>("person");
+  const [view, setView] = useState<View>("people");
+  const [person, setPerson] = useState<string | null>(null);
   const [query, setQuery] = useState("");
-  const [log, setLog] = useState<{ key: string; visits: VisitRow[]; summary: VisitSummary } | null>(null);
+  const [log, setLog] = useState<{ key: string; visits: VisitRow[]; people: PersonRow[]; summary: VisitSummary } | null>(null);
   const [failed, setFailed] = useState(false);
-  const key = `${range}|${kind}`;
+  const key = `${range}|${view}`;
 
   useEffect(() => {
     let live = true;
     const load = () =>
-      fetch(`/api/admin/visitors?hours=${range}&kind=${kind}`, { cache: "no-store" })
+      fetch(`/api/admin/visitors?hours=${range}&kind=${view === "people" ? "people" : view === "visits" ? "person" : view === "bots" ? "bot" : "all"}`, { cache: "no-store" })
         .then((r) => (r.ok ? r.json() : Promise.reject()))
-        .then((d: { visits: VisitRow[]; summary: VisitSummary }) => live && (setLog({ key, ...d }), setFailed(false)))
+        .then((d: { visits?: VisitRow[]; people?: PersonRow[]; summary: VisitSummary }) => live && (setLog({ key, visits: d.visits ?? [], people: d.people ?? [], summary: d.summary }), setFailed(false)))
         .catch(() => live && setFailed(true));
     void load();
     const t = setInterval(() => document.visibilityState === "visible" && void load(), 30_000);
@@ -42,7 +43,7 @@ export function PrivacyView({ data, open }: { data: AdminState; open: string | n
       live = false;
       clearInterval(t);
     };
-  }, [range, kind, key]);
+  }, [range, view, key]);
 
   const loading = !log || log.key !== key;
   const visits = useMemo(() => {
@@ -51,6 +52,14 @@ export function PrivacyView({ data, open }: { data: AdminState; open: string | n
     if (!q) return all;
     return all.filter((v) =>
       [v.city, v.country, town(v.city, v.country), v.device, v.referrer, v.reason, ...v.trail].some((x) => x?.toLowerCase().includes(q)),
+    );
+  }, [log, query]);
+  const people = useMemo(() => {
+    const all = log?.people ?? [];
+    const q = query.trim().toLowerCase();
+    if (!q) return all;
+    return all.filter((p) =>
+      [p.id, p.lang, p.referrer, ...p.devices, ...p.places.flatMap((x) => [x.city, x.country, town(x.city, x.country)])].some((x) => x?.toLowerCase().includes(q)),
     );
   }, [log, query]);
   const s = log?.summary;
@@ -69,7 +78,7 @@ export function PrivacyView({ data, open }: { data: AdminState; open: string | n
         <Panel title="Visitor log" aside="India time (IST)">
           <div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div className="flex flex-wrap gap-x-8 gap-y-3">
-              <Seg label="Who" value={kind} onChange={setKind} options={[{ id: "person", label: "People" }, { id: "bot", label: "Programs" }, { id: "all", label: "Everyone" }]} />
+              <Seg label="Show" value={view} onChange={setView} options={[{ id: "people", label: "People" }, { id: "visits", label: "Visits" }, { id: "bots", label: "Programs" }, { id: "all", label: "Everyone" }]} />
               <Seg label="When" value={range} onChange={setRange} options={[{ id: "24", label: "24 hours" }, { id: "168", label: "7 days" }, { id: "720", label: "30 days" }]} />
             </div>
             <label className="relative block w-full lg:w-72">
@@ -85,9 +94,24 @@ export function PrivacyView({ data, open }: { data: AdminState; open: string | n
             <p className="text-a-quiet flex items-center gap-2 py-5 text-[14px]">
               <Spinner /> Loading
             </p>
+          ) : view === "people" ? (
+            !people.length ? (
+              <Empty>{query ? "Nothing matches that." : "Nobody in this stretch yet. The log started when this was switched on."}</Empty>
+            ) : (
+              <>
+                <p className="text-a-quiet mb-2 text-[13px]">
+                  {people.length} {people.length === 1 ? "person" : "people"}: one row per browser, however many times it came. Press one to see each of its visits.
+                </p>
+                <ol className="border-a-line border-b">
+                  {people.map((p) => (
+                    <Person key={p.id} p={p} open={person === p.id} onToggle={() => setPerson(person === p.id ? null : p.id)} />
+                  ))}
+                </ol>
+              </>
+            )
           ) : !visits.length ? (
             <Empty>
-              {query ? "Nothing matches that." : kind === "bot" ? "No programs in this stretch." : "Nobody in this stretch yet. The log started when this was switched on."}
+              {query ? "Nothing matches that." : view === "bots" ? "No programs in this stretch." : "Nobody in this stretch yet. The log started when this was switched on."}
             </Empty>
           ) : (
             <>
@@ -153,6 +177,108 @@ export function PrivacyView({ data, open }: { data: AdminState; open: string | n
 
         <Security data={data} />
       </aside>
+    </div>
+  );
+}
+
+/* ---- one person ---- */
+
+/** A person is one browser's code. The row shows the totals; opening it lists each of their visits, and each visit its pages. */
+function Person({ p, open, onToggle }: { p: PersonRow; open: boolean; onToggle: () => void }) {
+  const first = p.places[0];
+  return (
+    <li className="border-a-line border-t">
+      <button type="button" onClick={onToggle} aria-expanded={open} className="hover:bg-a-soft grid w-full grid-cols-[4.2rem_minmax(0,1fr)_auto] gap-x-3 gap-y-0.5 py-2.5 text-left md:grid-cols-[4.2rem_minmax(0,14rem)_minmax(0,1fr)_auto]">
+        <span className="text-a-quiet text-[13px] tabular-nums">{ago(p.lastAt)}</span>
+        <span className="min-w-0">
+          <span className="block truncate font-medium">
+            {first ? `${flag(first.country)} ${town(first.city, first.country)}` : "Somewhere"}
+            {p.places.length > 1 ? <span className="text-a-quiet font-normal"> +{p.places.length - 1}</span> : null}
+          </span>
+          <span className="text-a-quiet block truncate text-[13px]">{[p.devices.join(", "), p.screen].filter(Boolean).join(" · ") || "—"}</span>
+        </span>
+        <span className="text-a-quiet col-span-2 col-start-2 min-w-0 truncate text-[13px] md:col-span-1 md:col-start-3 md:row-start-1 md:text-[14px]">
+          <span className="text-a-ink font-mono text-[13px]">{p.id}</span>
+          <span className="block truncate text-[13px]">
+            {p.visits === 1 ? "1 visit" : `${p.visits} visits`}
+            {p.referrer ? ` · first from ${p.referrer}` : ""}
+          </span>
+        </span>
+        <span className="text-a-quiet col-start-3 row-start-1 text-right text-[13px] tabular-nums md:col-start-4">
+          {p.pages} {p.pages === 1 ? "page" : "pages"}
+          {p.activeMs ? <span className="block">{dur(p.activeMs)}</span> : null}
+        </span>
+      </button>
+      {open ? <PersonVisits p={p} /> : null}
+    </li>
+  );
+}
+
+function PersonVisits({ p }: { p: PersonRow }) {
+  const [visits, setVisits] = useState<VisitRow[] | null>(null);
+  const [which, setWhich] = useState<string | null>(null);
+  useEffect(() => {
+    let live = true;
+    fetch(`/api/admin/visitors?person=${encodeURIComponent(p.id)}`, { cache: "no-store" })
+      .then((r) => r.json())
+      .then((d: { visits: VisitRow[] }) => live && setVisits(d.visits))
+      .catch(() => live && setVisits([]));
+    return () => {
+      live = false;
+    };
+  }, [p.id, p.lastAt]);
+
+  return (
+    <div className="border-a-ink mb-3 ml-[4.2rem] border-l-2 pb-1 pl-4 md:ml-[5rem]">
+      <dl className="text-a-quiet grid grid-cols-2 gap-x-6 gap-y-2 py-2 text-[13px] sm:grid-cols-4">
+        <Fact k="Visitor ID" v={<span className="font-mono">{p.id}</span>} />
+        <Fact k="First seen" v={when(p.firstAt)} />
+        <Fact k="Last seen" v={ago(p.lastAt)} />
+        <Fact k="Counted as a visitor" v={p.countedAt ? when(p.countedAt) : "—"} />
+        <Fact k="Visits kept" v={p.visits} />
+        <Fact k="Pages read" v={p.pages} />
+        <Fact k="Time on the site" v={p.activeMs ? dur(p.activeMs) : "—"} />
+        <Fact k="Language" v={p.lang ?? "—"} />
+        <Fact k="Places" v={p.places.length ? p.places.map((x) => `${flag(x.country)} ${town(x.city, x.country)}`).join(", ") : "—"} />
+        <Fact k="Devices" v={p.devices.join(", ") || "—"} />
+        <Fact k="Screen" v={p.screen ?? "—"} />
+        <Fact k="First came from" v={p.referrer ?? "direct"} />
+      </dl>
+      {!visits ? (
+        <p className="text-a-quiet py-2 text-[13px]">
+          <Spinner />
+        </p>
+      ) : (
+        <ol className="border-a-line border-b text-[14px]">
+          {visits.map((v) => (
+            <li key={v.id} className="border-a-line border-t">
+              <button type="button" onClick={() => setWhich(which === v.id ? null : v.id)} aria-expanded={which === v.id} className="hover:bg-a-soft grid w-full grid-cols-[minmax(0,9rem)_minmax(0,1fr)_auto] gap-x-3 py-2 text-left">
+                <span className="text-a-quiet text-[13px] tabular-nums">
+                  {when(v.startedAt)}
+                  <span className="block">to {clock(v.lastAt).slice(0, 5)}</span>
+                </span>
+                <span className="min-w-0 truncate">{v.trail.length ? v.trail.join(" → ") : "—"}</span>
+                <span className="text-a-quiet text-right text-[13px] tabular-nums">
+                  {dur(Math.max(0, Date.parse(v.lastAt) - Date.parse(v.startedAt)))}
+                  <span className="block">
+                    {v.pages} {v.pages === 1 ? "page" : "pages"}
+                  </span>
+                </span>
+              </button>
+              {which === v.id ? <Trail v={v} /> : null}
+            </li>
+          ))}
+        </ol>
+      )}
+    </div>
+  );
+}
+
+function Fact({ k, v }: { k: string; v: React.ReactNode }) {
+  return (
+    <div className="min-w-0">
+      <dt>{k}</dt>
+      <dd className="text-a-ink break-words">{v}</dd>
     </div>
   );
 }

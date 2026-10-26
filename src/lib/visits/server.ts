@@ -3,13 +3,17 @@ import { kvSet, q } from "@/lib/db";
 import { geoOf } from "@/lib/geo";
 import { deviceName } from "@/lib/ua";
 import { isBotAgent, isDatacentreTown, notOurPage } from "@/lib/bots";
-import { KEEP_DAYS, MAX_BOT_PAGES, MAX_EVENTS, botName, cleanPath, refHost, isTerminal, type EventRow, type TrackBatch, type VisitRow } from "./shared";
+import { createHash } from "node:crypto";
+import { KEEP_DAYS, MAX_BOT_PAGES, MAX_EVENTS, botName, cleanPath, refHost, isTerminal, type EventRow, type PersonRow, type TrackBatch, type VisitRow } from "./shared";
 
 const TZ = "Asia/Kolkata";
 /** The browser sends a site name ("instagram.com"); anything else is dropped. */
 const host = (h: unknown) => (typeof h === "string" && /^[a-z0-9.-]{1,80}$/i.test(h) && h.includes(".") ? h.toLowerCase() : null);
 const screen = (s: unknown) => (s === "phone" || s === "tablet" || s === "desktop" ? s : null);
 const clip = (s: unknown, n: number) => (typeof s === "string" && s.trim() ? s.trim().slice(0, n) : null);
+
+/** The SHA-256 of a browser's code: what's kept to remember a person, and what /admin shows (12 characters of it). */
+export const personHash = (code: string) => createHash("sha256").update(code, "utf8").digest("hex");
 
 /* ---- writing ---- */
 
@@ -132,6 +136,55 @@ export async function listVisits(hours: number, kind: "person" | "bot" | "all", 
   return (rows ?? []).map(toRow);
 }
 
+/** People (one per browser code) seen in the last `hours`, most recent first, with their totals over the kept 30 days. */
+export async function listPeople(hours: number, limit = 300): Promise<PersonRow[]> {
+  const h = Math.min(KEEP_DAYS * 24, Math.max(1, hours));
+  const rows = await q<{
+    id: string; first_at: string; last_at: string; visits: number; pages: number; active_ms: number; places: string[] | null; devices: string[] | null;
+    lang: string | null; screen: string | null; referrer: string | null; counted_at: string | null;
+  }>("people list", (db) =>
+    db`SELECT left(encode(sha256(convert_to(v.visitor, 'UTF8')), 'hex'), 12) AS id,
+              min(v.started_at) AS first_at, max(v.last_at) AS last_at, count(*)::int AS visits,
+              coalesce(sum(v.pages), 0)::int AS pages, coalesce(sum(v.active_ms), 0)::bigint AS active_ms,
+              array_agg(DISTINCT concat_ws('|', coalesce(v.city, ''), coalesce(v.country, ''))) FILTER (WHERE v.city IS NOT NULL OR v.country IS NOT NULL) AS places,
+              array_agg(DISTINCT v.device) FILTER (WHERE v.device IS NOT NULL) AS devices,
+              (array_agg(v.lang ORDER BY v.last_at DESC) FILTER (WHERE v.lang IS NOT NULL))[1] AS lang,
+              (array_agg(v.screen ORDER BY v.last_at DESC) FILTER (WHERE v.screen IS NOT NULL))[1] AS screen,
+              (array_agg(v.referrer ORDER BY v.started_at) FILTER (WHERE v.referrer IS NOT NULL))[1] AS referrer,
+              min(k.first_at) AS counted_at
+       FROM visits v LEFT JOIN known_visitors k ON k.id = encode(sha256(convert_to(v.visitor, 'UTF8')), 'hex')
+       WHERE v.kind = 'person' AND v.visitor IS NOT NULL
+       GROUP BY v.visitor
+       HAVING max(v.last_at) > now() - make_interval(hours => ${h})
+       ORDER BY max(v.last_at) DESC LIMIT ${limit}`,
+  );
+  return (rows ?? []).map((r) => ({
+    id: r.id, firstAt: new Date(r.first_at).toISOString(), lastAt: new Date(r.last_at).toISOString(),
+    visits: r.visits, pages: r.pages, activeMs: Number(r.active_ms),
+    places: (r.places ?? []).map((p) => {
+      const [city, country] = p.split("|");
+      return { city: city || null, country: country || null };
+    }), devices: r.devices ?? [],
+    lang: r.lang, screen: r.screen, referrer: r.referrer, countedAt: r.counted_at ? new Date(r.counted_at).toISOString() : null,
+  }));
+}
+
+/** Every kept visit of one person, newest first, each with its trail. */
+export async function personVisits(id: string): Promise<VisitRow[]> {
+  if (!/^[a-f0-9]{8,64}$/.test(id)) return [];
+  const rows = await q<Raw>("person visits", (db) =>
+    db`SELECT v.*, t.trail,
+              (row_number() OVER (ORDER BY v.started_at))::int AS nth
+       FROM visits v
+       LEFT JOIN LATERAL (
+         SELECT array_agg(path ORDER BY seq) AS trail FROM (SELECT path, seq FROM visit_events e WHERE e.visit = v.id AND e.type = 'page' ORDER BY seq LIMIT 40) x
+       ) t ON true
+       WHERE v.kind = 'person' AND v.visitor IS NOT NULL AND encode(sha256(convert_to(v.visitor, 'UTF8')), 'hex') LIKE ${id + "%"}
+       ORDER BY v.started_at DESC LIMIT 100`,
+  );
+  return (rows ?? []).map(toRow);
+}
+
 /** Everything that happened in one visit, in order. */
 export async function visitEvents(id: string): Promise<EventRow[]> {
   const rows = await q<{ seq: number; at: string; type: EventRow["type"]; path: string; detail: string | null; ms: number | null; scroll: number | null }>(
@@ -235,6 +288,8 @@ export async function mine(visitor: string): Promise<{ visits: (VisitRow & { eve
 /** "Forget me": every visit from this browser, gone, and nothing more accepted from its code. */
 export async function forget(visitor: string): Promise<number> {
   await kvSet(`track:forgot:${visitor}`, { at: new Date().toISOString() });
+  // The frozen "already counted" list holds a hash of this code too: gone with the rest.
+  await q("visitor unknown", (db) => db`DELETE FROM known_visitors WHERE id = ${personHash(visitor)}`);
   const rows = await q<{ id: string }>("visits forget", (db) => db`DELETE FROM visits WHERE visitor = ${visitor} RETURNING id`);
   return rows?.length ?? 0;
 }

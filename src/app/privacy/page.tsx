@@ -13,7 +13,7 @@ export const metadata: Metadata = pageMeta(
   "/privacy",
 );
 
-const UPDATED = "25 October 2026";
+const UPDATED = "27 October 2026";
 const host = SITE_URL.replace(/^https?:\/\//, "");
 
 const link = "underline decoration-1 underline-offset-4 hover:decoration-2";
@@ -99,6 +99,61 @@ export default function Privacy() {
             </p>
           </Part>
 
+          <Part title="The visitor count" id="count">
+            <p>
+              The number on the home page counts people, not page loads: you add one to it the first
+              time you do something on the site, and never again, however often you come back,
+              today or next month.
+            </p>
+            <p>
+              The site doesn&apos;t remember you from one day to the next to do that. Your browser does:
+              after it has been counted, it keeps a small marker in its own storage
+              (<code>1618-counted</code>), and doesn&apos;t ask to be counted again. The site&apos;s side of
+              it is one row that says &ldquo;someone from this town, on this day&rdquo;, with a scrambled code
+              made from your connection that changes every day, can&apos;t be turned back into an
+              address, and can&apos;t link one day&apos;s row to another&apos;s. At the end of each month those
+              rows are folded into a plain total and deleted.
+            </p>
+            <p>
+              So the same person on a new browser, a private window or after clearing their
+              browser&apos;s data counts again, and a browser that asks not to be tracked (or has the
+              log turned off) is counted once a day instead, since it can&apos;t keep the marker.
+              It&apos;s a rough count of people, not a precise one. Deleting your visit below
+              doesn&apos;t take you out of the number: the count holds nothing that says who you
+              were, only that someone from your town came on that day.
+            </p>
+          </Part>
+
+          <Part title="What&apos;s kept, and for how long" id="kept">
+            <ul className="list-disc space-y-1 pl-5">
+              <li>
+                <strong>Each visit</strong> (pages in order, time on each, how far down, links followed, town, country,
+                device, language, screen size, the site you came from, and the random code of your browser): 30 days, then
+                deleted. Only I can read it.
+              </li>
+              <li>
+                <strong>After 30 days</strong>: a count per day and country, and a view count per page. No codes, no towns.
+              </li>
+              <li>
+                <strong>The visitor count</strong>: a row per person per month with the town and a daily scrambled code, folded
+                into one number at the month&apos;s end.
+              </li>
+              <li>
+                <strong>Programs</strong> (search engines, previews, curl): their name, country and which pages they fetched, per day.
+              </li>
+              <li>
+                <strong>Live &ldquo;who&apos;s here&rdquo;</strong>: not stored; passed between open tabs while they&apos;re open.
+              </li>
+              <li>
+                <strong>Messages, songs and guestbook entries you send</strong>: until you or I delete them, as described below.
+              </li>
+            </ul>
+            <p>
+              Nothing here is built from your IP address, your name or your email, and none of it is sold,
+              shared or used to advertise to you.
+            </p>
+          </Part>
+
           <Part title="Your visit" id="your-visit">
             <YourVisit />
           </Part>
@@ -117,11 +172,11 @@ export default function Privacy() {
               server, never based on where you are.
             </p>
             <p>
-              Separately from the log, two live counts. The visitor count adds you once a day, however often you
-              reload, recognising a returning visitor only by the scrambled, daily-changing code
-              described below. For the map of today&apos;s visitors on /now, the town your
+              Separately from the log, there are two live counts. The first is the visitor count,
+              described in its own section below. For the map of this month&apos;s visitors on /now, the town your
               connection comes from is kept with it (coordinates rounded to about 10 km) and
-              shown only as a dot and a count per town; it&apos;s deleted with the code each night. And to show how many people are on the site right now, each open tab
+              shown only as a dot and a count per town; at the end of the month those rows are
+              reduced to a plain number and deleted. And to show how many people are on the site right now, each open tab
               holds a live connection to Supabase Realtime and is given a scrambled code for
               the device it&apos;s on, so your tabs, private windows and other browsers on one
               phone or laptop count as one person. The code is worked out by the server from
@@ -175,11 +230,10 @@ export default function Privacy() {
               next time you visit it can tell you whether I&apos;ve played it.
             </p>
             <p>
-              To count people rather than page loads, and to stop one person flooding the page, the
-              site makes a one-way, scrambled code from your IP address that changes every day. It
-              can&apos;t be turned back into your address, can&apos;t follow you from one day to the
-              next, and is deleted within a few days. The same goes for 🔥 reactions, which are kept
-              only as a count per song.
+              To stop one person flooding the page, the site makes a one-way, scrambled code from your
+              IP address that changes every day. It can&apos;t be turned back into your address, can&apos;t
+              follow you from one day to the next, and is deleted within a few days. The same goes
+              for 🔥 reactions, which are kept only as a count per song.
             </p>
             <p>
               I can hide or delete any post, and I&apos;ll remove yours if you ask (see the end of

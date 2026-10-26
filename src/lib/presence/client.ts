@@ -8,6 +8,7 @@ import type { ListeningStats, Live, Music, Presence, Saved, Submission, TodayEve
 import type { Replay, RangeSummary } from "@/lib/history/query";
 import { artSet } from "@/lib/art";
 import { isBotBrowser, whenHuman } from "@/lib/bots";
+import { trackingOff, visitorCode } from "@/lib/visits/client";
 
 /**
  * Shared pollers: every component reading the same endpoint subscribes to one
@@ -200,8 +201,9 @@ export async function fetchHistory(
 
 export { useHere, type Here } from "./here";
 
-/* ---- Visitors so far: each person once a day ---- */
+/* ---- Visitors so far: each person once, whenever they come ---- */
 
+const COUNTED = "1618-counted";
 let visits: number | null = null;
 let counted = false;
 const visitSubs = new Set<() => void>();
@@ -211,7 +213,31 @@ export function useVisits(): number | null {
     if (counted || isBotBrowser()) return;
     counted = true;
     // Counted on the first thing a person does, so crawlers that run the page aren't.
-    void whenHuman().then(() => fetch("/api/visit", { method: "POST" }))
+    // Counted on the first thing a person does, so crawlers that run the page aren't. Once counted, the browser
+    // remembers it and only reads the number afterwards, so a person is one visitor however often they return.
+    // (A browser that asked not to be tracked keeps nothing, and is counted once a day.)
+    void whenHuman().then(() => {
+      const off = trackingOff();
+      let done = false;
+      try {
+        done = !off && localStorage.getItem(COUNTED) === "1";
+      } catch {
+        /* no storage */
+      }
+      if (done) return fetch("/api/visit");
+      const v = off ? null : visitorCode(false);
+      return fetch("/api/visit", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ v }) }).then((r) => {
+        if (r.ok && !off)
+          void r.clone().json().then((d: { counted?: boolean }) => {
+            try {
+              if (d.counted) localStorage.setItem(COUNTED, "1");
+            } catch {
+              /* no storage */
+            }
+          }).catch(() => {});
+        return r;
+      });
+    })
       .then((r) => r?.json())
       .then((d: { visits: number | null } | undefined) => {
         if (!d) return;

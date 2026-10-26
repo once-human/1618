@@ -62,6 +62,26 @@ export interface VisitRow {
   nth?: number;
 }
 
+/** One person (one browser's code), for /admin → privacy → People. */
+export interface PersonRow {
+  /** First 12 characters of the SHA-256 of their code: stable, and not the code. */
+  id: string;
+  firstAt: string;
+  lastAt: string;
+  /** Visits kept in full (the last 30 days). */
+  visits: number;
+  pages: number;
+  activeMs: number;
+  places: { city: string | null; country: string | null }[];
+  devices: string[];
+  lang: string | null;
+  screen: string | null;
+  /** Where their first kept visit came from. */
+  referrer: string | null;
+  /** When they were first counted as a visitor (can be older than the kept log). */
+  countedAt: string | null;
+}
+
 export interface EventRow {
   seq: number;
   at: string;

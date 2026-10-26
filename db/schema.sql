@@ -31,6 +31,10 @@ CREATE INDEX IF NOT EXISTS scrobbles_song ON scrobbles (song_key);
 CREATE TABLE IF NOT EXISTS artist_credits (credit text PRIMARY KEY, single boolean NOT NULL, checked_at timestamptz NOT NULL DEFAULT now());
 -- Daily visitor hashes, folded into counters.visitors_archived each night
 CREATE TABLE IF NOT EXISTS visitors (day date NOT NULL, who text NOT NULL, PRIMARY KEY (day, who));
+-- Frozen: the people already counted when the count changed to "once per person" (SHA-256 of the random code
+-- their browser keeps; never the code itself, never an address). They aren't counted again. Nothing is added
+-- any more: the browser itself remembers that it was counted. "Forget me" deletes a person's row.
+CREATE TABLE IF NOT EXISTS known_visitors (id text PRIMARY KEY, first_at timestamptz NOT NULL DEFAULT now());
 
 -- Talk to me live: visitor messages go to my Telegram, my replies come back
 CREATE TABLE IF NOT EXISTS talk_threads (id text PRIMARY KEY, city text, country text, page text, created_at timestamptz NOT NULL DEFAULT now(), last_at timestamptz NOT NULL DEFAULT now(), name text, who text, via text, blocked boolean NOT NULL DEFAULT false, admin_read_at timestamptz);
