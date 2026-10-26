@@ -1,6 +1,7 @@
 import { connection } from "next/server";
 import { allow } from "@/lib/db";
 import { forget, mine, record } from "@/lib/visits/server";
+import { notOurPage } from "@/lib/bots";
 import { ID, type TrackBatch } from "@/lib/visits/shared";
 
 /**
@@ -28,6 +29,10 @@ export async function POST(req: Request) {
   if (!b || !ID.test(b.v ?? "") || !ID.test(b.s ?? "") || !Array.isArray(b.events)) return new Response(null, { status: 400 });
   // A busy visit sends a batch every few seconds at most.
   if (!(await allow(`track:${b.s}`, 400, 3600))) return new Response(null, { status: 429 });
+  // And one browser doesn't make hundreds of visits an hour.
+  if (!(await allow(`track-v:${b.v}`, 900, 3600))) return new Response(null, { status: 429 });
+  // Posted from another site: not ours at all.
+  if (notOurPage(req)?.startsWith("sent from")) return new Response(null, { status: 403 });
   const ok = await record(req, b);
   return new Response(null, { status: ok ? 204 : 409, headers });
 }

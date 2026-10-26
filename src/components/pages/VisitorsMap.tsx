@@ -21,6 +21,7 @@ interface Data {
   people: number;
   places: Place[];
   days?: { day: string; n: number }[];
+  live?: { city: string | null; country: string | null; n: number }[];
 }
 
 /** The land as one path of round dots (the admin's small static map uses this). */
@@ -158,7 +159,7 @@ export function VisitorsMap() {
         .then((d) => live && setData(d))
         .catch(() => {});
     load();
-    const t = setInterval(() => document.visibilityState === "visible" && load(), 120_000);
+    const t = setInterval(() => document.visibilityState === "visible" && load(), 30_000);
     return () => {
       live = false;
       clearInterval(t);
@@ -287,6 +288,9 @@ export function VisitorsMap() {
   const top = places[0];
   const mine = places.find((p) => p.city === me.city && p.country === me.country && p.lat != null);
   const dayList = data.days ?? [];
+  // Only towns with someone on the site right now pulse.
+  const liveN = new Map((data.live ?? []).map((l) => [`${l.city}|${l.country}`, l.n]));
+  const hereNow = [...liveN.values()].reduce((a, b) => a + b, 0);
 
   const unit = box && view ? view.w / box.w : 0; // map units per screen pixel
   const origin = box && view ? { x: view.cx - view.w / 2, y: view.cy - hOf(view, box) / 2 } : { x: 0, y: 0 };
@@ -424,6 +428,7 @@ export function VisitorsMap() {
         Who came by this month
         <span className="text-quiet font-normal">
           {!data.people ? "nobody yet this month" : `${fmtNum(data.people)} ${data.people === 1 ? "person" : "people"} so far, since the 1st`}
+          {hereNow ? ` · ${fmtNum(hereNow)} here now` : ""}
         </span>
       </h2>
 
@@ -475,7 +480,9 @@ export function VisitorsMap() {
                     return (
                       <g key={k} data-dot style={{ opacity: shown != null && !on ? 0.35 : 1, transition: "opacity .15s" }}>
                         <circle cx={x} cy={y} r={r * (on ? 1.18 : 1)} className="fill-ink" />
-                        <circle cx={x} cy={y} r={r} className="stroke-ink animate-ping fill-none motion-reduce:hidden" strokeWidth={1.5 * unit} style={{ transformBox: "fill-box", transformOrigin: "center", animationDuration: "3s" }} />
+                        {liveN.has(k) ? (
+                          <circle cx={x} cy={y} r={r} className="stroke-ink animate-ping fill-none motion-reduce:hidden" strokeWidth={1.5 * unit} style={{ transformBox: "fill-box", transformOrigin: "center", animationDuration: "2s" }} />
+                        ) : null}
                         {you ? <circle cx={x} cy={y} r={r + 4 * unit} className="stroke-ink fill-none" strokeWidth={1.5 * unit} /> : null}
                         <circle
                           cx={x}
@@ -517,6 +524,7 @@ export function VisitorsMap() {
                     <p className="font-semibold">{placeName(focus.city, focus.country)}</p>
                     <p className="text-quiet tnum">
                       {fmtNum(focus.n)} {focus.n === 1 ? "person" : "people"} · {Math.round((focus.n / total) * 100)}% of the month
+                      {liveN.has(key(focus)) ? ` · ${liveN.get(key(focus))} here now` : ""}
                     </p>
                     <p className="text-quiet tnum">
                       {dms(focus.lat!, focus.lon!)}
@@ -582,7 +590,10 @@ export function VisitorsMap() {
                       onClick={() => toPlace(p)}
                     >
                       <span className="flex justify-between gap-3">
-                        <span className="truncate">{placeName(p.city, p.country)}</span>
+                        <span className="truncate">
+                          {liveN.has(k) ? <span className="bg-ink mr-1.5 inline-block size-1.5 animate-pulse rounded-full align-middle" title="Someone here now" /> : null}
+                          {placeName(p.city, p.country)}
+                        </span>
                         <span className="tnum shrink-0">
                           {fmtNum(p.n)} <span className="text-quiet">· {Math.round(share * 100)}%</span>
                         </span>

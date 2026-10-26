@@ -1,6 +1,6 @@
 "use client";
 
-import { isBotAgent, isBotBrowser, whenHuman } from "@/lib/bots";
+import { botReason, isBotAgent, whenHuman } from "@/lib/bots";
 import { IDLE_MS, MAX_EVENTS, cleanPath, refHost, type TrackBatch, type TrackEvent } from "./shared";
 
 /**
@@ -124,7 +124,7 @@ export function startTracking() {
   if (started || typeof window === "undefined" || trackingOff() || isBotAgent(navigator.userAgent)) return;
   started = true;
   visit = visitId();
-  if (isBotBrowser()) bot = "an automated browser";
+  bot = botReason();
   void whenHuman().then(() => {
     human = true;
     send();

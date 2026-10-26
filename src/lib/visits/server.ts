@@ -2,7 +2,7 @@ import "server-only";
 import { kvSet, q } from "@/lib/db";
 import { geoOf } from "@/lib/geo";
 import { deviceName } from "@/lib/ua";
-import { isBotAgent } from "@/lib/bots";
+import { isBotAgent, isDatacentreTown, notOurPage } from "@/lib/bots";
 import { KEEP_DAYS, MAX_BOT_PAGES, MAX_EVENTS, botName, cleanPath, refHost, isTerminal, type EventRow, type TrackBatch, type VisitRow } from "./shared";
 
 const TZ = "Asia/Kolkata";
@@ -18,14 +18,20 @@ export async function record(req: Request, b: TrackBatch): Promise<boolean> {
   const ua = req.headers.get("user-agent");
   const g = geoOf(req);
   const programUA = isBotAgent(ua);
-  const kind = programUA || b.bot || !b.human ? "bot" : "person";
+  const headers = notOurPage(req);
+  const farm = isDatacentreTown(g.city);
+  const kind = programUA || b.bot || !b.human || headers || farm ? "bot" : "person";
   const reason = programUA
     ? `says it's a program (${botName(ua)})`
     : b.bot
       ? clip(b.bot, 80)
-      : !b.human
-        ? "didn't move, scroll or tap"
-        : null;
+      : headers
+        ? headers
+        : farm
+          ? `from a cloud datacentre town (${g.city})`
+          : !b.human
+            ? "didn't move, scroll or tap"
+            : null;
   const events = b.events
     .filter((e) => Number.isInteger(e.seq) && e.seq >= 0 && e.seq < MAX_EVENTS && ["page", "click", "action"].includes(e.type))
     .slice(0, 100)

@@ -17,9 +17,15 @@ export async function GET() {
     (db) =>
       db`SELECT day::text, count(*)::int AS n FROM visitors WHERE day >= ${day.slice(0, 8) + "01"}::date GROUP BY day ORDER BY day`,
   );
+  // Who is on the site right now: a person who has done something in the last five minutes.
+  const live = await q<{ city: string | null; country: string | null; n: number }>(
+    "visitors live",
+    (db) =>
+      db`SELECT city, country, count(*)::int AS n FROM visits WHERE kind = 'person' AND last_at > now() - interval '5 minutes' GROUP BY city, country`,
+  );
   const places = (rows ?? []).map((r) => ({ ...r, lat: r.lat == null ? null : Number(r.lat), lon: r.lon == null ? null : Number(r.lon) }));
   return Response.json(
-    { month: day.slice(0, 7), people: places.reduce((a, p) => a + p.n, 0), places, days: days ?? [] },
-    { headers: { "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300" } },
+    { month: day.slice(0, 7), people: places.reduce((a, p) => a + p.n, 0), places, days: days ?? [], live: live ?? [] },
+    { headers: { "Cache-Control": "public, s-maxage=15, stale-while-revalidate=60" } },
   );
 }

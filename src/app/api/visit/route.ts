@@ -1,7 +1,8 @@
 import { connection } from "next/server";
 import { q, visitorKey } from "@/lib/db";
 import { geoOf } from "@/lib/geo";
-import { isBotAgent } from "@/lib/bots";
+import { isBotAgent, isDatacentreTown, notOurPage } from "@/lib/bots";
+import { allow } from "@/lib/db";
 
 /**
  * Visitors so far: each person counts once a day, however many times they
@@ -12,8 +13,11 @@ import { isBotAgent } from "@/lib/bots";
 export async function POST(req: Request) {
   // Programs aren't visitors (the page only sends this after a person does something, but check anyway).
   if (isBotAgent(req.headers.get("user-agent"))) return Response.json({ visits: null }, { headers: { "Cache-Control": "no-store" } });
-  const who = visitorKey(req);
   const g = geoOf(req);
+  // Not from one of our pages, or from a datacentre town: a machine, not a visitor.
+  if (notOurPage(req) || isDatacentreTown(g.city)) return Response.json({ visits: null }, { headers: { "Cache-Control": "no-store" } });
+  const who = visitorKey(req);
+  if (!(await allow(`visit:${who}`, 12, 3600))) return Response.json({ visits: null }, { headers: { "Cache-Control": "no-store" } });
   const day = new Date(Date.now() + 5.5 * 3600_000).toISOString().slice(0, 10);
   const rows = await q("visit", (db) =>
     db.transaction([

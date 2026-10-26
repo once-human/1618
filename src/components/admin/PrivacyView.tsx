@@ -127,6 +127,11 @@ export function PrivacyView({ data, open }: { data: AdminState; open: string | n
             <Stat value={s ? fmt(s.allTime.visits) : "–"} label="visits" />
           </div>
           <Daily rows={s?.daily ?? []} today={data.visitors.day} />
+          {data.visitors.unverified ? (
+            <p className="text-a-quiet mt-3 text-[13px]">
+              Not counted: {fmt(data.visitors.unverified)} early visits from before bot protection existed. Some may have been bots, so they aren&apos;t on the map or in the totals.
+            </p>
+          ) : null}
           <h3 className="mt-6 mb-1 text-[13px] font-semibold">By country</h3>
           {s?.countries.length ? (
             <ul className="text-[14px]">

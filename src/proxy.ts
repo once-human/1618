@@ -24,7 +24,7 @@ export const config = {
           type: "header",
           key: "user-agent",
           value:
-            ".*([Bb]ot|[Cc]rawl|[Ss]pider|[Ss]lurp|[Hh]eadless|[Ll]ighthouse|[Pp]age[Ss]peed|facebookexternalhit|meta-externalagent|[Uu]ptime|[Pp]ingdom|curl/|[Ww]get|[Pp]ython|node-fetch|axios|[Gg]o-http|Java/|okhttp|[Pp]hantom|[Pp]uppeteer|[Pp]laywright|[Ss]elenium|WhatsApp/|[Ss]kype|HTTPie|xh/|[Pp]review|[Aa]nthropic|[Pp]erplexity).*",
+            ".*([Bb]ot|[Cc]rawl|[Ss]pider|[Ss]lurp|[Hh]eadless|[Ll]ighthouse|[Pp]age[Ss]peed|facebookexternalhit|meta-externalagent|[Uu]ptime|[Pp]ingdom|curl/|[Ww]get|[Pp]ython|node-fetch|axios|[Gg]o-http|Java/|okhttp|[Pp]hantom|[Pp]uppeteer|[Pp]laywright|[Ss]elenium|WhatsApp/|[Ss]kype|HTTPie|xh/|[Pp]review|[Aa]nthropic|[Pp]erplexity|[Ss]crapy|libwww|[Hh]ttp[Cc]lient|[Hh]ttp-client|[Rr]eqwest|aiohttp|httpx|[Bb]ytespider|[Aa]hrefs|[Ss]emrush|MJ12|[Yy]andex|[Bb]aidu|[Ss]ogou|[Aa]pplebot|ia_archiver|[Mm]onitor|[Ss]canner|[Ff]etcher|[Cc]hecker|[Vv]alidator|\\+http).*",
         },
       ],
     },

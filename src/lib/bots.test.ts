@@ -24,3 +24,14 @@ test("crawlers, previewers and automated browsers are not", () => {
   ])
     assert.equal(isBotAgent(ua), true, ua);
 });
+
+test("the stronger rules: cloud towns and scripts aren't visitors; ordinary browsers still pass", async () => {
+  const { isDatacentreTown, notOurPage } = await import("./bots");
+  assert.equal(isDatacentreTown("Council Bluffs"), true);
+  assert.equal(isDatacentreTown("Pune"), false);
+  const req = (h: Record<string, string>) => new Request("https://www.onkaryaglewad.in/api/track", { method: "POST", headers: h });
+  assert.equal(notOurPage(req({ "accept-language": "en-IN", "sec-fetch-site": "same-origin", host: "www.onkaryaglewad.in" })), null);
+  assert.ok(notOurPage(req({ "accept-language": "en-IN", "sec-fetch-site": "cross-site" })));
+  assert.ok(notOurPage(req({})));
+  assert.equal(isBotAgent("Mozilla/5.0 (compatible; SomeScanner/1.0; +https://example.com/bot)"), true);
+});

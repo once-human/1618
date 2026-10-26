@@ -13,7 +13,7 @@ export async function GET(req: Request) {
   if (!(await isAdmin(req))) return new Response("Not allowed", { status: 401 });
   const day = new Date(Date.now() + 5.5 * 3600_000).toISOString().slice(0, 10);
 
-  const [presence, place, held, recent, music, sources, sync, backfill, counts, health, today, total, threads, posts, shortcuts, logins, me, nights, theme] = await Promise.all([
+  const [presence, place, held, recent, music, sources, sync, backfill, counts, health, today, total, unverified, threads, posts, shortcuts, logins, me, nights, theme] = await Promise.all([
     getPresence(),
     getPlace(),
     heldUntil(),
@@ -39,6 +39,7 @@ export async function GET(req: Request) {
     q<{ n: number }>("admin visitors total", (db) =>
       db`SELECT (count(*) + coalesce((SELECT n FROM counters WHERE name = 'visitors_archived'), 0))::int AS n FROM visitors`,
     ),
+    q<{ n: number }>("admin visitors unverified", (db) => db`SELECT n::int AS n FROM counters WHERE name = 'visitors_unverified'`),
     q<{
       id: string; name: string | null; city: string | null; country: string | null; page: string | null; via: string | null; blocked: boolean; admin_read_at: string | null; anon: boolean; ua: string | null; net: string | null; siblings: number;
       created_at: string; last_at: string; n: number; last_side: "visitor" | "me" | null; last_text: string | null; last_at_msg: string | null;
@@ -86,7 +87,7 @@ export async function GET(req: Request) {
       github: presence.github,
       music: music?.slice(0, 5) ?? null,
       health: (health ?? []).map((h) => ({ day: h.day, ...h.data, at: new Date(h.updated_at).toISOString() })),
-      visitors: { day, places: today ?? [], people: (today ?? []).reduce((a, p) => a + p.n, 0), total: total?.[0]?.n ?? null },
+      visitors: { unverified: unverified?.[0]?.n ?? 0, day, places: today ?? [], people: (today ?? []).reduce((a, p) => a + p.n, 0), total: total?.[0]?.n ?? null },
       talk: {
         telegram: { configured: telegramConfigured(), owner: me ? { name: me.name } : null },
         threads: (threads ?? []).map((t) => ({

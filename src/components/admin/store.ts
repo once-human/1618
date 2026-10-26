@@ -74,7 +74,7 @@ export interface AdminState {
   github: { repo: string; url: string; action: string; message?: string | null; at: string } | null;
   music: { track: string; artist: string; at?: string | null; nowPlaying?: boolean; url?: string; art?: string | null }[] | null;
   health: HealthDay[];
-  visitors: { day: string; people: number; total: number | null; places: { city: string | null; country: string | null; lat: number | null; lon: number | null; n: number }[] };
+  visitors: { unverified: number; day: string; people: number; total: number | null; places: { city: string | null; country: string | null; lat: number | null; lon: number | null; n: number }[] };
   talk: { telegram: { configured: boolean; owner: { name: string } | null }; threads: Thread[] };
   posts: Post[];
   sources: { checks: SourceCheck[]; checkedAt: string };
