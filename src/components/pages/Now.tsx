@@ -4,7 +4,7 @@ import { PlayDot } from "@/components/live/PlayDot";
 import Link from "next/link";
 import { useListening, useNow, usePresence, useSaved, useTimeline } from "@/lib/presence/client";
 import { fmtNum, timeAgo } from "@/lib/time";
-import { StatusLine } from "@/components/live/StatusLine";
+import { Pulse } from "@/components/live/Pulse";
 import { DeskDays } from "@/components/home/DeskDays";
 import { Timeline } from "@/components/home/Timeline";
 import { NOW } from "@/content/now";
@@ -64,7 +64,7 @@ export function NowPage() {
     <div className="space-y-20">
       <div>
         <Sky />
-        <StatusLine className={`${cell} pt-3`} />
+        <Pulse className={`${cell} pt-3`} />
       </div>
 
       {NOW.lines.length > 0 && (

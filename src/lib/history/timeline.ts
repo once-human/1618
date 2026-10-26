@@ -6,6 +6,19 @@ import { getSaved } from "@/lib/presence/pinterest";
 import type { SavedPin, TodayEvent } from "@/lib/presence/types";
 import { appleSong, ghEvents } from "@/lib/presence/server";
 import { parseCredit } from "./credits";
+import { buildSpans, type Sample } from "@/lib/desk/model";
+import { nightsIn } from "@/lib/presence/sleep";
+import { sleepInputs } from "@/lib/presence/sleepData";
+import { puneClock } from "@/lib/time";
+
+const hm = (ms: number) => {
+  const m = Math.round(ms / 60_000);
+  return m < 60 ? `${m} min` : `${Math.floor(m / 60)}h${m % 60 ? ` ${m % 60}m` : ""}`;
+};
+const hours = (ms: number) => {
+  const h = Math.round((ms / 3600_000) * 2) / 2;
+  return `${Math.floor(h)}${h % 1 ? "½" : ""} hour${h === 1 ? "" : "s"}`;
+};
 
 const GH_USER = "once-human";
 const HOURS = 48;
@@ -25,7 +38,7 @@ export async function getTimeline(): Promise<{ hours: number; events: TodayEvent
   const fromSec = Math.floor(now / 1000) - HOURS * 3600;
   const fromIso = new Date(fromSec * 1000).toISOString();
 
-  const [livePlays, storedPlays, gh, storedCode, saved, archived, moves, nights] = await Promise.all([
+  const [livePlays, storedPlays, gh, storedCode, saved, archived, moves, nights, deskRows, sleepIn] = await Promise.all([
     scrobbles(fromSec, Math.floor(now / 1000), 6),
     q<{ track: string; artist: string; album: string | null; uts: string }>("tl plays", (db) =>
       db`SELECT track, artist, album, uts::text FROM scrobbles WHERE uts >= ${fromSec} ORDER BY uts`,
@@ -39,10 +52,29 @@ export async function getTimeline(): Promise<{ hours: number; events: TodayEvent
     q<{ kind: string; at: string; data: Record<string, unknown> }>("tl moves", (db) =>
       db`SELECT kind, at, data FROM events WHERE kind IN ('activity', 'workout') AND at >= ${fromIso}`,
     ),
-    q<{ at: string; data: { via?: string } }>("tl sleep", (db) =>
+    q<{ at: string; data: { via?: string; endedAt?: string } }>("tl sleep", (db) =>
       db`SELECT at, data FROM events WHERE kind = 'sleep' AND at >= ${fromIso}`,
     ),
+    q<{ data: Sample }>("tl desk", (db) => db`SELECT data FROM desk_samples WHERE at >= ${fromIso} ORDER BY at`),
+    sleepInputs().catch(() => null),
   ]);
+
+  // What was playing around a moment, for "built to …": the plays from 45 minutes before to 10 after.
+  const builtTo = (fromMs: number, toMs: number): string | null => {
+    const near = list.filter((s) => s.uts * 1000 >= fromMs - 45 * 60_000 && s.uts * 1000 <= toMs + 10 * 60_000).map((s) => parseCredit(s.track, s.artist));
+    if (!near.length) return null;
+    const tracks = new Map<string, { n: number; title: string; credit: string }>();
+    const artists = new Map<string, number>();
+    for (const c of near) {
+      const k = `${c.title}|${c.credit}`;
+      tracks.set(k, { n: (tracks.get(k)?.n ?? 0) + 1, title: c.title, credit: c.credit });
+      for (const a of c.artists) artists.set(a, (artists.get(a) ?? 0) + 1);
+    }
+    const top = [...tracks.values()].sort((a, b) => b.n - a.n)[0];
+    if (top.n >= 2 || tracks.size <= 2) return `built to ${top.title} by ${top.credit}`;
+    const as = [...artists].sort((a, b) => b[1] - a[1]).map(([a]) => a);
+    return `built to ${as.slice(0, 2).join(" and ")}`;
+  };
 
   const out: TodayEvent[] = [];
 
@@ -126,7 +158,7 @@ export async function getTimeline(): Promise<{ hours: number; events: TodayEvent
       at: v.at,
       until: v.n > 1 ? v.until : undefined,
       title: v.n > 1 ? `Pushed to ${repo} ${v.n} times` : `Pushed to ${repo}`,
-      detail: null,
+      detail: builtTo(Date.parse(v.at), Date.parse(v.until)),
       url: `https://github.com/${GH_USER}/${repo}`,
     });
   for (const p of sortedPushes) {
@@ -181,15 +213,72 @@ export async function getTimeline(): Promise<{ hours: number; events: TodayEvent
     });
   }
 
-  // Bedtimes ("Hey Siri, good night").
-  for (const n of nights ?? [])
+  // The laptop: work sittings per repo, and long YouTube stretches, from the agent's samples.
+  const spans = buildSpans((deskRows ?? []).map((r) => r.data)).filter((s) => s.lane === "doing");
+  const sittings: { key: string; repo: string | null; kind: "work" | "youtube"; from: number; to: number; claude: number; total: number }[] = [];
+  for (const s of spans) {
+    const work = (s.kind === "claude" || s.kind === "coding" || s.kind === "terminal") && s.detail && !s.detail.includes(".");
+    const yt = s.kind === "watching" && s.label === "Watching YouTube";
+    if (!work && !yt) continue;
+    const key = work ? `w|${s.detail}` : "yt";
+    const from = Date.parse(s.start);
+    const to = Date.parse(s.end);
+    const cur = [...sittings].reverse().find((x) => x.key === key);
+    if (cur && from - cur.to < 20 * 60_000) {
+      cur.to = Math.max(cur.to, to);
+      cur.total += to - from;
+      if (s.kind === "claude") cur.claude += to - from;
+    } else sittings.push({ key, repo: work ? s.detail : null, kind: work ? "work" : "youtube", from, to, claude: s.kind === "claude" ? to - from : 0, total: to - from });
+  }
+  for (const x of sittings) {
+    if (x.total < (x.kind === "work" ? 15 : 30) * 60_000) continue;
+    const music = x.kind === "work" ? builtTo(x.from + 45 * 60_000, x.to - 10 * 60_000) : null;
+    out.push({
+      kind: "desk",
+      at: new Date(x.from).toISOString(),
+      until: new Date(x.to).toISOString(),
+      title: x.kind === "youtube" ? `On YouTube for ${hm(x.total)}` : `${x.claude > x.total / 2 ? "Built" : "Worked on"} ${x.repo}${x.claude > x.total / 2 ? " with Claude Code" : ""}, ${hm(x.total)}`,
+      detail: music,
+      url: x.kind === "work" ? `https://github.com/${GH_USER}/${x.repo}` : null,
+    });
+  }
+  // Music during a work sitting says so.
+  for (const e of out)
+    if (e.kind === "music") {
+      const t = Date.parse(e.at);
+      const w = sittings.find((x) => x.kind === "work" && t >= x.from - 10 * 60_000 && t <= x.to);
+      if (w) e.detail = `${e.detail ? `${e.detail} · ` : ""}while building ${w.repo}`;
+    }
+
+  // Nights. The ones I said good night to, with how long I slept when I said good morning; the others worked out from the quiet.
+  const told = (nights ?? []).map((n) => ({ at: Date.parse(n.at), ended: n.data?.endedAt ? Date.parse(n.data.endedAt) : null, siri: n.data?.via === "siri" }));
+  for (const n of told)
     out.push({
       kind: "sleep",
       at: new Date(n.at).toISOString(),
-      title: "Went to bed",
-      detail: n.data?.via === "siri" ? "said good night to Siri" : null,
+      until: n.ended ? new Date(n.ended).toISOString() : undefined,
+      title: n.ended ? `Slept ${hours(n.ended - n.at)}` : "Went to bed",
+      detail: n.ended ? `good night at ${puneClock(new Date(n.at).toISOString())}, good morning at ${puneClock(new Date(n.ended).toISOString())}` : n.siri ? "said good night to Siri" : null,
       url: null,
     });
+  if (sleepIn) {
+    for (const n of nightsIn({ now, tz: "Asia/Kolkata", bursts: sleepIn.bursts, past: sleepIn.past })) {
+      if (n.kind === "allnighter") {
+        out.push({ kind: "sleep", at: new Date(n.at).toISOString(), title: "Pulled an all-nighter", detail: "no sleep that night, going by everything else", url: null });
+        continue;
+      }
+      if (n.from < now - HOURS * 3600_000 + 3600_000) continue; // starts before the window: can't say when I fell asleep
+      if (told.some((t) => t.at >= n.from - 3 * 3600_000 && t.at <= n.to)) continue;
+      out.push({
+        kind: "sleep",
+        at: new Date(n.from).toISOString(),
+        until: n.ongoing ? undefined : new Date(n.to).toISOString(),
+        title: n.ongoing ? "Asleep, probably" : `Slept about ${hours(n.to - n.from)}`,
+        detail: n.ongoing ? "quiet everywhere since then" : "going by the quiet, didn't say good night",
+        url: null,
+      });
+    }
+  }
 
   out.sort((a, b) => (b.until ?? b.at).localeCompare(a.until ?? a.at));
   return { hours: HOURS, events: out };

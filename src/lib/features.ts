@@ -207,7 +207,7 @@ export async function checkFeatures(): Promise<Feature[]> {
       name: "My laptop",
       what: "A small agent on my laptop says what I'm doing there: the app or site by name, the repo I'm in, whether Claude Code is working, what's playing. Never window titles, and YouTube is only ever \"YouTube\".",
       where: [
-        { href: "/", label: "the status line" },
+        { href: "/", label: "the Pulse" },
         { href: "/now", label: "/now" },
       ],
       ok: desk.online ? true : null,

@@ -1,5 +1,5 @@
 import { kvGet, kvSet, q } from "@/lib/db";
-import { buildSpans, cleanSample, live, rollup, type DayRollup, type Live, type Sample, type Span } from "./model";
+import { GAP_MS, buildSpans, cleanSample, doingKey, live, rollup, type DayRollup, type Live, type Sample, type Span } from "./model";
 
 const DAY_MS = 86_400_000;
 const IST = 5.5 * 3600_000;
@@ -20,7 +20,16 @@ export async function ingest(body: unknown): Promise<number> {
   );
   const last = samples[samples.length - 1];
   const cur = await kvGet<Sample>("desk:last");
-  if (!cur || cur.value.t <= last.t) await kvSet("desk:last", last);
+  if (!cur || cur.value.t <= last.t) {
+    await kvSet("desk:last", last);
+    // How long I've been on the same thing: walk back through this batch, then the stored start.
+    const key = doingKey(last);
+    let at = last.t;
+    for (let i = samples.length - 1; i >= 0 && doingKey(samples[i]) === key && (i === samples.length - 1 || Date.parse(samples[i + 1].t) - Date.parse(samples[i].t) <= GAP_MS); i--) at = samples[i].t;
+    const prev = await kvGet<{ key: string; at: string }>("desk:since");
+    const joined = at === samples[0].t && cur && doingKey(cur.value) === key && Date.parse(at) - Date.parse(cur.value.t) <= GAP_MS && prev?.value.key === key;
+    await kvSet("desk:since", { key, at: joined ? prev!.value.at : at });
+  }
   const act = [...samples].reverse().find((s) => s.active);
   if (act) {
     const prev = await kvGet<string>("desk:active");
@@ -30,8 +39,8 @@ export async function ingest(body: unknown): Promise<number> {
 }
 
 export async function getLive(): Promise<Live> {
-  const [row, act] = await Promise.all([kvGet<Sample>("desk:last"), kvGet<string>("desk:active")]);
-  return live(row?.value ?? null, Date.now(), act?.value ?? null);
+  const [row, act, since] = await Promise.all([kvGet<Sample>("desk:last"), kvGet<string>("desk:active"), kvGet<{ key: string; at: string }>("desk:since")]);
+  return live(row?.value ?? null, Date.now(), act?.value ?? null, since?.value ?? null);
 }
 
 export interface DeskDays {

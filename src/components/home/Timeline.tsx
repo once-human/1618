@@ -5,7 +5,7 @@ import { Preview } from "@/components/live/Preview";
 import { puneClock, puneDayLabel } from "@/lib/time";
 import type { TodayEvent } from "@/lib/presence/types";
 
-const KIND: Record<TodayEvent["kind"], string> = { music: "music", code: "code", pin: "saved", move: "moved", sleep: "bed" };
+const KIND: Record<TodayEvent["kind"], string> = { music: "music", code: "code", pin: "saved", move: "moved", sleep: "sleep", desk: "laptop" };
 
 /**
  * The last 48 hours across everything, like a diary that writes itself:

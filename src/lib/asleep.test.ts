@@ -21,12 +21,18 @@ test("went to bed holds for five hours", () => {
   assert.equal(inBed(base, bedAt + 5 * 3600_000), null);
 });
 
-test("it ends early when I clearly got up: a later status, push or pin", () => {
-  const later = new Date(bedAt + 40 * 60_000).toISOString();
-  const now = bedAt + 3600_000;
+test("it ends early when I clearly got up: a status, push or pin after the first hour", () => {
+  const later = new Date(bedAt + 70 * 60_000).toISOString();
+  const now = bedAt + 2 * 3600_000;
   assert.equal(inBed({ ...base, status: { text: "can't sleep", setAt: later, until: later } }, now), null);
   assert.equal(inBed({ ...base, github: { repo: "1618", url: "", action: "Pushed", message: null, at: later } }, now), null);
   assert.equal(inBed(base, now, later), null);
+});
+
+test("music only wakes me after two hours", () => {
+  const now = bedAt + 3 * 3600_000;
+  assert.ok(inBed(base, now, null, { musicAt: new Date(bedAt + 90 * 60_000).toISOString() }));
+  assert.equal(inBed(base, now, null, { musicAt: new Date(bedAt + 150 * 60_000).toISOString() }), null);
 });
 
 test("a status from before bed, or a pin just after, doesn't end it", () => {

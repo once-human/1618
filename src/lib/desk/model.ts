@@ -258,15 +258,23 @@ export interface Live {
   /** The last time the laptop was in use, even when it is off now. */
   lastActive: string | null;
   doing: Doing | null;
+  /** When the current doing began (same label and repo/site, no long gap). */
+  doingSince: string | null;
   playing: { label: string; detail: string | null } | null;
 }
 
+/** The key that says two samples are the same activity. */
+export const doingKey = (s: Sample) => {
+  const d = doing(s);
+  return `${d.kind}|${d.label}|${d.detail ?? ""}`;
+};
+
 /** The live state from the newest sample. "Online" means a sample in the last 4 minutes: after that the laptop is just "away", never guessed. */
-export function live(latest: Sample | null, now: number, lastActive: string | null = null): Live {
-  if (!latest) return { online: false, lastSeen: null, active: false, lastActive, doing: null, playing: null };
+export function live(latest: Sample | null, now: number, lastActive: string | null = null, since: { key: string; at: string } | null = null): Live {
+  if (!latest) return { online: false, lastSeen: null, active: false, lastActive, doing: null, doingSince: null, playing: null };
   const online = now - Date.parse(latest.t) <= 4 * 60_000;
-  if (!online) return { online: false, lastSeen: latest.t, active: false, lastActive, doing: null, playing: null };
+  if (!online) return { online: false, lastSeen: latest.t, active: false, lastActive, doing: null, doingSince: null, playing: null };
   const d = doing(latest);
   const p = playing(latest);
-  return { online: true, lastSeen: latest.t, active: latest.active, lastActive: latest.active ? latest.t : lastActive, doing: d, playing: p ? { label: p.label, detail: p.detail } : null };
+  return { online: true, lastSeen: latest.t, active: latest.active, lastActive: latest.active ? latest.t : lastActive, doing: d, doingSince: since && since.key === doingKey(latest) ? since.at : latest.t, playing: p ? { label: p.label, detail: p.detail } : null };
 }
