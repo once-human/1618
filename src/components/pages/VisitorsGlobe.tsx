@@ -45,6 +45,67 @@ function vectors(L: Layer): { v: Float32Array; deg: number } {
 }
 const COARSE_V = vectors(COARSE);
 
+/* The sky: cloud cover on a coarse grid (from /api/sky), spread over an even scatter of points on the
+   sphere and roughened with a little noise so it reads as cloud, not as a grid. */
+interface SkyGrid {
+  lats: number[];
+  lons: number[];
+  cover: number[];
+}
+const CLOUD_PTS = (() => {
+  const n = 3200;
+  const v = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) {
+    const y = 1 - (2 * (i + 0.5)) / n;
+    const r = Math.sqrt(1 - y * y);
+    const a = i * 2.399963229728653;
+    v[i * 3] = r * Math.sin(a);
+    v[i * 3 + 1] = y;
+    v[i * 3 + 2] = r * Math.cos(a);
+  }
+  return v;
+})();
+const hash3 = (x: number, y: number, z: number) => {
+  const h = Math.sin(x * 127.1 + y * 311.7 + z * 74.7) * 43758.5453;
+  return h - Math.floor(h);
+};
+function cloudsFrom(g: SkyGrid): { v: Float32Array; a: Float32Array; mean: number } {
+  const cols = g.lons.length;
+  const at = (r: number, c: number) => g.cover[clamp(r, 0, g.lats.length - 1) * cols + ((c % cols) + cols) % cols] / 100;
+  const keep: number[] = [];
+  const alpha: number[] = [];
+  let sum = 0;
+  let wsum = 0;
+  for (let i = 0; i < CLOUD_PTS.length; i += 3) {
+    const x = CLOUD_PTS[i];
+    const y = CLOUD_PTS[i + 1];
+    const z = CLOUD_PTS[i + 2];
+    const lat = Math.asin(y) / D2R;
+    const lon = Math.atan2(x, z) / D2R;
+    const fr = (lat - g.lats[0]) / 15;
+    const fc = (lon - g.lons[0]) / 15;
+    const r0 = Math.floor(fr);
+    const c0 = Math.floor(fc);
+    const tr = fr - r0;
+    const tc = fc - c0;
+    const c = at(r0, c0) * (1 - tr) * (1 - tc) + at(r0 + 1, c0) * tr * (1 - tc) + at(r0, c0 + 1) * (1 - tr) * tc + at(r0 + 1, c0 + 1) * tr * tc;
+    const w = Math.cos(lat * D2R);
+    sum += c * w;
+    wsum += w;
+    // two scales of noise, so the edges are ragged
+    const nz = 0.55 * hash3(Math.round(x * 22), Math.round(y * 22), Math.round(z * 22)) + 0.45 * hash3(Math.round(x * 9), Math.round(y * 9), Math.round(z * 9));
+    const val = c * (0.35 + 1.1 * nz) - 0.12;
+    if (val > 0.12) {
+      keep.push(x, y, z);
+      alpha.push(Math.min(1, val));
+    }
+  }
+  return { v: Float32Array.from(keep), a: Float32Array.from(alpha), mean: wsum ? sum / wsum : 0 };
+}
+
+/** A few fixed stars round the globe: fractions of the canvas, made once. */
+const STARS = Array.from({ length: 70 }, (_, i) => ({ x: hash3(i, 1, 7), y: hash3(i, 2, 9), a: 0.12 + 0.3 * hash3(i, 3, 5), p: hash3(i, 4, 3) * 6.28 }));
+
 const dms = (lat: number, lon: number) => `${Math.abs(lat).toFixed(1)}°${lat < 0 ? "S" : "N"} ${Math.abs(lon).toFixed(1)}°${lon < 0 ? "W" : "E"}`;
 function km(a: { lat: number; lon: number }, b: { lat: number; lon: number }) {
   const h = Math.sin(((b.lat - a.lat) * D2R) / 2) ** 2 + Math.cos(a.lat * D2R) * Math.cos(b.lat * D2R) * Math.sin(((b.lon - a.lon) * D2R) / 2) ** 2;
@@ -137,6 +198,7 @@ export function VisitorsGlobe({ places, live, shown, onHover, onPin, goto, total
   const [hint, setHint] = useState(false);
   const [atBusiest, setAtBusiest] = useState(false);
   const [facts, setFacts] = useState("");
+  const [sky, setSky] = useState<{ v: Float32Array; a: Float32Array; mean: number } | null>(null);
 
   const placed = useMemo(() => places.filter((p) => p.lat != null && p.lon != null), [places]);
   const max = Math.max(1, ...placed.map((p) => p.n));
@@ -168,11 +230,11 @@ export function VisitorsGlobe({ places, live, shown, onHover, onPin, goto, total
     pointers: new Map<number, { x: number; y: number }>(),
     started: false,
   });
-  const props = useRef({ placed, live, shown, max, spin, fine, size, open, me });
+  const props = useRef({ placed, live, shown, max, spin, fine, size, open, me, sky });
   useEffect(() => {
-    props.current = { placed, live, shown, max, spin, fine, size, open, me };
+    props.current = { placed, live, shown, max, spin, fine, size, open, me, sky };
     st.current.wake();
-  }, [placed, live, shown, max, spin, fine, size, open, me]);
+  }, [placed, live, shown, max, spin, fine, size, open, me, sky]);
 
   useEffect(() => {
     const el = box.current;
@@ -207,6 +269,25 @@ export function VisitorsGlobe({ places, live, shown, onHover, onPin, goto, total
       clearTimeout(t);
     };
   }, [wantFine]);
+
+  // Live clouds, from our own server (which asks the weather service once every half hour for everyone).
+  useEffect(() => {
+    let alive = true;
+    const load = () =>
+      fetch("/api/sky")
+        .then((r) => (r.ok ? r.json() : null))
+        .then((g: SkyGrid | null) => {
+          if (alive && g && Array.isArray(g.cover) && g.cover.length === g.lats.length * g.lons.length) setSky(cloudsFrom(g));
+        })
+        .catch(() => {});
+    const t0 = window.setTimeout(load, 2500);
+    const t = setInterval(load, 30 * 60_000);
+    return () => {
+      alive = false;
+      clearTimeout(t0);
+      clearInterval(t);
+    };
+  }, []);
 
   // The sun, the tilt and the moon, in words, every few seconds.
   useEffect(() => {
@@ -359,6 +440,16 @@ export function VisitorsGlobe({ places, live, shown, onHover, onPin, goto, total
 
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, w, h);
+      // stars: fixed, and they shimmer a little
+      ctx.fillStyle = colours.ink;
+      for (const st2 of STARS) {
+        const sx = st2.x * w;
+        const sy = st2.y * h;
+        if (Math.hypot(sx - cx, sy - cy) < R * 1.1) continue;
+        ctx.globalAlpha = st2.a * (0.65 + 0.35 * Math.sin(now / 1300 + st2.p));
+        ctx.fillRect(sx, sy, 1.4, 1.4);
+      }
+      ctx.globalAlpha = 1;
       ctx.save();
       ctx.beginPath();
       ctx.arc(cx, cy, R, 0, Math.PI * 2);
@@ -403,6 +494,39 @@ export function VisitorsGlobe({ places, live, shown, onHover, onPin, goto, total
       ctx.stroke(paths[2]);
       ctx.lineCap = "butt";
 
+      // clouds: the weather as it is, drifting east a little faster than the ground
+      if (P.sky) {
+        const dr = now * 3e-7; // about a degree a minute
+        const c2 = Math.cos(s.lon - dr);
+        const s2 = Math.sin(s.lon - dr);
+        const cv2 = P.sky.v;
+        const ca = P.sky.a;
+        const bucket = [new Path2D(), new Path2D(), new Path2D()];
+        for (let i = 0, j = 0; i < cv2.length; i += 3, j++) {
+          const x = cv2[i];
+          const y = cv2[i + 1];
+          const z = cv2[i + 2];
+          const z1 = x * s2 + z * c2;
+          if (y * sp + z1 * cp <= 0.02) continue;
+          const px = cx + (x * c2 - z * s2) * R;
+          const py = cy - (y * cp - z1 * sp) * R;
+          if (px < -8 || px > w + 8 || py < -8 || py > h + 8) continue;
+          const b = bucket[ca[j] > 0.6 ? 2 : ca[j] > 0.3 ? 1 : 0];
+          b.moveTo(px, py);
+          b.lineTo(px + 0.01, py);
+        }
+        ctx.lineCap = "round";
+        ctx.lineWidth = Math.max(4, R * 0.045);
+        ctx.strokeStyle = colours.ink;
+        ctx.globalAlpha = 0.035;
+        ctx.stroke(bucket[0]);
+        ctx.globalAlpha = 0.06;
+        ctx.stroke(bucket[1]);
+        ctx.globalAlpha = 0.09;
+        ctx.stroke(bucket[2]);
+        ctx.lineCap = "butt";
+      }
+
       // the terminator: the great circle where the day ends
       {
         let ax = sv.z;
@@ -428,6 +552,18 @@ export function VisitorsGlobe({ places, live, shown, onHover, onPin, goto, total
         ctx.setLineDash([]);
       }
       ctx.restore();
+
+      // the air: a thin glow just outside the rim
+      {
+        const g = ctx.createRadialGradient(cx, cy, R * 0.985, cx, cy, R * 1.05);
+        g.addColorStop(0, colours.ink);
+        g.addColorStop(1, "transparent");
+        ctx.globalAlpha = 0.16;
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(cx, cy, R * 1.05, 0, Math.PI * 2);
+        ctx.fill();
+      }
 
       // the rim, and the Earth's axis leaning out of it
       ctx.globalAlpha = 0.55;
@@ -784,7 +920,12 @@ export function VisitorsGlobe({ places, live, shown, onHover, onPin, goto, total
           Hold Ctrl (⌘ on a Mac) and scroll to zoom
         </p>
       </div>
-      {facts ? <p className="text-quiet tnum mt-2 text-[13px]">{facts}</p> : null}
+      {facts ? (
+        <p className="text-quiet tnum mt-2 text-[13px]">
+          {facts}
+          {sky ? ` · Clouds cover about ${Math.round(sky.mean * 100)}% of the planet right now` : ""}
+        </p>
+      ) : null}
     </>
   );
 }
