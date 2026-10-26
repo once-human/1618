@@ -104,7 +104,10 @@ function cloudsFrom(g: SkyGrid): { v: Float32Array; a: Float32Array; mean: numbe
 }
 
 /** A few fixed stars round the globe: fractions of the canvas, made once. */
-const STARS = Array.from({ length: 70 }, (_, i) => ({ x: hash3(i, 1, 7), y: hash3(i, 2, 9), a: 0.12 + 0.3 * hash3(i, 3, 5), p: hash3(i, 4, 3) * 6.28 }));
+const STARS = Array.from({ length: 150 }, (_, i) => {
+  const big = hash3(i, 5, 2) > 0.82;
+  return { x: hash3(i, 1, 7), y: hash3(i, 2, 9), a: 0.4 + 0.5 * hash3(i, 3, 5), p: hash3(i, 4, 3) * 6.28, r: big ? 1.7 + hash3(i, 6, 1) : 0.9 + 0.7 * hash3(i, 7, 4), big };
+});
 
 const dms = (lat: number, lon: number) => `${Math.abs(lat).toFixed(1)}°${lat < 0 ? "S" : "N"} ${Math.abs(lon).toFixed(1)}°${lon < 0 ? "W" : "E"}`;
 function km(a: { lat: number; lon: number }, b: { lat: number; lon: number }) {
@@ -440,14 +443,28 @@ export function VisitorsGlobe({ places, live, shown, onHover, onPin, goto, total
 
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, w, h);
-      // stars: fixed, and they shimmer a little
+      // stars: fixed, some bigger, all shimmering a little; the biggest get a small sparkle
       ctx.fillStyle = colours.ink;
+      ctx.strokeStyle = colours.ink;
+      ctx.lineWidth = 1;
       for (const st2 of STARS) {
         const sx = st2.x * w;
         const sy = st2.y * h;
         if (Math.hypot(sx - cx, sy - cy) < R * 1.1) continue;
-        ctx.globalAlpha = st2.a * (0.65 + 0.35 * Math.sin(now / 1300 + st2.p));
-        ctx.fillRect(sx, sy, 1.4, 1.4);
+        const tw = 0.7 + 0.3 * Math.sin(now / 900 + st2.p);
+        ctx.globalAlpha = st2.a * tw;
+        ctx.beginPath();
+        ctx.arc(sx, sy, st2.r, 0, Math.PI * 2);
+        ctx.fill();
+        if (st2.big) {
+          ctx.globalAlpha = st2.a * tw * 0.6;
+          ctx.beginPath();
+          ctx.moveTo(sx - st2.r * 3.2, sy);
+          ctx.lineTo(sx + st2.r * 3.2, sy);
+          ctx.moveTo(sx, sy - st2.r * 3.2);
+          ctx.lineTo(sx, sy + st2.r * 3.2);
+          ctx.stroke();
+        }
       }
       ctx.globalAlpha = 1;
       ctx.save();
@@ -493,39 +510,6 @@ export function VisitorsGlobe({ places, live, shown, onHover, onPin, goto, total
       ctx.globalAlpha = 0.11;
       ctx.stroke(paths[2]);
       ctx.lineCap = "butt";
-
-      // clouds: the weather as it is, drifting east a little faster than the ground
-      if (P.sky) {
-        const dr = now * 3e-7; // about a degree a minute
-        const c2 = Math.cos(s.lon - dr);
-        const s2 = Math.sin(s.lon - dr);
-        const cv2 = P.sky.v;
-        const ca = P.sky.a;
-        const bucket = [new Path2D(), new Path2D(), new Path2D()];
-        for (let i = 0, j = 0; i < cv2.length; i += 3, j++) {
-          const x = cv2[i];
-          const y = cv2[i + 1];
-          const z = cv2[i + 2];
-          const z1 = x * s2 + z * c2;
-          if (y * sp + z1 * cp <= 0.02) continue;
-          const px = cx + (x * c2 - z * s2) * R;
-          const py = cy - (y * cp - z1 * sp) * R;
-          if (px < -8 || px > w + 8 || py < -8 || py > h + 8) continue;
-          const b = bucket[ca[j] > 0.6 ? 2 : ca[j] > 0.3 ? 1 : 0];
-          b.moveTo(px, py);
-          b.lineTo(px + 0.01, py);
-        }
-        ctx.lineCap = "round";
-        ctx.lineWidth = Math.max(4, R * 0.045);
-        ctx.strokeStyle = colours.ink;
-        ctx.globalAlpha = 0.035;
-        ctx.stroke(bucket[0]);
-        ctx.globalAlpha = 0.06;
-        ctx.stroke(bucket[1]);
-        ctx.globalAlpha = 0.09;
-        ctx.stroke(bucket[2]);
-        ctx.lineCap = "butt";
-      }
 
       // the terminator: the great circle where the day ends
       {
@@ -868,7 +852,7 @@ export function VisitorsGlobe({ places, live, shown, onHover, onPin, goto, total
         }}
         onDoubleClick={() => zoom(1.8)}
       >
-        <canvas ref={cv} className="text-ink absolute inset-0 size-full [mask-image:radial-gradient(ellipse_at_center,#000_68%,transparent_99%)]" role="img" aria-label={`Globe of this month's visitors: ${places.map((p) => placeName(p.city, p.country)).join(", ") || "none yet"}`} />
+        <canvas ref={cv} className="text-ink absolute inset-0 size-full [mask-image:radial-gradient(ellipse_at_center,#000_80%,transparent_100%)]" role="img" aria-label={`Globe of this month's visitors: ${places.map((p) => placeName(p.city, p.country)).join(", ") || "none yet"}`} />
 
         <div
           ref={tipEl}
