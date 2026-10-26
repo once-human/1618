@@ -409,6 +409,137 @@ export function VisitorsMap() {
   const byDay = new Map(dayList.map((d) => [Number(d.day.slice(8, 10)), d.n]));
   const dayNow = Number(today.slice(8, 10));
 
+  const townsBlock = (
+    <div className="min-w-0">
+      <h3 className="border-ink/20 mb-2 flex justify-between border-t pt-1.5 text-[14px] font-semibold">
+            Towns <span className="text-quiet font-normal">people · share</span>
+          </h3>
+          {towns.length ? (
+            <ol className="text-[14px]">
+              {towns.slice(0, 10).map((p) => {
+                const k = key(p);
+                const share = p.n / total;
+                return (
+                  <li key={k}>
+                    <button
+                      type="button"
+                      className={`hover:bg-ink/[0.05] relative block w-full py-1.5 text-left ${shown === k ? "bg-ink/[0.05]" : ""}`}
+                      onPointerEnter={(e) => e.pointerType === "mouse" && setHover(k)}
+                      onPointerLeave={() => setHover(null)}
+                      onClick={() => toPlace(p)}
+                    >
+                      <span className="flex justify-between gap-3">
+                        <span className="truncate">
+                          {liveN.has(k) ? <span className="bg-ink mr-1.5 inline-block size-1.5 animate-pulse rounded-full align-middle" title="Someone here now" /> : null}
+                          {placeName(p.city, p.country)}
+                        </span>
+                        <span className="tnum shrink-0">
+                          {fmtNum(p.n)} <span className="text-quiet">· {Math.round(share * 100)}%</span>
+                        </span>
+                      </span>
+                      <span className="bg-ink/10 mt-1 block h-[3px]">
+                        <span className="bg-ink block h-full" style={{ width: `${(p.n / max) * 100}%` }} />
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+              {towns.length > 10 ? <li className="text-quiet py-1.5">and {towns.length - 10} more</li> : null}
+            </ol>
+          ) : (
+            <p className="text-quiet py-2 text-[14px]">Nobody yet.</p>
+          )}
+
+          
+    </div>
+  );
+  const daysBlock = (
+    <div className="min-w-0 lg:max-w-[18rem]">
+      <h3 className="border-ink/20 mt-8 mb-2 flex justify-between border-t pt-1.5 text-[14px] font-semibold">
+            By day <span className="text-quiet font-normal">people</span>
+          </h3>
+          <div className="flex h-14 items-end gap-px" role="img" aria-label="People per day this month">
+            {Array.from({ length: dim }, (_, i) => {
+              const n = byDay.get(i + 1) ?? 0;
+              const future = i + 1 > dayNow;
+              return (
+                <span
+                  key={i}
+                  title={`${i + 1}: ${n}`}
+                  className={`flex-1 ${i + 1 === dayNow ? "bg-ink" : "bg-ink/40"} ${future ? "opacity-20" : ""}`}
+                  style={{ height: future || !n ? 2 : `${Math.max(8, (n / maxDay) * 100)}%` }}
+                />
+              );
+            })}
+          </div>
+          <p className="text-quiet tnum mt-1 flex justify-between text-[12px]">
+            <span>1</span>
+            <span>{dim}</span>
+          </p>
+
+    </div>
+  );
+  if (mode === "globe") {
+    return (
+      <section id="visitors" className="scroll-mt-24">
+        <div className="relative isolate">
+          <div className="absolute inset-y-0 left-1/2 z-0 w-screen -translate-x-1/2">
+            <VisitorsGlobe places={placed} live={liveN} shown={shown} onHover={setHover} onPin={setPinned} goto={goto} total={total} me={me} mine={mine} />
+          </div>
+          <div className="pointer-events-none relative z-10 flex min-h-[46rem] flex-col lg:min-h-[54rem]">
+            <div className="relative pb-10">
+              <div aria-hidden className="bg-paper/55 absolute inset-x-0 -top-2 bottom-0 -z-10 backdrop-blur-[3px] [mask-image:linear-gradient(to_bottom,#000_62%,transparent)]" />
+              <h2 className="border-ink mb-6 flex flex-wrap justify-between gap-x-4 border-t pt-1.5 font-semibold">
+        Who came by this month
+        <span className="text-quiet font-normal">
+          {!data.people ? "nobody yet this month" : `${fmtNum(data.people)} ${data.people === 1 ? "person" : "people"} so far, since the 1st`}
+          {hereNow ? ` · ${fmtNum(hereNow)} here now` : ""}
+        </span>
+      </h2>
+              <dl className="mb-6 grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-4">
+        {[
+          { k: "People", v: fmtNum(data.people), s: "each counted once a day" },
+          { k: "Places", v: fmtNum(towns.length), s: `${countries} ${countries === 1 ? "country" : "countries"}` },
+          { k: "Busiest", v: top?.city ?? "–", s: top ? `${Math.round((top.n / total) * 100)}% · ${fmtNum(top.n)} people` : "" },
+          { k: "Active days", v: `${byDay.size}`, s: `of ${dayNow} so far` },
+        ].map((x) => (
+          <div key={x.k} className="border-ink/20 border-t pt-1.5">
+            <dt className="text-quiet text-[13px]">{x.k}</dt>
+            <dd className="tnum truncate text-[clamp(1.4rem,2.6vw,2rem)] leading-tight font-semibold">{x.v}</dd>
+            <dd className="text-quiet truncate text-[13px]">{x.s}</dd>
+          </div>
+        ))}
+      </dl>
+            </div>
+            <div className="pointer-events-auto w-fit">
+              <div className="mb-3 flex gap-5 text-[14px]" role="radiogroup" aria-label="How to show it">
+            {(["globe", "flat"] as const).map((m) => (
+              <button
+                key={m}
+                type="button"
+                role="radio"
+                aria-checked={mode === m}
+                onClick={() => setMode(m)}
+                className={`border-b-2 pb-0.5 ${mode === m ? "border-ink font-semibold" : "text-quiet hover:text-ink border-transparent"}`}
+              >
+                {m === "globe" ? "Globe" : "Flat map"}
+              </button>
+            ))}
+          </div>
+
+            </div>
+            <div className="min-h-[24rem] flex-1" />
+          </div>
+          <div className="pointer-events-auto absolute top-[13.5rem] right-0 z-10 hidden w-[19rem] lg:block">
+            <div className="bg-paper/55 -ml-8 pt-1 pr-0 pb-3 pl-8 backdrop-blur-md [mask-image:linear-gradient(to_right,transparent,#000_2rem)]">{townsBlock}</div>
+          </div>
+        </div>
+        <div className="mt-6 lg:hidden">{townsBlock}</div>
+        <div className="mt-2">{daysBlock}</div>
+      </section>
+    );
+  }
+
   return (
     <section id="visitors" className="scroll-mt-24">
       <h2 className="border-ink mb-6 flex flex-wrap justify-between gap-x-4 border-t pt-1.5 font-semibold">
@@ -450,10 +581,7 @@ export function VisitorsMap() {
               </button>
             ))}
           </div>
-          {mode === "globe" ? (
-            <VisitorsGlobe places={placed} live={liveN} shown={shown} onHover={setHover} onPin={setPinned} goto={goto} total={total} me={me} mine={mine} />
-          ) : (
-          <div
+                    <div
             ref={wrap}
             className="border-ink/15 relative aspect-[4/3] w-full cursor-grab touch-pan-y overflow-hidden border select-none active:cursor-grabbing sm:aspect-[16/10]"
             onPointerDown={onDown}
@@ -576,10 +704,9 @@ export function VisitorsMap() {
               </>
             ) : null}
           </div>
-          )}
           <p className="text-quiet mt-2 flex flex-wrap justify-between gap-x-4 text-[13px]">
-            <span>{mode === "globe" ? "Drag to turn · double-click or +/− to zoom · pinch on a phone" : "Drag to move · double-click or +/− to zoom · pinch on a phone"}</span>
-            {mode === "flat" ? <span ref={readout} className="tnum" aria-hidden /> : null}
+            <span>Drag to move · double-click or +/− to zoom · pinch on a phone</span>
+            <span ref={readout} className="tnum" aria-hidden />
           </p>
         </div>
 

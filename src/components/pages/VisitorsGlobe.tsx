@@ -537,17 +537,19 @@ export function VisitorsGlobe({ places, live, shown, onHover, onPin, goto, total
       }
       ctx.restore();
 
-      // the air: a thin glow just outside the rim
-      {
-        const g = ctx.createRadialGradient(cx, cy, R * 0.985, cx, cy, R * 1.05);
-        g.addColorStop(0, colours.ink);
-        g.addColorStop(1, "transparent");
-        ctx.globalAlpha = 0.16;
-        ctx.fillStyle = g;
-        ctx.beginPath();
-        ctx.arc(cx, cy, R * 1.05, 0, Math.PI * 2);
-        ctx.fill();
-      }
+      // the air: a thin glow just outside the rim (only the ring, never the disc)
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(cx, cy, R * 1.06, 0, Math.PI * 2);
+      ctx.arc(cx, cy, R, 0, Math.PI * 2, true);
+      ctx.clip("evenodd");
+      const air = ctx.createRadialGradient(cx, cy, R, cx, cy, R * 1.06);
+      air.addColorStop(0, colours.ink);
+      air.addColorStop(1, "transparent");
+      ctx.globalAlpha = 0.18;
+      ctx.fillStyle = air;
+      ctx.fillRect(0, 0, w, h);
+      ctx.restore();
 
       // the rim, and the Earth's axis leaning out of it
       ctx.globalAlpha = 0.55;
@@ -840,7 +842,7 @@ export function VisitorsGlobe({ places, live, shown, onHover, onPin, goto, total
     <>
       <div
         ref={box}
-        className="bg-paper relative aspect-[5/6] w-full cursor-grab touch-pan-y overflow-hidden select-none active:cursor-grabbing sm:aspect-[16/11]"
+        className="absolute inset-0 cursor-grab touch-pan-y overflow-hidden select-none active:cursor-grabbing"
         onPointerDown={down}
         onPointerMove={move}
         onPointerUp={up}
@@ -852,7 +854,7 @@ export function VisitorsGlobe({ places, live, shown, onHover, onPin, goto, total
         }}
         onDoubleClick={() => zoom(1.8)}
       >
-        <canvas ref={cv} className="text-ink absolute inset-0 size-full [mask-image:radial-gradient(ellipse_at_center,#000_80%,transparent_100%)]" role="img" aria-label={`Globe of this month's visitors: ${places.map((p) => placeName(p.city, p.country)).join(", ") || "none yet"}`} />
+        <canvas ref={cv} className="text-ink absolute inset-0 size-full [mask-image:linear-gradient(to_bottom,#000_84%,transparent)]" role="img" aria-label={`Globe of this month's visitors: ${places.map((p) => placeName(p.city, p.country)).join(", ") || "none yet"}`} />
 
         <div
           ref={tipEl}
@@ -875,7 +877,7 @@ export function VisitorsGlobe({ places, live, shown, onHover, onPin, goto, total
           ) : null}
         </div>
 
-        <div className="absolute top-2 right-2 z-10 flex flex-col gap-1" onPointerDown={(e) => e.stopPropagation()} onPointerUp={(e) => e.stopPropagation()}>
+        <div className="absolute top-[47%] right-3 z-10 flex -translate-y-1/2 flex-col gap-1 lg:right-auto lg:left-3" onPointerDown={(e) => e.stopPropagation()} onPointerUp={(e) => e.stopPropagation()}>
           <button type="button" className={btn} aria-label="Zoom in" onClick={() => zoom(1.7)}>
             +
           </button>
@@ -883,7 +885,7 @@ export function VisitorsGlobe({ places, live, shown, onHover, onPin, goto, total
             −
           </button>
         </div>
-        <div className="absolute bottom-2 left-2 z-10 flex flex-wrap gap-1 text-[13px]" onPointerDown={(e) => e.stopPropagation()} onPointerUp={(e) => e.stopPropagation()}>
+        <div className="absolute bottom-[7.5rem] left-3 z-10 flex flex-wrap gap-1 text-[13px] sm:bottom-20" onPointerDown={(e) => e.stopPropagation()} onPointerUp={(e) => e.stopPropagation()}>
           <button type="button" className={pill} disabled={atBusiest} onClick={() => flyTo(open, BUSIEST_S)}>
             Busiest part
           </button>
@@ -891,7 +893,7 @@ export function VisitorsGlobe({ places, live, shown, onHover, onPin, goto, total
             {spin ? "Spinning" : "Spin"}
           </button>
         </div>
-        <div className="pointer-events-none absolute right-2 bottom-2 z-10 text-right text-[12px] leading-none">
+        <div className="pointer-events-none absolute right-3 bottom-[7.5rem] z-10 text-right text-[12px] leading-none sm:bottom-20">
           <p className="tnum text-quiet mb-1">
             <span ref={coordEl} /> · <span ref={zoomEl} />
           </p>
@@ -900,16 +902,20 @@ export function VisitorsGlobe({ places, live, shown, onHover, onPin, goto, total
             <span ref={kmEl} /> <span className="text-quiet">at the middle</span>
           </p>
         </div>
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 px-3 pb-3 text-[13px] sm:px-0">
+          {facts ? (
+            <p className="text-quiet tnum bg-paper/45 mx-auto w-fit max-w-3xl px-2 py-1 text-center backdrop-blur-[3px]">
+              {facts}
+              {sky ? ` · Clouds cover about ${Math.round(sky.mean * 100)}% of the planet right now` : ""}
+              {" · The thin glow at the rim is the air: the atmosphere is only about 100 km deep"}
+            </p>
+          ) : null}
+          <p className="text-quiet mt-1 text-center text-[12px]">Drag to turn · double-click or +/− to zoom · pinch on a phone</p>
+        </div>
         <p aria-hidden className={`bg-paper/90 pointer-events-none absolute top-2 left-1/2 z-10 -translate-x-1/2 px-3 py-1 text-[13px] transition-opacity ${hint ? "opacity-100" : "opacity-0"}`}>
           Hold Ctrl (⌘ on a Mac) and scroll to zoom
         </p>
       </div>
-      {facts ? (
-        <p className="text-quiet tnum mt-2 text-[13px]">
-          {facts}
-          {sky ? ` · Clouds cover about ${Math.round(sky.mean * 100)}% of the planet right now` : ""}
-        </p>
-      ) : null}
     </>
   );
 }
