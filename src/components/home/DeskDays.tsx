@@ -1,8 +1,9 @@
 "use client";
 
-import { useDeskDays } from "@/lib/presence/client";
-import { useNow } from "@/lib/presence/client";
+import { useEffect, useState } from "react";
+import { useDeskDays, useNow } from "@/lib/presence/client";
 import type { Span } from "@/lib/desk/model";
+import type { DeskDays as Days } from "@/lib/desk/server";
 
 const IST = 5.5 * 3600_000;
 const COLOR: Record<string, string> = {
@@ -27,16 +28,30 @@ const clock = (iso: string | null) => (iso ? new Date(Date.parse(iso) + IST).toI
 const dayLabel = (day: string) => new Date(`${day}T12:00:00Z`).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
 const frac = (iso: string) => ((Date.parse(iso) + IST) % 86_400_000) / 86_400_000;
 
-/** Seven days of the laptop, one bar per day (midnight to midnight, Pune time); older days are just totals. */
+/** Seven days of the laptop, one bar per day (midnight to midnight, Pune time); one button opens the rest of the thirty. */
 export function DeskDays() {
-  const d = useDeskDays();
+  const week = useDeskDays();
   const now = useNow();
-  if (!d || !now || (!d.days.length && !d.older.length)) return null;
+  const [more, setMore] = useState(false);
+  const [month, setMonth] = useState<Days | null>(null);
+  useEffect(() => {
+    if (!more) return;
+    let live = true;
+    fetch("/api/desk/days?days=30")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => live && d && setMonth(d))
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [more]);
+  const d = more && month ? month : week;
+  if (!d || !now || !d.days.length) return null;
   return (
     <section>
       <h2 className="border-ink mb-6 flex justify-between gap-4 border-t pt-1.5 font-semibold">
         The laptop
-        <span className="font-normal text-quiet">the last seven days, midnight to midnight</span>
+        <span className="font-normal text-quiet">the last {more && month ? "thirty" : "seven"} days, midnight to midnight</span>
       </h2>
       <ol className="space-y-5">
         {[...d.days].reverse().map(({ day, spans, summary }) => (
@@ -62,22 +77,10 @@ export function DeskDays() {
           </li>
         ))}
       </ol>
-      {d.older.length ? (
-        <details className="mt-6">
-          <summary className="cursor-pointer text-quiet hover:text-ink">Older days, {d.older.length} of them, just totals</summary>
-          <ul className="mt-2">
-            {d.older.map(({ day, summary }) => (
-              <li key={day} className="tnum flex justify-between gap-4 py-0.5">
-                <span>{dayLabel(day)}</span>
-                <span className="text-quiet">
-                  {hm(summary.activeMin)}
-                  {summary.claudeMin ? `, ${hm(summary.claudeMin)} with Claude Code` : ""}
-                  {summary.repos[0] ? `, mostly ${summary.repos[0].name}` : ""}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </details>
+      {!more ? (
+        <button type="button" onClick={() => setMore(true)} className="mt-6 cursor-pointer text-left font-semibold underline decoration-1 underline-offset-4">
+          Show the earlier days, up to 30
+        </button>
       ) : null}
     </section>
   );

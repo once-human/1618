@@ -61,9 +61,9 @@ export async function getLive(): Promise<Live> {
 }
 
 /** Raw 30-second samples are kept this long: my admin sees them in full. */
-export const RAW_DAYS = 30;
-/** The public site shows this many days. */
-export const PUBLIC_DAYS = 7;
+export const RAW_DAYS = 7;
+/** The public site can show this many days (the first view is seven). */
+export const PUBLIC_DAYS = 30;
 
 const istMidnight = (ms: number) => Math.floor((ms + IST) / DAY_MS) * DAY_MS - IST;
 
@@ -78,13 +78,14 @@ export type DayRecord = DayRollup & { spans: StoredSpan[]; n: number };
 export interface DeskDays {
   /** Detailed spans for the last 7 days (IST day, oldest first). */
   days: { day: string; spans: Span[]; summary: DayRollup }[];
-  /** Older days, compact. Empty on the public site: it only shows the last seven days. */
+  /** Unused now (always empty); the public view asks for more days instead. */
   older: { day: string; summary: DayRollup }[];
 }
 
-/** The public view: the last seven days. Filed days come from the archive, today and yesterday from raw samples. */
-export async function getDays(): Promise<DeskDays> {
-  const fromDay = dayOf(new Date(Date.now() - (PUBLIC_DAYS - 1) * DAY_MS).toISOString());
+/** The public view: the last seven days, or up to thirty. Filed days come from the archive, today and yesterday from raw samples. */
+export async function getDays(n = 7): Promise<DeskDays> {
+  const span = Math.max(1, Math.min(PUBLIC_DAYS, Math.round(n) || 7));
+  const fromDay = dayOf(new Date(Date.now() - (span - 1) * DAY_MS).toISOString());
   const arch = await q<{ day: string; data: DayRecord }>("desk archive read", (db) => db`SELECT day::text AS day, data FROM desk_days WHERE day >= ${fromDay} AND data ? 'spans' ORDER BY day`);
   const days: DeskDays["days"] = (arch ?? []).map(({ day, data }) => {
     const { spans, n: _n, ...summary } = data;

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useNow, useTimeline } from "@/lib/presence/client";
 import { Preview } from "@/components/live/Preview";
 import { puneClock, puneDayLabel } from "@/lib/time";
@@ -10,16 +11,21 @@ const KIND: Record<TodayEvent["kind"], string> = { music: "music", code: "code",
 /**
  * The last seven days across everything, like a diary that writes itself:
  * listening sessions, pushes, saves, runs. Grouped under Today / Yesterday.
+ * The rest of the last thirty days opens with one button.
  */
 export function Timeline({ limit = 40 }: { limit?: number }) {
   const t = useTimeline();
   const now = useNow();
+  const [more, setMore] = useState(false);
   // Room for it while it loads (measured: ~1000px on phones, ~900px wider), so nothing below jumps.
   if (!t || !now) return <div className="min-h-[62rem] md:min-h-[56rem]" aria-hidden />;
   if (!t.events.length) return <p className="border-t border-ink pt-1.5 text-quiet">Quiet couple of days. Nothing to show yet.</p>;
 
+  const weekAgo = now - 7 * 86_400_000;
+  const within = more ? t.events : t.events.filter((e) => Date.parse(e.until ?? e.at) >= weekAgo);
+  const earlier = t.events.length - t.events.filter((e) => Date.parse(e.until ?? e.at) >= weekAgo).length;
   const groups: { day: string; items: TodayEvent[] }[] = [];
-  for (const e of t.events.slice(0, limit)) {
+  for (const e of within.slice(0, more ? 1500 : limit)) {
     const day = puneDayLabel(e.until ?? e.at, now);
     const g = groups[groups.length - 1];
     if (g && g.day === day) g.items.push(e);
@@ -92,6 +98,11 @@ export function Timeline({ limit = 40 }: { limit?: number }) {
           </ol>
         </section>
       ))}
+      {!more && earlier > 0 ? (
+        <button type="button" onClick={() => setMore(true)} className="mt-6 cursor-pointer border-t border-ink pt-1.5 text-left font-semibold underline decoration-1 underline-offset-4">
+          Show the earlier days, up to 30
+        </button>
+      ) : null}
     </div>
   );
 }

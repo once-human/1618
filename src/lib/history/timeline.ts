@@ -21,10 +21,10 @@ const hours = (ms: number) => {
 };
 
 const GH_USER = "once-human";
-const HOURS = 24 * 7;
+const HOURS = 24 * 30;
 
 /**
- * The last seven days across everything: runs of music, pushes, saves, runs,
+ * The last thirty days across everything (the page opens on seven): runs of music, pushes, saves, runs,
  * workouts and bedtimes, newest first. Songs played close together become one entry
  * ("14 songs, mostly …") so it reads like a diary, not a log. Live sources
  * are merged with the history store, so nothing is missed if one is slow.

@@ -1,7 +1,7 @@
 import { connection } from "next/server";
 import { getTimeline } from "@/lib/history/timeline";
 
-/** The last seven days across music, code, Pinterest, runs and workouts. */
+/** The last thirty days across music, code, Pinterest, runs and workouts. */
 export async function GET() {
   await connection();
   return Response.json(await getTimeline(), {

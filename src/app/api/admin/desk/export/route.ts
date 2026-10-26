@@ -1,6 +1,7 @@
 import { connection } from "next/server";
 import { isAdmin } from "@/lib/db";
 import { exportStream, type ExportKind } from "@/lib/desk/export";
+import { RAW_DAYS } from "@/lib/desk/server";
 
 export const maxDuration = 60;
 
@@ -16,7 +17,7 @@ export async function GET(req: Request) {
   const format = kind === "samples" || u.get("format") === "json" ? "json" : "csv";
   const day = /^\d{4}-\d{2}-\d{2}$/;
   const today = new Date(Date.now() + 5.5 * 3600_000).toISOString().slice(0, 10);
-  const from = day.test(u.get("from") ?? "") ? u.get("from")! : kind === "samples" ? new Date(Date.now() + 5.5 * 3600_000 - 30 * 86_400_000).toISOString().slice(0, 10) : "2020-01-01";
+  const from = day.test(u.get("from") ?? "") ? u.get("from")! : kind === "samples" ? new Date(Date.now() + 5.5 * 3600_000 - RAW_DAYS * 86_400_000).toISOString().slice(0, 10) : "2020-01-01";
   const to = day.test(u.get("to") ?? "") ? u.get("to")! : today;
   return new Response(exportStream(kind, format, from, to), {
     headers: {
