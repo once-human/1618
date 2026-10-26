@@ -16,6 +16,7 @@
  * listening to Destruct by Fred again..". **Double stars** mark bold bits.
  */
 import type { Live as DeskLive } from "@/lib/desk/model";
+import { timeAgo } from "@/lib/time";
 import { dur, pick } from "./voice";
 
 export interface BrainInput {
@@ -35,6 +36,8 @@ export interface BrainInput {
 
 export interface BrainOut {
   text: string;
+  /** A time that goes quietly after the sentence ("pushed 4m ago", "20 minutes in"), not inside it. */
+  note?: string;
   /** Which devices the sentence is drawn from. */
   devices: ("phone" | "laptop")[];
 }
@@ -80,15 +83,16 @@ export function think(i: BrainInput): BrainOut | null {
   if (call) {
     devices.add("laptop");
     const forMs = now - Date.parse(call.since);
-    return { text: `${call.label}${forMs >= 15 * MIN ? `, ${dur(forMs)} in` : ""}.`, devices: [...devices] };
+    return { text: `${call.label}.`, note: forMs >= 15 * MIN ? `${dur(forMs)} in` : undefined, devices: [...devices] };
   }
 
   // ---- code, with whatever plays alongside ----
   if (coding && repo) {
     devices.add("laptop");
     const s = `${seed}|code|${repo}`;
-    const hover = i.push && i.push.repo === repo ? `pushed ${agoWords(ago(i.push.at, now))}` : work ? `working since ${clockOf(work.since)}` : "";
-    let text = `Working on @@${repo}|${hover}@@${tool ? ` with ${tool === "Claude Code" ? "**Claude Code**" : tool}` : ""}`;
+    // The time goes after the sentence, quiet, like "· 23m ago" on the bed line.
+    const note = i.push && i.push.repo === repo ? `pushed ${timeAgo(i.push.at, now)}` : work ? `working since ${clockOf(work.since)}` : "";
+    let text = `Working on @@${repo}@@${tool ? ` with ${tool === "Claude Code" ? "**Claude Code**" : tool}` : ""}`;
     if (music) {
       if (musicOnPhone) devices.add("phone");
       text += say([`, to ${song$(music)}`, `, ${song$(music)} on`], `${s}|m`);
@@ -98,7 +102,7 @@ export function think(i: BrainInput): BrainOut | null {
       devices.add("phone");
       text += " Saving pins on the side.";
     }
-    return { text, devices: [...devices] };
+    return { text, note: note || undefined, devices: [...devices] };
   }
   if (coding && withClaude) {
     devices.add("laptop");
@@ -168,13 +172,6 @@ export function think(i: BrainInput): BrainOut | null {
   return null;
 }
 
-const agoWords = (ms: number) => {
-  const m = Math.round(ms / MIN);
-  if (m < 1) return "just now";
-  if (m < 60) return `${m} min ago`;
-  const h = Math.round(m / 60);
-  return `${h} hour${h === 1 ? "" : "s"} ago`;
-};
 const clockOf = (iso: string) => new Date(Date.parse(iso) + 5.5 * 3600_000).toISOString().slice(11, 16);
 
 /** "texting on WhatsApp, probably", "switching between Telegram and Chrome"… or null when there's nothing worth saying. */

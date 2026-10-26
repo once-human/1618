@@ -27,7 +27,8 @@ test("Claude app plus a recent push is building that repo, with the music", () =
   assert.match(out!.text, /1618/);
   assert.match(out!.text, /Claude Code/);
   assert.match(out!.text, /%%Destruct%%/);
-  assert.match(out!.text, /@@1618\|pushed 30 min ago@@/);
+  assert.match(out!.text, /@@1618@@/);
+  assert.equal(out!.note, "pushed 30m ago");
 });
 test("a push alone is shipping", () => {
   assert.match(think({ ...base, push: { repo: "1618", at: ago(3) } })!.text, /1618/);
@@ -47,13 +48,15 @@ test("nothing going on is null", () => {
 
 test("a call beats everything", () => {
   const out = think({ ...base, music: song, desk: desk({ call: { label: "On a call on Google Meet", since: ago(20) } }) });
-  assert.match(out!.text, /Google Meet, 20 minutes in/);
+  assert.match(out!.text, /^On a call on Google Meet\.$/);
+  assert.equal(out!.note, "20 minutes in");
 });
 test("other video is Netflix", () => {
   assert.match(think({ ...base, desk: desk({ media: { source: "browser", title: null, artist: null, videos: null, since: ago(5), browser: "Chrome" } }) })!.text, /Netflix/);
 });
 test("a push with Claude open in the last five minutes is with Claude Code", () => {
   const out = think({ ...base, push: { repo: "1618", at: ago(4) }, desk: desk({ claudeAt: ago(3) }) });
-  assert.match(out!.text, /Working on @@1618\|pushed 4 min ago@@ with \*\*Claude Code\*\*/);
+  assert.match(out!.text, /Working on @@1618@@ with \*\*Claude Code\*\*/);
+  assert.equal(out!.note, "pushed 4m ago");
   assert.doesNotMatch(think({ ...base, push: { repo: "1618", at: ago(4) } })!.text, /Claude/);
 });

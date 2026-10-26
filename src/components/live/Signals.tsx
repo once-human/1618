@@ -28,9 +28,8 @@ function Hint({ children }: { children: React.ReactNode }) {
 }
 
 /**
- * A line from the brain or voice.ts: **bold**, @@repo|hover@@ (underlined,
- * links to the repo, the detail on hover) and %%song%% (underlined, plays its
- * 30-second preview).
+ * A line from the brain or voice.ts: **bold**, @@repo@@ (underlined, links to
+ * the repo) and %%song%% (underlined, plays its 30-second preview).
  */
 function Words({ text, song }: { text: string; song?: { id: string; url: string | null; label: string } | null }) {
   const p = usePlayer();
@@ -38,14 +37,11 @@ function Words({ text, song }: { text: string; song?: { id: string; url: string 
     <>
       {text.split(/(@@[^@]+@@|%%[^%]+%%)/).map((chunk, k) => {
         if (chunk.startsWith("@@")) {
-          const [repo, hover] = chunk.slice(2, -2).split("|");
+          const repo = chunk.slice(2, -2);
           return (
-            <span key={k} className="group">
-              <a href={`https://github.com/once-human/${repo}`} target="_blank" rel="noopener noreferrer" className="font-semibold underline decoration-1 underline-offset-4">
-                {repo}
-              </a>
-              {hover ? <Hint>{hover}</Hint> : null}
-            </span>
+            <a key={k} href={`https://github.com/once-human/${repo}`} target="_blank" rel="noopener noreferrer" className="font-semibold underline decoration-1 underline-offset-4">
+              {repo}
+            </a>
           );
         }
         if (chunk.startsWith("%%")) {
@@ -146,22 +142,29 @@ export function Signals({ className = "" }: { className?: string }) {
 
   let state: State;
   let text: string;
+  let note: string | null = null; // a time, said quietly after the sentence
+  let tail = ""; // said after the note
   let clip: React.ReactNode = null;
   if (brain) {
     state = "active";
-    text = prefix + brain.text + tired;
+    text = prefix + brain.text;
+    note = brain.note ?? null;
+    tail = tired;
   } else if (since < 15 * 60_000 && latest) {
     state = "active";
-    text = prefix + pick([`Around. Just ${latest.what}.`, `Just ${latest.what}.`, `Here. Just ${latest.what}.`], seed("around")) + tired;
+    text = prefix + pick([`Around. Just ${latest.what}.`, `Just ${latest.what}.`, `Here. Just ${latest.what}.`], seed("around"));
+    tail = tired;
   } else if (since < 45 * 60_000 && latest) {
     state = "around";
-    text = pick([`Around. Last ${latest.what}, ${timeAgo(latest.at, now)}.`, `Was just here. ${cap(latest.what)}, ${timeAgo(latest.at, now)}.`], seed("around2"));
+    const ago = timeAgo(latest.at, now);
+    [text, note] = pick([[`Around. Last ${latest.what}.`, ago], [`Was just here. ${cap(latest.what)}.`, ago]] as [string, string][], seed("around2"));
   } else if (guess && guess.since && guess.state !== "awake" && guess.state !== "late" && guess.state !== "allnighter") {
     state = "away";
     text = quietLine(guess.state, clock(guess.since), now - guess.since, seed("q"));
   } else {
     state = "away";
-    text = latest ? `Away from the screen. Last seen ${timeAgo(latest.at, now)}.` : "Away from the screen.";
+    text = "Away from the screen.";
+    note = latest ? `last seen ${timeAgo(latest.at, now)}` : null;
   }
   if (playing) clip = <PlayDot id={`now-${playing.track}`} url={playing.preview} label={`${playing.track} by ${playing.artist}`} />;
 
@@ -182,7 +185,9 @@ export function Signals({ className = "" }: { className?: string }) {
     </>
   ) : (
     <>
-      <Words text={text} song={playing ? { id: `now-${playing.track}`, url: playing.preview ?? null, label: `${playing.track} by ${playing.artist}` } : null} /> {text.includes("%%") ? null : clip}
+      <Words text={text} song={playing ? { id: `now-${playing.track}`, url: playing.preview ?? null, label: `${playing.track} by ${playing.artist}` } : null} />
+      {note ? <span className="text-quiet"> · {note}</span> : null}
+      {tail ? <Words text={tail} /> : null} {text.includes("%%") ? null : clip}
     </>
   );
   const visitorZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
