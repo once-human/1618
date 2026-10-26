@@ -5,6 +5,7 @@ import { LAND } from "@/content/land";
 import { placeName } from "@/lib/geo";
 import { fmtNum } from "@/lib/time";
 import { COARSE, decode, type Layer } from "./landgrid";
+import { swarm } from "./swarm";
 
 export interface GPlace {
   city: string | null;
@@ -487,29 +488,49 @@ export function VisitorsGlobe({ places, live, shown, onHover, onPin, goto, total
         const nxt = cur + (target - cur) * Math.min(1, dt / 90);
         s.hov.set(k, nxt);
         if (Math.abs(nxt - target) > 0.01) moving = true;
-        const r = (5 + 9 * Math.sqrt(p.n / P.max)) * (0.85 + 0.15 * Math.min(s.s, 2.5)) * (0.72 + 0.28 * q.z) * (1 + 0.3 * nxt);
+        const r = swarm(p.n).reach * (0.9 + 0.1 * Math.min(s.s, 2.5)) * (0.72 + 0.28 * q.z) * (1 + 0.15 * nxt);
         faced.push({ p, x: q.x, y: q.y, z: q.z, r, k });
       }
       const t = (now % 2200) / 2200;
       for (const f of faced) {
         const on = shownKey === f.k;
         const fade = shownKey && !on ? 0.4 : 1;
-        if (P.live.has(f.k)) {
-          ctx.beginPath();
-          ctx.arc(f.x, f.y, f.r + t * 24, 0, Math.PI * 2);
+        const sw = swarm(f.p.n);
+        const kk = f.r / sw.reach; // the swarm shrinks a little toward the limb and grows when you're on it
+        const liveCount = P.live.get(f.k) ?? 0;
+        ctx.globalAlpha = fade * (on ? 0.5 : 0.22);
+        if (f.p.n > 1) {
           ctx.strokeStyle = colours.ink;
-          ctx.globalAlpha = (1 - t) * 0.8 * fade;
-          ctx.lineWidth = 1.5;
+          ctx.lineWidth = 1;
+          ctx.setLineDash([2, 3]);
+          ctx.beginPath();
+          ctx.arc(f.x, f.y, f.r, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.setLineDash([]);
+        }
+        for (let i = 0; i < sw.pts.length; i++) {
+          const d = sw.pts[i];
+          const dx = f.x + d.x * kk;
+          const dy = f.y + d.y * kk;
+          const dr = sw.dot * kk;
+          if (i < liveCount) {
+            ctx.beginPath();
+            ctx.arc(dx, dy, dr + t * 12, 0, Math.PI * 2);
+            ctx.strokeStyle = colours.ink;
+            ctx.globalAlpha = (1 - t) * 0.8 * fade;
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+          }
+          ctx.globalAlpha = fade;
+          ctx.beginPath();
+          ctx.arc(dx, dy, dr, 0, Math.PI * 2);
+          ctx.fillStyle = colours.ink;
+          ctx.fill();
+          ctx.lineWidth = 1.2;
+          ctx.strokeStyle = colours.paper;
           ctx.stroke();
         }
         ctx.globalAlpha = fade;
-        ctx.beginPath();
-        ctx.arc(f.x, f.y, f.r, 0, Math.PI * 2);
-        ctx.fillStyle = colours.ink;
-        ctx.fill();
-        ctx.lineWidth = 2;
-        ctx.strokeStyle = colours.paper;
-        ctx.stroke();
         if (f.p.city === P.me.city && f.p.country === P.me.country) {
           ctx.beginPath();
           ctx.arc(f.x, f.y, f.r + 4, 0, Math.PI * 2);

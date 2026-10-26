@@ -7,6 +7,7 @@ import { placeName } from "@/lib/geo";
 import { fmtNum } from "@/lib/time";
 import { COARSE, decode, type Layer } from "./landgrid";
 import { VisitorsGlobe } from "./VisitorsGlobe";
+import { swarm } from "./swarm";
 
 const A = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
 const COLS = 360 / LAND.step;
@@ -373,7 +374,7 @@ export function VisitorsMap() {
   const shown = hover ?? pinned;
   const focus = shown ? placed.find((p) => key(p) === shown) : null;
   const tip = focus && box && view ? toScreen(focus) : null;
-  const radius = (p: Place) => 6 + 12 * Math.sqrt(p.n / max); // px, the same at any zoom
+  const radius = (p: Place) => swarm(p.n).reach; // px, the same at any zoom
 
   // Names beside the dots that have room: the biggest first, skipping any that would sit on another's.
   const labels: Place[] = [];
@@ -482,10 +483,20 @@ export function VisitorsMap() {
                     const you = p.city === me.city && p.country === me.country;
                     return (
                       <g key={k} data-dot style={{ opacity: shown != null && !on ? 0.35 : 1, transition: "opacity .15s" }}>
-                        <circle cx={x} cy={y} r={r * (on ? 1.18 : 1)} className="fill-ink" />
-                        {liveN.has(k) ? (
-                          <circle cx={x} cy={y} r={r} className="stroke-ink animate-ping fill-none motion-reduce:hidden" strokeWidth={1.5 * unit} style={{ transformBox: "fill-box", transformOrigin: "center", animationDuration: "2s" }} />
-                        ) : null}
+                        {p.n > 1 ? <circle cx={x} cy={y} r={r} className="stroke-ink fill-none" strokeOpacity={on ? 0.5 : 0.22} strokeWidth={1 * unit} strokeDasharray={`${2 * unit} ${3 * unit}`} /> : null}
+                        {swarm(p.n).pts.map((d, i) => {
+                          const cx = x + d.x * unit * (on ? 1.15 : 1);
+                          const cy = y + d.y * unit * (on ? 1.15 : 1);
+                          const dr = swarm(p.n).dot * unit * (on ? 1.2 : 1);
+                          return (
+                            <g key={i}>
+                              {i < (liveN.get(k) ?? 0) ? (
+                                <circle cx={cx} cy={cy} r={dr} className="stroke-ink animate-ping fill-none motion-reduce:hidden" strokeWidth={1.5 * unit} style={{ transformBox: "fill-box", transformOrigin: "center", animationDuration: "2s" }} />
+                              ) : null}
+                              <circle cx={cx} cy={cy} r={dr} className="fill-ink stroke-paper" strokeWidth={1.2 * unit} />
+                            </g>
+                          );
+                        })}
                         {you ? <circle cx={x} cy={y} r={r + 4 * unit} className="stroke-ink fill-none" strokeWidth={1.5 * unit} /> : null}
                         <circle
                           cx={x}
