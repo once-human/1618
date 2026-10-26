@@ -8,7 +8,7 @@ import type { TodayEvent } from "@/lib/presence/types";
 const KIND: Record<TodayEvent["kind"], string> = { music: "music", code: "code", pin: "saved", move: "moved", sleep: "sleep", desk: "laptop" };
 
 /**
- * The last 48 hours across everything, like a diary that writes itself:
+ * The last seven days across everything, like a diary that writes itself:
  * listening sessions, pushes, saves, runs. Grouped under Today / Yesterday.
  */
 export function Timeline({ limit = 40 }: { limit?: number }) {

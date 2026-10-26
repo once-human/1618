@@ -106,10 +106,10 @@ export function NowPage() {
 
       <section>
         <h2 className={`${cell} mb-6 flex justify-between gap-4 font-semibold`}>
-          The last 48 hours
+          The last seven days
           <span className="font-normal text-quiet">music, code, saves and runs, grouped as they happened</span>
         </h2>
-        <Timeline />
+        <Timeline limit={300} />
       </section>
 
       <DeskDays />

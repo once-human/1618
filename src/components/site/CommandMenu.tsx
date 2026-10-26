@@ -100,7 +100,7 @@ export function CommandMenu() {
       { group: "This page", label: "Listening", run: section("listening") },
       { group: "This page", label: "Saved on Pinterest", run: section("saved") },
       { group: "This page", label: "Say hi", run: section("say-hi") },
-      { group: "Pages", label: "Now: what I'm up to, the last 48 hours, on repeat", hint: "/now", run: go("/now") },
+      { group: "Pages", label: "Now: what I'm up to, the last seven days, on repeat", hint: "/now", run: go("/now") },
       { group: "Pages", label: "History: the year so far, top tens, any stretch", hint: "/history", run: go("/history") },
       { group: "Pages", label: "All work", hint: "/work", run: go("/work") },
       { group: "Pages", label: "Status: everything this site does, and whether it's working", hint: "/status", run: go("/status") },

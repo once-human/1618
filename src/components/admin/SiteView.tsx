@@ -4,6 +4,7 @@ import { useState } from "react";
 import { act, type AdminState } from "./store";
 import { useDesk } from "@/lib/presence/client";
 import { Button, Dot, Panel, ago, fmt } from "./ui";
+import { DeskArchive, LongTimeline } from "./DeskArchive";
 
 const SHORTCUTS: { id: "health" | "location" | "status" | "goodnight" | "goodmorning"; name: string; what: string; automate: string }[] = [
   { id: "health", name: "1618 Health", what: "Today's steps, distance and active calories.", automate: "Automation → App → Is Opened (an app you open a lot) → Run Immediately. Health can't be read while the phone is locked, so a time-of-day automation won't work." },
@@ -36,7 +37,7 @@ export function SiteView({ data }: { data: AdminState }) {
       <div className="space-y-4">
         <Panel title="Laptop agent" aside={desk?.online ? "online" : desk?.lastSeen ? `last seen ${ago(desk.lastSeen)}` : "never seen"}>
           <p className="text-[14.5px]">
-            {desk?.online ? `Reporting now: ${desk.doing?.label ?? "at the laptop"}.` : "Not reporting right now."} Samples go to /api/ingest/desk with the site key. Apps and sites by name, never window titles; YouTube is only &ldquo;YouTube&rdquo;.
+            {desk?.online ? `Reporting now: ${desk.doing?.label ?? "at the laptop"}.` : "Not reporting right now."} Samples go to /api/ingest/desk with the site key, in batches every 15 minutes (sooner when I sit down or walk away). Apps and sites by name, never window titles; YouTube is only &ldquo;YouTube&rdquo;.
           </p>
           {desk?.recent?.sys ? (
             <p className="text-a-quiet mt-1 text-[13.5px] tabular-nums">
@@ -51,6 +52,10 @@ export function SiteView({ data }: { data: AdminState }) {
             <span className="text-a-quiet">to install it on a new laptop</span>
           </p>
         </Panel>
+
+        <DeskArchive />
+
+        <LongTimeline />
 
         <Panel title="Live sources" aside={`Checked ${ago(data.sources.checkedAt)}`}>
           <ul className="divide-a-line divide-y">

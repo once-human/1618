@@ -350,9 +350,10 @@ export const doingKey = (s: Sample) => {
 };
 
 /** The live state from the newest sample. "Online" means a sample in the last 4 minutes: after that the laptop is just "away", never guessed. */
-export function live(latest: Sample | null, now: number, lastActive: string | null = null, since: { key: string; at: string } | null = null): Live {
+export function live(latest: Sample | null, now: number, lastActive: string | null = null, since: { key: string; at: string } | null = null, expectUntil: string | null = null): Live {
   if (!latest) return { online: false, lastSeen: null, active: false, lastActive, doing: null, doingSince: null, playing: null };
-  const online = now - Date.parse(latest.t) <= 4 * 60_000;
+  // The agent uploads in batches: between them it is still there until the next one is due.
+  const online = now - Date.parse(latest.t) <= 4 * 60_000 || (!!expectUntil && Date.parse(expectUntil) > now);
   if (!online) return { online: false, lastSeen: latest.t, active: false, lastActive, doing: null, doingSince: null, playing: null };
   const d = doing(latest);
   const p = playing(latest);

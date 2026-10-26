@@ -54,3 +54,11 @@ test("online means a sample in the last four minutes", () => {
   assert.equal(live(s(0), Date.parse(at(6))).online, false);
   assert.equal(live(null, 0).lastSeen, null);
 });
+
+test("between batched uploads the laptop is still there until the next one is due", () => {
+  const expect = new Date(Date.parse(at(0)) + 17 * 60_000).toISOString();
+  assert.equal(live(s(0), Date.parse(at(10)), null, null, expect).online, true);
+  assert.equal(live(s(0), Date.parse(at(18)), null, null, expect).online, false);
+  // A final upload clears the expectation, so a closed lid shows as away after the usual four minutes.
+  assert.equal(live(s(0), Date.parse(at(10)), null, null, null).online, false);
+});

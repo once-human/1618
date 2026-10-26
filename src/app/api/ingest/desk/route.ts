@@ -2,7 +2,7 @@ import { isAdmin } from "@/lib/db";
 import { ingest } from "@/lib/desk/server";
 
 /**
- * The laptop agent (github.com/once-human/desk-agent) posts here about once a minute.
+ * The laptop agent (github.com/once-human/desk-agent) posts here in batches (every 15 minutes by default, sooner when you sit down or walk away).
  *
  *   POST /api/ingest/desk   Authorization: Bearer <ADMIN_SECRET>
  *   { "samples": [ { "t": "2026-10-26T10:00:00Z", "active": true, "idleS": 3,

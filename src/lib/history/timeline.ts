@@ -6,7 +6,7 @@ import { getSaved } from "@/lib/presence/pinterest";
 import type { SavedPin, TodayEvent } from "@/lib/presence/types";
 import { appleSong, ghEvents } from "@/lib/presence/server";
 import { parseCredit } from "./credits";
-import { buildSpans, type Sample } from "@/lib/desk/model";
+import { spansBetween } from "@/lib/desk/server";
 import { nightsIn } from "@/lib/presence/sleep";
 import { sleepInputs } from "@/lib/presence/sleepData";
 import { puneClock } from "@/lib/time";
@@ -21,10 +21,10 @@ const hours = (ms: number) => {
 };
 
 const GH_USER = "once-human";
-const HOURS = 48;
+const HOURS = 24 * 7;
 
 /**
- * The last 48 hours across everything: runs of music, pushes, saves, runs,
+ * The last seven days across everything: runs of music, pushes, saves, runs,
  * workouts and bedtimes, newest first. Songs played close together become one entry
  * ("14 songs, mostly …") so it reads like a diary, not a log. Live sources
  * are merged with the history store, so nothing is missed if one is slow.
@@ -33,7 +33,15 @@ const HOURS = 48;
 export async function getTimeline(): Promise<{ hours: number; events: TodayEvent[] }> {
   "use cache: remote";
   cacheLife({ stale: 60, revalidate: 120, expire: 900 });
+  return buildTimeline(HOURS);
+}
 
+/** The same timeline over any stretch, up to a year: my admin panel (not cached, not public). */
+export async function getTimelineFor(days: number): Promise<{ hours: number; events: TodayEvent[] }> {
+  return buildTimeline(Math.max(1, Math.min(366, Math.round(days))) * 24);
+}
+
+async function buildTimeline(HOURS: number): Promise<{ hours: number; events: TodayEvent[] }> {
   const now = Date.now();
   const fromSec = Math.floor(now / 1000) - HOURS * 3600;
   const fromIso = new Date(fromSec * 1000).toISOString();
@@ -55,7 +63,7 @@ export async function getTimeline(): Promise<{ hours: number; events: TodayEvent
     q<{ at: string; data: { via?: string; endedAt?: string } }>("tl sleep", (db) =>
       db`SELECT at, data FROM events WHERE kind = 'sleep' AND at >= ${fromIso}`,
     ),
-    q<{ data: Sample }>("tl desk", (db) => db`SELECT data FROM desk_samples WHERE at >= ${fromIso} ORDER BY at`),
+    spansBetween(fromSec * 1000, now).catch(() => []),
     sleepInputs().catch(() => null),
   ]);
 
@@ -210,7 +218,7 @@ export async function getTimeline(): Promise<{ hours: number; events: TodayEvent
   // The laptop and the pushes together. A work session is a stretch of code-ish time on the laptop (Claude, an
   // editor, a terminal) with gaps under 20 minutes; pushes inside or near it name the repo. Pushes with no laptop
   // record still count as work. Long chats, calls, YouTube and Netflix get rows of their own.
-  const spans = buildSpans((deskRows ?? []).map((r) => r.data)).filter((s) => s.lane === "doing");
+  const spans = (deskRows ?? []).filter((s) => s.lane === "doing");
   type Session = { from: number; to: number; active: number; claude: number; repos: Map<string, number>; apps: Set<string>; pushes: number };
   const sessions: Session[] = [];
   for (const s of spans) {
