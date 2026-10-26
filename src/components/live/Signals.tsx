@@ -15,6 +15,18 @@ type State = "active" | "around" | "away";
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
+/** A small label above a word on hover or keyboard focus. */
+function Hint({ children }: { children: React.ReactNode }) {
+  return (
+    <span
+      role="tooltip"
+      className="bg-ink text-paper pointer-events-none absolute bottom-full left-1/2 z-30 mb-2 -translate-x-1/2 translate-y-1 whitespace-nowrap px-2 py-1 text-[13px] font-normal leading-none tracking-normal opacity-0 transition duration-150 group-focus-within:translate-y-0 group-focus-within:opacity-100 group-hover:translate-y-0 group-hover:opacity-100 motion-reduce:transition-none"
+    >
+      {children}
+    </span>
+  );
+}
+
 /**
  * A line from the brain or voice.ts: **bold**, @@repo|hover@@ (underlined,
  * links to the repo, the detail on hover) and %%song%% (underlined, plays its
@@ -28,9 +40,12 @@ function Words({ text, song }: { text: string; song?: { id: string; url: string 
         if (chunk.startsWith("@@")) {
           const [repo, hover] = chunk.slice(2, -2).split("|");
           return (
-            <a key={k} href={`https://github.com/once-human/${repo}`} target="_blank" rel="noopener noreferrer" title={hover || undefined} className="font-semibold underline decoration-1 underline-offset-4">
-              {repo}
-            </a>
+            <span key={k} className="group relative inline-block">
+              <a href={`https://github.com/once-human/${repo}`} target="_blank" rel="noopener noreferrer" className="font-semibold underline decoration-1 underline-offset-4">
+                {repo}
+              </a>
+              {hover ? <Hint>{hover}</Hint> : null}
+            </span>
           );
         }
         if (chunk.startsWith("%%")) {
@@ -38,17 +53,13 @@ function Words({ text, song }: { text: string; song?: { id: string; url: string 
           if (!song?.url) return <span key={k} className="font-semibold">{name}</span>;
           const on = p.key === song.id && p.playing;
           return (
-            <button
-              key={k}
-              type="button"
-              onClick={() => togglePreview(song.id, song.url!)}
-              aria-pressed={on}
-              title={on ? "Pause the preview" : "Play 30 seconds"}
-              className="cursor-pointer font-semibold underline decoration-1 underline-offset-4"
-            >
-              {name}
-              {on ? <span className="text-quiet font-normal"> ❚❚</span> : null}
-            </button>
+            <span key={k} className="group relative inline-block">
+              <button type="button" onClick={() => togglePreview(song.id, song.url!)} aria-pressed={on} aria-label={`${on ? "Pause" : "Play"} 30 seconds of ${song.label}`} className="cursor-pointer font-semibold underline decoration-1 underline-offset-4">
+                {name}
+                {on ? <span className="text-quiet font-normal"> ❚❚</span> : null}
+              </button>
+              <Hint>{on ? "Playing · tap to pause" : `${song.label} · tap for 30 seconds`}</Hint>
+            </span>
           );
         }
         return chunk.split("**").map((part, i) => (i % 2 ? <span key={`${k}-${i}`} className="font-semibold">{part}</span> : part));
