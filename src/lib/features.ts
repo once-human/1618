@@ -189,7 +189,7 @@ export async function checkFeatures(): Promise<Feature[]> {
       id: "bedtime",
       group: "From my day",
       name: "Gone to bed",
-      what: "When I say \"Hey Siri, good night\", my phone tells the site. It says when I went to bed for seven hours. "Hey Siri, good morning" ends it, and so does doing something once I've been asleep a while (an hour for the laptop, a push or a pin, two for music). The timeline keeps it. When I haven't said anything, quiet nights read as slept.",
+      what: "When I say \"Hey Siri, good night\", my phone tells the site. It says when I went to bed for seven hours. \"Hey Siri, good morning\" ends it, and so does doing something once I've been asleep a while (an hour for the laptop, a push or a pin, two for music). The timeline keeps it. When I haven't said anything, quiet nights read as slept.",
       where: [
         { href: "/", label: "home" },
         { href: "/now", label: "/now" },
