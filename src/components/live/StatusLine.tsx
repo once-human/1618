@@ -1,12 +1,13 @@
 "use client";
 
 import { PlayDot } from "@/components/live/PlayDot";
-import { useDesk, useHere, useMusic, useNow, usePresence, useSaved } from "@/lib/presence/client";
+import { useDesk, useHere, useSleepInputs, useMusic, useNow, usePresence, useSaved } from "@/lib/presence/client";
 import { myTown, useOthers } from "@/lib/presence/here";
 import { whoIsHere, type Town } from "@/lib/presence/words";
 import { placeName } from "@/lib/geo";
 import { clockIn, fmtNum, hourIn, timeAgo } from "@/lib/time";
 import { bedClock, inBed } from "@/lib/presence/asleep";
+import { bursts, sleepNow } from "@/lib/presence/sleep";
 
 type State = "active" | "around" | "away";
 
@@ -22,6 +23,7 @@ export function StatusLine({ className = "" }: { className?: string }) {
   const here = useHere();
   const others = useOthers();
   const desk = useDesk();
+  const sleepIn = useSleepInputs();
   const now = useNow();
   if (!now || !presence) return <div className={`min-h-[5rem] ${className}`} aria-hidden />;
 
@@ -49,6 +51,20 @@ export function StatusLine({ className = "" }: { className?: string }) {
   const place = presence.place ?? { city: "Pune", tz: "Asia/Kolkata" };
   const mine = { label: clockIn(place.tz, new Date(now)), hour: hourIn(place.tz, new Date(now)) };
 
+  // Live signals join the database's history, so the guess is never behind what's on screen.
+  const guess = sleepIn
+    ? sleepNow({
+        now,
+        tz: place.tz,
+        bursts: bursts([
+          ...sleepIn.bursts.flat(),
+          ...signals.map((s) => Date.parse(s.at)),
+          ...(playing || (desk?.online && desk.active) ? [now] : []),
+          ...(presence.status ? [Date.parse(presence.status.setAt)] : []),
+        ]),
+        past: sleepIn.past,
+      })
+    : null;
   let state: State;
   let line: React.ReactNode;
   const d = desk?.online && desk.active ? desk : null;
@@ -90,9 +106,10 @@ export function StatusLine({ className = "" }: { className?: string }) {
     // Quiet on every screen between 23:00 and 10:00 means asleep: "probably" from 45 minutes of nothing, plainly after two hours.
     const night = mine.hour >= 23 || mine.hour < 10;
     line =
-      night && latest && since >= 45 * 60_000 ? (
+      guess && (guess.sleep.state === "probably" || guess.sleep.state === "asleep" || guess.sleep.state === "nap") ? (
         <>
-          {since < 2 * 3600_000 ? "Probably slept" : "Slept"} {timeAgo(latest.at, now)}.
+          {guess.sleep.state === "probably" ? "Probably slept" : guess.sleep.state === "nap" ? "Probably napping, quiet since" : "Slept"}{" "}
+          {timeAgo(new Date(guess.sleep.since).toISOString(), now)}.
         </>
       ) : latest ? (
         <>Away from the screen. Last seen {timeAgo(latest.at, now)}.</>
@@ -150,6 +167,7 @@ export function StatusLine({ className = "" }: { className?: string }) {
             It&apos;s {mine.label} in {place.city}, {theirs} where you are.
           </>
         )}
+        {!bed && guess?.woke ? <> Up since {clockIn(place.tz, new Date(guess.woke.at))}, after about {guess.woke.hours}h of sleep.</> : null}
         {typeof steps === "number" && steps > 0 ? <> {fmtNum(steps)} steps today.</> : null}
         {here && here.people > 0 ? <> {hereLine(here, others)}</> : null}
       </p>

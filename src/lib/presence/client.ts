@@ -1,5 +1,6 @@
 "use client";
 
+import type { Burst, PastSleep } from "@/lib/presence/sleep";
 import type { Live as DeskLive } from "@/lib/desk/model";
 import type { DeskDays } from "@/lib/desk/server";
 import { useEffect, useSyncExternalStore } from "react";
@@ -137,6 +138,8 @@ export const useSaved = () => usePoller(saved);
 const desk = createPoller<DeskLive>("/api/desk", 10_000);
 export const useDesk = () => usePoller(desk);
 const deskDays = createPoller<DeskDays>("/api/desk/days", 2 * 60_000);
+const sleepIn = createPoller<{ bursts: Burst[]; past: PastSleep[] }>("/api/sleep", 2 * 60_000);
+export const useSleepInputs = () => usePoller(sleepIn);
 export const useDeskDays = () => usePoller(deskDays);
 
 /* ---- Slower things ---- */
