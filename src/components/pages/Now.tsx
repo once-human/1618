@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useListening, useNow, usePresence, useSaved, useTimeline } from "@/lib/presence/client";
 import { fmtNum, timeAgo } from "@/lib/time";
 import { StatusLine } from "@/components/live/StatusLine";
+import { DeskDays } from "@/components/home/DeskDays";
 import { Timeline } from "@/components/home/Timeline";
 import { NOW } from "@/content/now";
 import { ListeningStats } from "@/components/home/ListeningStats";
@@ -110,6 +111,8 @@ export function NowPage() {
         </h2>
         <Timeline />
       </section>
+
+      <DeskDays />
 
       <ListeningStats />
 

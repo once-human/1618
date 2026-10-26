@@ -1,5 +1,7 @@
 "use client";
 
+import type { Live as DeskLive } from "@/lib/desk/model";
+import type { DeskDays } from "@/lib/desk/server";
 import { useEffect, useSyncExternalStore } from "react";
 import type { ListeningStats, Live, Music, Presence, Saved, Submission, TodayEvent } from "./types";
 import type { Replay, RangeSummary } from "@/lib/history/query";
@@ -129,6 +131,13 @@ export function useMusic(): Music | null {
   return useSyncExternalStore(live.subscribe, getMusic, () => null);
 }
 export const useSaved = () => usePoller(saved);
+
+/* ---- The laptop: its own quick poll, the newest sample the agent sent ---- */
+
+const desk = createPoller<DeskLive>("/api/desk", 10_000);
+export const useDesk = () => usePoller(desk);
+const deskDays = createPoller<DeskDays>("/api/desk/days", 2 * 60_000);
+export const useDeskDays = () => usePoller(deskDays);
 
 /* ---- Slower things ---- */
 

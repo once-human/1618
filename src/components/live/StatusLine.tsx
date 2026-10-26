@@ -1,7 +1,7 @@
 "use client";
 
 import { PlayDot } from "@/components/live/PlayDot";
-import { useHere, useMusic, useNow, usePresence, useSaved } from "@/lib/presence/client";
+import { useDesk, useHere, useMusic, useNow, usePresence, useSaved } from "@/lib/presence/client";
 import { myTown, useOthers } from "@/lib/presence/here";
 import { whoIsHere, type Town } from "@/lib/presence/words";
 import { placeName } from "@/lib/geo";
@@ -21,6 +21,7 @@ export function StatusLine({ className = "" }: { className?: string }) {
   const saved = useSaved();
   const here = useHere();
   const others = useOthers();
+  const desk = useDesk();
   const now = useNow();
   if (!now || !presence) return <div className={`min-h-[5rem] ${className}`} aria-hidden />;
 
@@ -49,7 +50,23 @@ export function StatusLine({ className = "" }: { className?: string }) {
 
   let state: State;
   let line: React.ReactNode;
-  if (playing) {
+  const d = desk?.online && desk.active ? desk : null;
+  if (d?.doing) {
+    state = "active";
+    line = (
+      <>
+        <span className="font-semibold">{d.doing.label}</span>
+        {d.doing.detail ? <> · {d.doing.detail}</> : null}.
+        {d.playing ? (
+          <>
+            {" "}
+            {playing ? "Listening to" : "Playing:"} <span className="font-semibold">{playing ? playing.track : d.playing.label}</span>
+            {d.playing.detail && !playing ? <> · {d.playing.detail}</> : null}.
+          </>
+        ) : null}
+      </>
+    );
+  } else if (playing) {
     state = "active";
     line = (
       <>
