@@ -170,6 +170,8 @@ export interface TodayEvent {
   detail: string | null;
   url: string | null;
   image?: string | null;
+  /** A 30-second clip, for a single song, when the store has one. */
+  preview?: string | null;
 }
 
 /** A song or note a visitor sent, once I've approved it. */

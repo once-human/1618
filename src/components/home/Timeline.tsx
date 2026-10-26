@@ -1,6 +1,7 @@
 "use client";
 
 import { useNow, useTimeline } from "@/lib/presence/client";
+import { Preview } from "@/components/live/Preview";
 import { puneClock, puneDayLabel } from "@/lib/time";
 import type { TodayEvent } from "@/lib/presence/types";
 
@@ -49,7 +50,9 @@ export function Timeline({ limit = 40 }: { limit?: number }) {
                     <span className="block truncate">{e.title}</span>
                     {e.detail ? <span className="block truncate text-quiet">{e.detail}</span> : null}
                   </span>
-                  {e.image ? (
+                  {e.preview ? (
+                    <Preview id={`tl-${e.at}`} url={e.preview} image={e.image ?? null} label={e.title} size={40} />
+                  ) : e.image ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={e.image} alt="" width={40} height={40} loading="lazy" className="aspect-square w-10 bg-[#e6e6e6] object-cover" />
                   ) : (

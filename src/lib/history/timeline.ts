@@ -4,7 +4,7 @@ import { q } from "@/lib/db";
 import { scrobbles, type Scrobble } from "@/lib/presence/lastfm";
 import { getSaved } from "@/lib/presence/pinterest";
 import type { SavedPin, TodayEvent } from "@/lib/presence/types";
-import { ghEvents } from "@/lib/presence/server";
+import { appleSong, ghEvents } from "@/lib/presence/server";
 import { parseCredit } from "./credits";
 
 const GH_USER = "once-human";
@@ -52,6 +52,7 @@ export async function getTimeline(): Promise<{ hours: number; events: TodayEvent
     plays.set(`${s.uts}|${s.track}`, s);
   const list = [...plays.values()].sort((a, b) => a.uts - b.uts);
   let session: Scrobble[] = [];
+  const singles: { at: number; s: Scrobble }[] = []; // single songs, to get their cover and clip
   const flush = () => {
     if (!session.length) return;
     // Count every artist on every song, so "mostly X" means the artist I actually heard most.
@@ -60,6 +61,7 @@ export async function getTimeline(): Promise<{ hours: number; events: TodayEvent
     for (const c of parsed) for (const a of c.artists) count.set(a, (count.get(a) ?? 0) + 1);
     const top = [...count.entries()].sort((a, b) => b[1] - a[1]);
     const one = session.length === 1;
+    if (one) singles.push({ at: out.length, s: session[0] });
     out.push({
       kind: "music",
       at: new Date(session[0].uts * 1000).toISOString(),
@@ -82,6 +84,16 @@ export async function getTimeline(): Promise<{ hours: number; events: TodayEvent
     session.push(s);
   }
   flush();
+
+  // A single song gets its cover and 30-second clip (the newest few; lookups are cached).
+  await Promise.all(
+    singles.slice(-8).map(async ({ at, s }) => {
+      const song = await appleSong(s.artist, s.track, s.album, 3).catch(() => null);
+      if (!song) return;
+      out[at].image = song.art;
+      out[at].preview = song.preview;
+    }),
+  );
 
   // Code: pushes per repo, merged when within an hour of each other.
   const pushes = new Map<string, { at: string; repo: string }>();
