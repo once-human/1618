@@ -273,7 +273,7 @@ export async function getTimeline(): Promise<{ hours: number; events: TodayEvent
     } else stretches.push({ key: k, label: s.label, kind: s.kind, from, to, total: to - from });
   }
   for (const x of stretches) {
-    const min = x.kind === "call" ? 5 : x.kind === "chat" ? 20 : 30;
+    const min = x.kind === "call" ? 5 : x.kind === "chat" ? 5 : 30;
     if (x.total < min * 60_000) continue;
     const name = x.label.replace(/^(On|In|Watching) /, "");
     const title =

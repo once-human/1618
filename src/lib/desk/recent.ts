@@ -16,7 +16,7 @@ export interface DeskRecent {
   claudeAt: string | null;
   /** A call going on now (the microphone is recording). */
   call: { label: string; since: string } | null;
-  /** A long stretch of chatting: ten minutes or more in a chat app in the last twenty. */
+  /** A stretch of chatting: five minutes or more in a chat app in the last twenty. */
   chat: { name: string; minutes: number } | null;
   /** What's playing on the laptop right now, and since when. */
   media: { source: "youtube" | "browser" | "music"; title: string | null; artist: string | null; videos: number | null; since: string; browser: string | null } | null;
@@ -84,7 +84,7 @@ export function recent(samples: Sample[], now: number): DeskRecent {
     for (const f of items) if (f.category === "chat") chatSecs.set(f.name, (chatSecs.get(f.name) ?? 0) + f.s);
   }
   const topChat = [...chatSecs].sort((a, b) => b[1] - a[1])[0];
-  const chat = topChat && topChat[1] >= 600 ? { name: topChat[0], minutes: Math.round(topChat[1] / 60) } : null;
+  const chat = topChat && topChat[1] >= 300 ? { name: topChat[0], minutes: Math.round(topChat[1] / 60) } : null;
 
   // Media: the latest state, and how long it's been the same kind of thing playing.
   let media: DeskRecent["media"] = null;
