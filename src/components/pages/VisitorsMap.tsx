@@ -5,6 +5,8 @@ import { LAND } from "@/content/land";
 import { myTown } from "@/lib/presence/here";
 import { placeName } from "@/lib/geo";
 import { fmtNum } from "@/lib/time";
+import { COARSE, decode, type Layer } from "./landgrid";
+import { VisitorsGlobe } from "./VisitorsGlobe";
 
 const A = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
 const COLS = 360 / LAND.step;
@@ -38,27 +40,7 @@ export const MAP = { cols: COLS, rows: ROWS };
 export const project = (lat: number, lon: number) => ({ x: (lon + 180) / LAND.step, y: (LAND.top - lat) / LAND.step });
 const unproject = (x: number, y: number) => ({ lon: x * LAND.step - 180, lat: LAND.top - y * LAND.step });
 
-/* ---- the land, as bits to draw only what's on screen (a canvas, not tens of thousands of SVG dots) ---- */
 
-interface Layer {
-  c: number; // cell size in map units
-  cols: number;
-  rows: number;
-  bits: Uint8Array;
-}
-function decode(land: { step: number; rows: string[] }): Layer {
-  const cols = 360 / land.step;
-  const bits = new Uint8Array(cols * land.rows.length);
-  land.rows.forEach((row, y) => {
-    let x = 0;
-    for (const ch of row) {
-      const v = A.indexOf(ch);
-      for (let b = 5; b >= 0 && x < cols; b--, x++) bits[y * cols + x] = (v >> b) & 1;
-    }
-  });
-  return { c: land.step / LAND.step, cols, rows: land.rows.length, bits };
-}
-const COARSE = decode(LAND);
 
 /* ---- the view: a centre and a width in map units; the height follows the box ---- */
 
@@ -141,6 +123,8 @@ export function VisitorsMap() {
   const [hover, setHover] = useState<string | null>(null);
   const [pinned, setPinned] = useState<string | null>(null);
   const [hint, setHint] = useState(false);
+  const [mode, setMode] = useState<"globe" | "flat">("globe");
+  const [goto, setGoto] = useState<{ k: string; n: number } | null>(null);
   const [fine, setFine] = useState<Layer | null>(null); // the close-up coastline, fetched only once you zoom in
   const wrap = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
@@ -175,7 +159,7 @@ export function VisitorsMap() {
     const ro = new ResizeObserver(read);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [ready]);
+  }, [ready, mode]);
 
   useEffect(
     () => () => {
@@ -186,6 +170,8 @@ export function VisitorsMap() {
   );
 
   const places = useMemo(() => data?.places ?? [], [data]);
+  // Only towns with someone on the site right now pulse.
+  const liveN = useMemo(() => new Map((data?.live ?? []).map((l) => [`${l.city}|${l.country}`, l.n])), [data]);
   const opening = useMemo(() => (box && data ? home(places, box) : null), [box, data, places]);
   const view = moved ?? opening;
   useEffect(() => {
@@ -275,7 +261,7 @@ export function VisitorsMap() {
     };
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => el.removeEventListener("wheel", onWheel);
-  }, [box, zoomAt, ready]);
+  }, [box, zoomAt, ready, mode]);
 
   if (!data) return <div className="min-h-[16rem] md:min-h-[23rem] xl:min-h-[38rem]" aria-hidden />;
 
@@ -288,8 +274,6 @@ export function VisitorsMap() {
   const top = places[0];
   const mine = places.find((p) => p.city === me.city && p.country === me.country && p.lat != null);
   const dayList = data.days ?? [];
-  // Only towns with someone on the site right now pulse.
-  const liveN = new Map((data.live ?? []).map((l) => [`${l.city}|${l.country}`, l.n]));
   const hereNow = [...liveN.values()].reduce((a, b) => a + b, 0);
 
   const unit = box && view ? view.w / box.w : 0; // map units per screen pixel
@@ -326,6 +310,7 @@ export function VisitorsMap() {
     if (p.lat == null || p.lon == null) return;
     const { x, y } = project(p.lat, p.lon);
     setPinned(key(p));
+    if (mode === "globe") return setGoto({ k: key(p), n: Date.now() });
     fly({ cx: x, cy: y, w: 10 });
   };
 
@@ -449,6 +434,23 @@ export function VisitorsMap() {
 
       <div className="grid grid-cols-1 gap-x-8 gap-y-6 lg:grid-cols-[minmax(0,1fr)_18rem]">
         <div>
+          <div className="mb-3 flex gap-5 text-[14px]" role="radiogroup" aria-label="How to show it">
+            {(["globe", "flat"] as const).map((m) => (
+              <button
+                key={m}
+                type="button"
+                role="radio"
+                aria-checked={mode === m}
+                onClick={() => setMode(m)}
+                className={`border-b-2 pb-0.5 ${mode === m ? "border-ink font-semibold" : "text-quiet hover:text-ink border-transparent"}`}
+              >
+                {m === "globe" ? "Globe" : "Flat map"}
+              </button>
+            ))}
+          </div>
+          {mode === "globe" ? (
+            <VisitorsGlobe places={placed} live={liveN} shown={shown} onHover={setHover} onPin={setPinned} goto={goto} total={total} me={me} mine={mine} />
+          ) : (
           <div
             ref={wrap}
             className="border-ink/15 relative aspect-[4/3] w-full cursor-grab touch-pan-y overflow-hidden border select-none active:cursor-grabbing sm:aspect-[16/10]"
@@ -565,9 +567,10 @@ export function VisitorsMap() {
               </>
             ) : null}
           </div>
+          )}
           <p className="text-quiet mt-2 flex flex-wrap justify-between gap-x-4 text-[13px]">
-            <span>Drag to move · double-click or +/− to zoom · pinch on a phone</span>
-            <span ref={readout} className="tnum" aria-hidden />
+            <span>{mode === "globe" ? "Drag to turn · double-click or +/− to zoom · pinch on a phone" : "Drag to move · double-click or +/− to zoom · pinch on a phone"}</span>
+            {mode === "flat" ? <span ref={readout} className="tnum" aria-hidden /> : null}
           </p>
         </div>
 
