@@ -21,7 +21,6 @@ const MAX_S = 6;
 const HOME_S = 1.55; // opens close enough to read the towns, with the limb still showing
 const SPIN = 0.00007; // radians per millisecond: a turn in about 90 seconds
 const EARTH_KM = 6371;
-const MS_PER_RAD = 3600000 / (15 * D2R); // one radian of Earth's turning is about 3.8 hours
 const key = (p: GPlace) => `${p.city}|${p.country}`;
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 const wrap = (a: number) => ((((a + Math.PI) % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI)) - Math.PI;
@@ -155,7 +154,6 @@ export function VisitorsGlobe({ places, live, shown, onHover, onPin, goto, total
     fVLat: 0,
     dragging: false,
     spinK: 1,
-    simAdv: 0, // radians turned while spinning: the day moves on by that much
     last: 0,
     stamp: 0,
     ptr: null as null | { x: number; y: number },
@@ -329,10 +327,6 @@ export function VisitorsGlobe({ places, live, shown, onHover, onPin, goto, total
       if (P.spin && idle) {
         const d = SPIN * dt * s.spinK;
         s.lon = wrap(s.lon - d);
-        s.simAdv += d;
-        moving = true;
-      } else if (!P.spin && s.simAdv > 1e-4) {
-        s.simAdv *= Math.exp(-dt / 450); // the day eases back to the real one
         moving = true;
       }
       if (s.dragging) moving = true;
@@ -357,7 +351,7 @@ export function VisitorsGlobe({ places, live, shown, onHover, onPin, goto, total
       };
 
       // the sun, now (moved on by however far the spin has carried the day)
-      const when = Date.now() + s.simAdv * MS_PER_RAD;
+      const when = Date.now(); // the real sun, always: spinning the view never moves the day
       const sun = sunAt(when);
       const sv = sunVec(sun);
 
@@ -768,7 +762,7 @@ export function VisitorsGlobe({ places, live, shown, onHover, onPin, goto, total
           <button type="button" className={pill} disabled={atHome} onClick={() => flyTo(open, HOME_S)}>
             Busiest part
           </button>
-          <button type="button" className={`${pill} ${spin ? "bg-ink text-paper" : ""}`} aria-pressed={spin} onClick={() => setSpin((v) => !v)}>
+          <button type="button" className={spin ? pill.replace("bg-paper", "bg-ink text-paper").replace("hover:bg-ink hover:text-paper", "") : pill} aria-pressed={spin} onClick={() => setSpin((v) => !v)}>
             {spin ? "Spinning" : "Spin"}
           </button>
         </div>
