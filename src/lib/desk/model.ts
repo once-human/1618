@@ -255,16 +255,18 @@ export interface Live {
   online: boolean;
   lastSeen: string | null;
   active: boolean;
+  /** The last time the laptop was in use, even when it is off now. */
+  lastActive: string | null;
   doing: Doing | null;
   playing: { label: string; detail: string | null } | null;
 }
 
 /** The live state from the newest sample. "Online" means a sample in the last 4 minutes: after that the laptop is just "away", never guessed. */
-export function live(latest: Sample | null, now: number): Live {
-  if (!latest) return { online: false, lastSeen: null, active: false, doing: null, playing: null };
+export function live(latest: Sample | null, now: number, lastActive: string | null = null): Live {
+  if (!latest) return { online: false, lastSeen: null, active: false, lastActive, doing: null, playing: null };
   const online = now - Date.parse(latest.t) <= 4 * 60_000;
-  if (!online) return { online: false, lastSeen: latest.t, active: false, doing: null, playing: null };
+  if (!online) return { online: false, lastSeen: latest.t, active: false, lastActive, doing: null, playing: null };
   const d = doing(latest);
   const p = playing(latest);
-  return { online: true, lastSeen: latest.t, active: latest.active, doing: d, playing: p ? { label: p.label, detail: p.detail } : null };
+  return { online: true, lastSeen: latest.t, active: latest.active, lastActive: latest.active ? latest.t : lastActive, doing: d, playing: p ? { label: p.label, detail: p.detail } : null };
 }

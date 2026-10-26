@@ -12,7 +12,7 @@ const SHORTCUTS: { id: "health" | "location" | "status" | "goodnight" | "goodmor
   {
     id: "goodnight",
     name: "Good Night",
-    what: "Say “Hey Siri, good night”: Siri wishes you good night and the site says you went to bed, for five hours.",
+    what: "Say “Hey Siri, good night”: Siri wishes you good night and the site says you went to bed, for seven hours (sooner if you say good morning, or do something after the first two hours).",
     automate: "No automation needed: Siri runs it by its name. Keep the name exactly “Good Night”. If you have a Home scene with the same name, rename one of them.",
   },
   {

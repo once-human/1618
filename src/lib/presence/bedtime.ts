@@ -5,7 +5,7 @@ import { nightOf } from "@/lib/presence/asleep";
 
 /**
  * "Hey Siri, good night": the moment I went to bed. The site says so for
- * five hours, then quietly stops (I'm not going to say good morning).
+ * seven hours, then quietly stops. Saying "good morning" (or doing something after the first two hours) ends it sooner.
  *
  * The history keeps one bedtime per night (noon to noon, so 23:30 and 01:00
  * are the same night), at the last time I went to bed that night:
@@ -14,7 +14,7 @@ import { nightOf } from "@/lib/presence/asleep";
  * - In bed for under ten minutes isn't sleep: that bedtime is dropped (or,
  *   if I'd already slept earlier that night, the night goes back to that).
  */
-export const BED_HOURS = 5;
+export const BED_HOURS = 7;
 /** Shorter than this, it wasn't sleep. */
 export const MIN_SLEEP_MS = 10 * 60_000;
 

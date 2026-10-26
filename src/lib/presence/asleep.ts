@@ -2,12 +2,18 @@ import type { Bedtime, Presence } from "@/lib/presence/types";
 import { clockIn } from "@/lib/time";
 
 /**
- * Is "went to bed" still true? It is for five hours after "Hey Siri, good
+ * Is "went to bed" still true? It is for seven hours after "Hey Siri, good
  * night", unless I've clearly got up since: a status I set afterwards, or a
  * push or a pin more than ten minutes after it. Music doesn't count; I fall
  * asleep to it. Shared by every place that says where I am, so they agree.
  */
-export function inBed(presence: Presence | null | undefined, now: number, lastPinAt?: string | null): Bedtime | null {
+export function inBed(
+  presence: Presence | null | undefined,
+  now: number,
+  lastPinAt?: string | null,
+  /** Music is ignored for the first two hours (I fall asleep to it), then playing something means I'm up. The laptop being used counts after ten minutes. */
+  also?: { musicAt?: string | null; deskAt?: string | null },
+): Bedtime | null {
   const b = presence?.bedtime;
   if (!b || Date.parse(b.until) <= now) return null;
   const bed = Date.parse(b.at);
@@ -15,6 +21,8 @@ export function inBed(presence: Presence | null | undefined, now: number, lastPi
   if (presence.status && Date.parse(presence.status.setAt) > bed) return null;
   if (presence.github && Date.parse(presence.github.at) > after) return null;
   if (lastPinAt && Date.parse(lastPinAt) > after) return null;
+  if (also?.deskAt && Date.parse(also.deskAt) > after) return null;
+  if (also?.musicAt && Date.parse(also.musicAt) > bed + 2 * 3600_000) return null;
   return b;
 }
 

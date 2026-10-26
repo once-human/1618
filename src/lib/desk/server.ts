@@ -21,12 +21,17 @@ export async function ingest(body: unknown): Promise<number> {
   const last = samples[samples.length - 1];
   const cur = await kvGet<Sample>("desk:last");
   if (!cur || cur.value.t <= last.t) await kvSet("desk:last", last);
+  const act = [...samples].reverse().find((s) => s.active);
+  if (act) {
+    const prev = await kvGet<string>("desk:active");
+    if (!prev || prev.value < act.t) await kvSet("desk:active", act.t);
+  }
   return samples.length;
 }
 
 export async function getLive(): Promise<Live> {
-  const row = await kvGet<Sample>("desk:last");
-  return live(row?.value ?? null, Date.now());
+  const [row, act] = await Promise.all([kvGet<Sample>("desk:last"), kvGet<string>("desk:active")]);
+  return live(row?.value ?? null, Date.now(), act?.value ?? null);
 }
 
 export interface DeskDays {

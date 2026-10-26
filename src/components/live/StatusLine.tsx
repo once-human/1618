@@ -36,6 +36,7 @@ export function StatusLine({ className = "" }: { className?: string }) {
           what: `${presence.github.action.toLowerCase()} ${presence.github.repo}`,
         }
       : null,
+    desk?.lastActive ? { at: desk.lastActive, what: "used the laptop" } : null,
     saved?.pins[0]?.at
       ? {
           at: saved.pins[0].at,
@@ -86,17 +87,21 @@ export function StatusLine({ className = "" }: { className?: string }) {
     );
   } else {
     state = "away";
-    const asleep = mine.hour >= 1 && mine.hour < 8;
-    line = latest ? (
-      <>
-        {asleep ? "Probably asleep" : "Away from the screen"}. Last seen {timeAgo(latest.at, now)}.
-      </>
-    ) : (
-      <>{asleep ? "Probably asleep." : "Away from the screen."}</>
-    );
+    // Quiet on every screen between 23:00 and 10:00 means asleep: "probably" from 45 minutes of nothing, plainly after two hours.
+    const night = mine.hour >= 23 || mine.hour < 10;
+    line =
+      night && latest && since >= 45 * 60_000 ? (
+        <>
+          {since < 2 * 3600_000 ? "Probably slept" : "Slept"} {timeAgo(latest.at, now)}.
+        </>
+      ) : latest ? (
+        <>Away from the screen. Last seen {timeAgo(latest.at, now)}.</>
+      ) : (
+        <>{night ? "Probably asleep." : "Away from the screen."}</>
+      );
   }
 
-  const bed = inBed(presence, now, saved?.pins[0]?.at);
+  const bed = inBed(presence, now, saved?.pins[0]?.at, { musicAt: music?.tracks?.[0]?.at, deskAt: desk?.online && desk.active ? desk.lastSeen : null });
   const manual = bed ? null : presence.status;
   const visitorZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const sameZone =
