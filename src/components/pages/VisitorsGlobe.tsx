@@ -18,7 +18,7 @@ const D2R = Math.PI / 180;
 const MAX_LAT = 1.35; // radians: stop short of the poles so it never flips
 const MIN_S = 0.75;
 const MAX_S = 6;
-const HOME_S = 1.7; // opens close enough to read the towns, with the limb still showing
+const HOME_S = 1.55; // opens close enough to read the towns, with the limb still showing
 const SPIN = 0.00007; // radians per millisecond: a turn in about 90 seconds
 const EARTH_KM = 6371;
 const MS_PER_RAD = 3600000 / (15 * D2R); // one radian of Earth's turning is about 3.8 hours
@@ -343,7 +343,7 @@ export function VisitorsGlobe({ places, live, shown, onHover, onPin, goto, total
         colours = { ink: cs.color, paper: getComputedStyle(holder).backgroundColor, font: cs.fontFamily, at: now };
       }
       const { w, h } = P.size!;
-      const R = Math.min(w, h) * 0.45 * s.s;
+      const R = Math.min(w, h) * 0.46 * s.s;
       const cx = w / 2;
       const cy = h / 2;
       const cl = Math.cos(s.lon);
@@ -626,7 +626,7 @@ export function VisitorsGlobe({ places, live, shown, onHover, onPin, goto, total
     const s = st.current;
     const P = props.current;
     if (!P.size) return;
-    const R = Math.min(P.size.w, P.size.h) * 0.45 * s.s;
+    const R = Math.min(P.size.w, P.size.h) * 0.46 * s.s;
     const prev = s.pointers.get(e.pointerId);
     const at = local(e);
     if (e.pointerType === "mouse") {
@@ -721,7 +721,7 @@ export function VisitorsGlobe({ places, live, shown, onHover, onPin, goto, total
     <>
       <div
         ref={box}
-        className="border-ink/15 bg-paper relative aspect-[4/3] w-full cursor-grab touch-pan-y overflow-hidden border select-none active:cursor-grabbing sm:aspect-[16/10]"
+        className="bg-paper relative aspect-[5/6] w-full cursor-grab touch-pan-y overflow-hidden select-none active:cursor-grabbing sm:aspect-[16/11]"
         onPointerDown={down}
         onPointerMove={move}
         onPointerUp={up}
@@ -733,7 +733,7 @@ export function VisitorsGlobe({ places, live, shown, onHover, onPin, goto, total
         }}
         onDoubleClick={() => zoom(1.8)}
       >
-        <canvas ref={cv} className="text-ink absolute inset-0 size-full" role="img" aria-label={`Globe of this month's visitors: ${places.map((p) => placeName(p.city, p.country)).join(", ") || "none yet"}`} />
+        <canvas ref={cv} className="text-ink absolute inset-0 size-full [mask-image:radial-gradient(ellipse_at_center,#000_68%,transparent_99%)]" role="img" aria-label={`Globe of this month's visitors: ${places.map((p) => placeName(p.city, p.country)).join(", ") || "none yet"}`} />
 
         <div
           ref={tipEl}
