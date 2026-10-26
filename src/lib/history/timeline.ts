@@ -152,15 +152,9 @@ export async function getTimeline(): Promise<{ hours: number; events: TodayEvent
   for (const r of storedCode ?? []) pushes.set(r.id, { at: new Date(r.at).toISOString(), repo: r.data.repo });
   const sortedPushes = [...pushes.values()].sort((a, b) => a.at.localeCompare(b.at));
   const open = new Map<string, { at: string; until: string; n: number }>();
-  const closeRun = (repo: string, v: { at: string; until: string; n: number }) =>
-    out.push({
-      kind: "code",
-      at: v.at,
-      until: v.n > 1 ? v.until : undefined,
-      title: v.n > 1 ? `Pushed to ${repo} ${v.n} times` : `Pushed to ${repo}`,
-      detail: builtTo(Date.parse(v.at), Date.parse(v.until)),
-      url: `https://github.com/${GH_USER}/${repo}`,
-    });
+  // Runs of pushes; they become "worked on" rows together with the laptop's own record, below.
+  const runs: { repo: string; from: number; to: number; n: number }[] = [];
+  const closeRun = (repo: string, v: { at: string; until: string; n: number }) => runs.push({ repo, from: Date.parse(v.at), to: Date.parse(v.until), n: v.n });
   for (const p of sortedPushes) {
     const cur = open.get(p.repo);
     if (cur && Date.parse(p.at) - Date.parse(cur.until) < 3600_000) {
@@ -213,41 +207,92 @@ export async function getTimeline(): Promise<{ hours: number; events: TodayEvent
     });
   }
 
-  // The laptop: work sittings per repo, and long YouTube stretches, from the agent's samples.
+  // The laptop and the pushes together. A work session is a stretch of code-ish time on the laptop (Claude, an
+  // editor, a terminal) with gaps under 20 minutes; pushes inside or near it name the repo. Pushes with no laptop
+  // record still count as work. Long chats, calls, YouTube and Netflix get rows of their own.
   const spans = buildSpans((deskRows ?? []).map((r) => r.data)).filter((s) => s.lane === "doing");
-  const sittings: { key: string; repo: string | null; kind: "work" | "youtube"; from: number; to: number; claude: number; total: number }[] = [];
+  type Session = { from: number; to: number; active: number; claude: number; repos: Map<string, number>; apps: Set<string>; pushes: number };
+  const sessions: Session[] = [];
   for (const s of spans) {
-    const work = (s.kind === "claude" || s.kind === "coding" || s.kind === "terminal") && s.detail && !s.detail.includes(".");
-    const yt = s.kind === "watching" && s.label === "Watching YouTube";
-    if (!work && !yt) continue;
-    const key = work ? `w|${s.detail}` : "yt";
+    if (!["claude", "coding", "terminal", "ai"].includes(s.kind)) continue;
     const from = Date.parse(s.start);
     const to = Date.parse(s.end);
-    const cur = [...sittings].reverse().find((x) => x.key === key);
-    if (cur && from - cur.to < 20 * 60_000) {
-      cur.to = Math.max(cur.to, to);
-      cur.total += to - from;
-      if (s.kind === "claude") cur.claude += to - from;
-    } else sittings.push({ key, repo: work ? s.detail : null, kind: work ? "work" : "youtube", from, to, claude: s.kind === "claude" ? to - from : 0, total: to - from });
+    let cur = sessions[sessions.length - 1];
+    if (!cur || from - cur.to > 20 * 60_000) {
+      cur = { from, to, active: 0, claude: 0, repos: new Map(), apps: new Set(), pushes: 0 };
+      sessions.push(cur);
+    }
+    cur.to = Math.max(cur.to, to);
+    cur.active += to - from;
+    if (s.kind === "claude" || s.kind === "ai") cur.claude += to - from;
+    else if (s.kind === "coding") cur.apps.add(s.label);
+    if (s.detail && !s.detail.includes(".")) cur.repos.set(s.detail, (cur.repos.get(s.detail) ?? 0) + (to - from));
   }
-  for (const x of sittings) {
-    if (x.total < (x.kind === "work" ? 15 : 30) * 60_000) continue;
-    const music = x.kind === "work" ? builtTo(x.from + 45 * 60_000, x.to - 10 * 60_000) : null;
+  for (const run of runs) {
+    const near = sessions.find((x) => run.from <= x.to + 20 * 60_000 && run.to >= x.from - 20 * 60_000);
+    if (near) {
+      near.repos.set(run.repo, (near.repos.get(run.repo) ?? 0) + 1);
+      near.pushes += run.n;
+      near.from = Math.min(near.from, run.from);
+      near.to = Math.max(near.to, run.to);
+    } else {
+      // Pushed with no laptop record (the agent was off, or Claude Code pushed from the cloud).
+      sessions.push({ from: run.from, to: run.to, active: 0, claude: 0, repos: new Map([[run.repo, 1]]), apps: new Set(), pushes: run.n });
+    }
+  }
+  for (const x of sessions) {
+    const repo = [...x.repos].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+    if (!repo && x.claude < 20 * 60_000) continue;
+    if (!x.pushes && x.active < 15 * 60_000) continue;
+    const withClaude = x.claude >= 5 * 60_000 || (x.claude > 0 && x.pushes > 0);
+    const tool = withClaude ? " with Claude Code" : "";
+    const length = x.active >= 10 * 60_000 ? `, ${hm(x.active)}` : "";
+    const music = builtTo(x.from + 45 * 60_000, x.to - 10 * 60_000);
+    const pushes = x.pushes ? `${x.pushes} push${x.pushes === 1 ? "" : "es"}` : null;
     out.push({
-      kind: "desk",
+      kind: "code",
       at: new Date(x.from).toISOString(),
-      until: new Date(x.to).toISOString(),
-      title: x.kind === "youtube" ? `On YouTube for ${hm(x.total)}` : `${x.claude > x.total / 2 ? "Built" : "Worked on"} ${x.repo}${x.claude > x.total / 2 ? " with Claude Code" : ""}, ${hm(x.total)}`,
-      detail: music,
-      url: x.kind === "work" ? `https://github.com/${GH_USER}/${x.repo}` : null,
+      until: x.to - x.from > 60_000 ? new Date(x.to).toISOString() : undefined,
+      title: repo ? `Worked on ${repo}${tool}${length}` : `Worked with Claude Code${length}`,
+      detail: [pushes, music].filter(Boolean).join(" · ") || null,
+      url: repo ? `https://github.com/${GH_USER}/${repo}` : null,
     });
   }
-  // Music during a work sitting says so.
+
+  // Calls, long chats, YouTube and Netflix: stretches of the same thing with gaps under 10 minutes.
+  const stretches: { key: string; label: string; kind: string; from: number; to: number; total: number }[] = [];
+  for (const s of spans) {
+    const k = s.kind === "call" ? `call|${s.label}` : s.kind === "chat" ? `chat|${s.label}` : s.kind === "watching" ? `watch|${s.label}` : null;
+    if (!k) continue;
+    const from = Date.parse(s.start);
+    const to = Date.parse(s.end);
+    const cur = [...stretches].reverse().find((x) => x.key === k);
+    if (cur && from - cur.to < 10 * 60_000) {
+      cur.to = Math.max(cur.to, to);
+      cur.total += to - from;
+    } else stretches.push({ key: k, label: s.label, kind: s.kind, from, to, total: to - from });
+  }
+  for (const x of stretches) {
+    const min = x.kind === "call" ? 5 : x.kind === "chat" ? 20 : 30;
+    if (x.total < min * 60_000) continue;
+    const name = x.label.replace(/^(On|In|Watching) /, "");
+    const title =
+      x.kind === "call"
+        ? `${x.label}, ${hm(x.total)}`
+        : x.kind === "chat"
+          ? `Texting on ${name}, ${hm(x.total)}`
+          : x.label === "Watching YouTube"
+            ? `On YouTube for ${hm(x.total)}`
+            : `${x.label}, ${hm(x.total)}`;
+    out.push({ kind: "desk", at: new Date(x.from).toISOString(), until: new Date(x.to).toISOString(), title, detail: null, url: null });
+  }
+  // Music during a work session says so.
   for (const e of out)
     if (e.kind === "music") {
       const t = Date.parse(e.at);
-      const w = sittings.find((x) => x.kind === "work" && t >= x.from - 10 * 60_000 && t <= x.to);
-      if (w) e.detail = `${e.detail ? `${e.detail} · ` : ""}while building ${w.repo}`;
+      const w = sessions.find((x) => t >= x.from - 10 * 60_000 && t <= x.to);
+      const repo = w ? [...w.repos].sort((a, b) => b[1] - a[1])[0]?.[0] : null;
+      if (repo) e.detail = `${e.detail ? `${e.detail} · ` : ""}while working on ${repo}`;
     }
 
   // Nights. The ones I said good night to, with how long I slept when I said good morning; the others worked out from the quiet.

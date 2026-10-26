@@ -1,7 +1,7 @@
 "use client";
 
 import { PlayDot } from "@/components/live/PlayDot";
-import { useDesk, useHere, useSleepInputs, useMusic, useNow, usePresence, useSaved } from "@/lib/presence/client";
+import { togglePreview, useDesk, useHere, usePlayer, useSleepInputs, useMusic, useNow, usePresence, useSaved } from "@/lib/presence/client";
 import { myTown, useOthers } from "@/lib/presence/here";
 import { whoIsHere, type Town } from "@/lib/presence/words";
 import { placeName } from "@/lib/geo";
@@ -15,20 +15,44 @@ type State = "active" | "around" | "away";
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
-/** A line from voice.ts, with its **bold** bits. */
-function Words({ text }: { text: string }) {
-  // **bold**, and @@repo@@ for a repository: underlined, linking to it.
+/**
+ * A line from the brain or voice.ts: **bold**, @@repo|hover@@ (underlined,
+ * links to the repo, the detail on hover) and %%song%% (underlined, plays its
+ * 30-second preview).
+ */
+function Words({ text, song }: { text: string; song?: { id: string; url: string | null; label: string } | null }) {
+  const p = usePlayer();
   return (
     <>
-      {text.split(/(@@[^@]+@@)/).map((chunk, k) =>
-        chunk.startsWith("@@") ? (
-          <a key={k} href={`https://github.com/once-human/${chunk.slice(2, -2)}`} target="_blank" rel="noopener noreferrer" className="font-semibold underline decoration-1 underline-offset-4">
-            {chunk.slice(2, -2)}
-          </a>
-        ) : (
-          chunk.split("**").map((part, i) => (i % 2 ? <span key={`${k}-${i}`} className="font-semibold">{part}</span> : part))
-        ),
-      )}
+      {text.split(/(@@[^@]+@@|%%[^%]+%%)/).map((chunk, k) => {
+        if (chunk.startsWith("@@")) {
+          const [repo, hover] = chunk.slice(2, -2).split("|");
+          return (
+            <a key={k} href={`https://github.com/once-human/${repo}`} target="_blank" rel="noopener noreferrer" title={hover || undefined} className="font-semibold underline decoration-1 underline-offset-4">
+              {repo}
+            </a>
+          );
+        }
+        if (chunk.startsWith("%%")) {
+          const name = chunk.slice(2, -2);
+          if (!song?.url) return <span key={k} className="font-semibold">{name}</span>;
+          const on = p.key === song.id && p.playing;
+          return (
+            <button
+              key={k}
+              type="button"
+              onClick={() => togglePreview(song.id, song.url!)}
+              aria-pressed={on}
+              title={on ? "Pause the preview" : "Play 30 seconds"}
+              className="cursor-pointer font-semibold underline decoration-1 underline-offset-4"
+            >
+              {name}
+              {on ? <span className="text-quiet font-normal"> ❚❚</span> : null}
+            </button>
+          );
+        }
+        return chunk.split("**").map((part, i) => (i % 2 ? <span key={`${k}-${i}`} className="font-semibold">{part}</span> : part));
+      })}
     </>
   );
 }
@@ -147,7 +171,7 @@ export function Signals({ className = "" }: { className?: string }) {
     </>
   ) : (
     <>
-      <Words text={text} /> {clip}
+      <Words text={text} song={playing ? { id: `now-${playing.track}`, url: playing.preview ?? null, label: `${playing.track} by ${playing.artist}` } : null} /> {text.includes("%%") ? null : clip}
     </>
   );
   const visitorZone = Intl.DateTimeFormat().resolvedOptions().timeZone;

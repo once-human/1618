@@ -10,7 +10,7 @@
 export const GAP_MS = 150_000; // samples further apart than this are a break (laptop off or the agent stopped)
 export const STEP_MS = 60_000; // how long a lone sample counts for
 
-export type Kind = "claude" | "coding" | "terminal" | "watching" | "browsing" | "chat" | "writing" | "design" | "music" | "ai" | "files" | "tool" | "other" | "idle";
+export type Kind = "claude" | "coding" | "terminal" | "watching" | "browsing" | "chat" | "writing" | "design" | "music" | "ai" | "files" | "tool" | "call" | "other" | "idle";
 
 export interface Sample {
   t: string;
@@ -24,6 +24,8 @@ export interface Sample {
   battery: { pct: number; charging: boolean } | null;
   /** Seconds each app was focused in this sample's 30 seconds, longest first. */
   focus: { id: string; name: string; category: string; s: number }[];
+  /** The microphone is recording: a call, almost always. */
+  call: boolean;
   /** How hard the laptop is working, and what the agent costs. */
   sys: { cpu: number; mem: number; memGB: number; totalGB: number; swapGB: number; swapTotalGB: number; agentMB: number; agentCPU: number; guiMB: number; uptimeH: number } | null;
 }
@@ -108,6 +110,7 @@ export function cleanSample(raw: unknown): Sample | null {
   return {
     t: new Date(t).toISOString(),
     focus,
+    call: o.call === true,
     sys: sys
       ? { cpu: num(sys.cpu, 100), mem: num(sys.mem, 100), memGB: num(sys.memGB, 4096), totalGB: num(sys.totalGB, 4096), swapGB: num(sys.swapGB, 4096), swapTotalGB: num(sys.swapTotalGB, 4096), agentMB: num(sys.agentMB, 100000), agentCPU: num(sys.agentCPU, 1600), guiMB: num(sys.guiMB, 100000), uptimeH: num(sys.uptimeH, 100000) }
       : null,
@@ -131,6 +134,22 @@ export interface Doing {
 }
 
 /** What I'm doing, from one sample. Claude first, then code, then the site, then the app. */
+const CALL_APPS: [RegExp, string][] = [
+  [/meet/i, "Google Meet"],
+  [/zoom/i, "Zoom"],
+  [/discord|vesktop/i, "Discord"],
+  [/teams/i, "Teams"],
+  [/slack/i, "Slack"],
+  [/whatsapp/i, "WhatsApp"],
+  [/telegram/i, "Telegram"],
+];
+/** "On a call on Google Meet", from whichever call app was in front of me, or just "On a call". */
+export function callLabel(s: Pick<Sample, "focus" | "app" | "site">): string {
+  const names = [...(s.focus ?? []).map((f) => `${f.id} ${f.name}`), s.app ? `${s.app.id} ${s.app.name}` : "", s.site?.host ?? ""];
+  for (const [re, name] of CALL_APPS) if (names.some((n) => re.test(n))) return `On a call on ${name}`;
+  return "On a call";
+}
+
 /** The app I mostly had in front of me during the sample (not just the last one flicked to). */
 export function mainApp(s: Sample): Sample["app"] {
   const f = s.focus?.[0];
@@ -139,8 +158,9 @@ export function mainApp(s: Sample): Sample["app"] {
 
 export function doing(s: Sample): Doing {
   if (!s.active) return { kind: "idle", label: "Away from the laptop", detail: null };
-  if (s.claude) return { kind: "claude", label: "Working with Claude Code", detail: s.repo };
   const app = mainApp(s);
+  if (s.call) return { kind: "call", label: callLabel(s), detail: null };
+  if (s.claude) return { kind: "claude", label: "Working with Claude Code", detail: s.repo };
   const ytPlaying = s.media?.source === "youtube" && s.media.state === "playing";
   if (ytPlaying && (!app || app.category === "browser" || app.category === "media")) return { kind: "watching", label: "Watching YouTube", detail: null };
   if (app && (app.category === "editor" || app.category === "ide")) return { kind: "coding", label: "Coding", detail: s.repo };
@@ -161,7 +181,7 @@ export function doing(s: Sample): Doing {
   if (app) {
     if (app.category === "chat") return { kind: "chat", label: `In ${app.name}`, detail: null };
     if (app.category === "design") return { kind: "design", label: `In ${app.name}`, detail: null };
-    if (app.category === "browser") return s.media?.source === "browser" && s.media.state === "playing" ? { kind: "watching", label: `Watching something in ${app.name}`, detail: null } : { kind: "browsing", label: "Browsing", detail: null };
+    if (app.category === "browser") return s.media?.source === "browser" && s.media.state === "playing" ? { kind: "watching", label: "Watching Netflix", detail: null } : { kind: "browsing", label: "Browsing", detail: null };
     if (app.category === "ai") return { kind: "ai", label: `In ${app.name}`, detail: null };
     if (app.category === "files") return { kind: "files", label: "In the file manager", detail: null };
     if (app.category === "notes") return { kind: "writing", label: `In ${app.name}`, detail: null };

@@ -5,13 +5,19 @@
  * how long, battery and how busy the machine is. The site's brain
  * (presence/brain.ts) reads this together with my phone.
  */
-import { mainApp, type Sample } from "./model";
+import { callLabel, mainApp, type Sample } from "./model";
 
 export interface DeskRecent {
   /** Apps by share of focused time in the last five minutes, biggest first. */
   focus: { name: string; category: string; share: number }[];
   /** Code in the last 15 minutes: Claude Code, an editor or a terminal in a repo, or the Claude app. */
-  work: { repo: string | null; via: "claude" | "editor" | "terminal" | "ai"; at: string; since: string } | null;
+  work: { repo: string | null; via: "claude" | "editor" | "terminal" | "ai"; app: string | null; at: string; since: string } | null;
+  /** The last time the Claude app was in front of me, in the last 15 minutes. */
+  claudeAt: string | null;
+  /** A call going on now (the microphone is recording). */
+  call: { label: string; since: string } | null;
+  /** A long stretch of chatting: ten minutes or more in a chat app in the last twenty. */
+  chat: { name: string; minutes: number } | null;
   /** What's playing on the laptop right now, and since when. */
   media: { source: "youtube" | "browser" | "music"; title: string | null; artist: string | null; videos: number | null; since: string; browser: string | null } | null;
   battery: { pct: number; charging: boolean } | null;
@@ -51,14 +57,34 @@ export function recent(samples: Sample[], now: number): DeskRecent {
     const items = s.focus?.length ? s.focus : app ? [{ ...app, s: 30 }] : [];
     aiSecs += items.filter((f) => f.category === "ai").reduce((a, f) => a + f.s, 0);
     const via = s.claude ? "claude" : app && (app.category === "editor" || app.category === "ide") ? "editor" : app?.category === "terminal" && s.repo ? "terminal" : null;
-    if (via) work = { repo: s.repo, via, at: s.t, since: work && work.repo === s.repo ? work.since : s.t };
+    if (via) work = { repo: s.repo, via, app: via === "claude" ? "Claude Code" : (app?.name ?? null), at: s.t, since: work && work.repo === s.repo ? work.since : s.t };
   }
   // A few minutes in the Claude app counts as working with Claude, repo unknown (the brain fills it in from GitHub).
   if (!work && aiSecs >= 120) {
     const firstAi = ss.find((s) => (s.focus ?? []).some((f) => f.category === "ai") || s.app?.category === "ai");
     const lastAi = [...ss].reverse().find((s) => (s.focus ?? []).some((f) => f.category === "ai") || s.app?.category === "ai");
-    if (firstAi && lastAi) work = { repo: null, via: "ai", at: lastAi.t, since: firstAi.t };
+    if (firstAi && lastAi) work = { repo: null, via: "ai", app: "Claude Code", at: lastAi.t, since: firstAi.t };
   }
+  const isAi = (s: Sample) => (s.focus ?? []).some((f) => f.category === "ai") || s.app?.category === "ai";
+  const claudeAt = [...ss].reverse().find((s) => s.active && isAi(s))?.t ?? null;
+
+  // A call: the microphone in use in the newest sample, and since when.
+  let call: DeskRecent["call"] = null;
+  if (last?.call && Date.parse(last.t) >= now - 4 * MIN) {
+    let since = last.t;
+    for (let i = ss.length - 1; i >= 0 && ss[i].call; i--) since = ss[i].t;
+    call = { label: callLabel(last), since };
+  }
+
+  // Chat: dwell in chat apps over the last 20 minutes.
+  const chatSecs = new Map<string, number>();
+  for (const s of ss) {
+    if (!s.active || Date.parse(s.t) < now - 20 * MIN) continue;
+    const items = s.focus?.length ? s.focus : s.app ? [{ ...s.app, s: 30 }] : [];
+    for (const f of items) if (f.category === "chat") chatSecs.set(f.name, (chatSecs.get(f.name) ?? 0) + f.s);
+  }
+  const topChat = [...chatSecs].sort((a, b) => b[1] - a[1])[0];
+  const chat = topChat && topChat[1] >= 600 ? { name: topChat[0], minutes: Math.round(topChat[1] / 60) } : null;
 
   // Media: the latest state, and how long it's been the same kind of thing playing.
   let media: DeskRecent["media"] = null;
@@ -80,5 +106,5 @@ export function recent(samples: Sample[], now: number): DeskRecent {
       browser: app?.category === "browser" ? app.name : null,
     };
   }
-  return { focus, work, media, battery: last?.battery ?? null, sys: last?.sys ?? null };
+  return { focus, work, claudeAt, call, chat, media, battery: last?.battery ?? null, sys: last?.sys ?? null };
 }

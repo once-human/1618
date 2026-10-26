@@ -102,12 +102,12 @@ export function quietLine(state: "probably" | "asleep" | "crashed" | "out", cloc
   }
 }
 
-export function lateLine(clock: string, seed: string): string {
-  return fill(pick(["Still up at **{clock}**.", "**{clock}** and still going.", "It's **{clock}**. Not asleep yet."], `${seed}|late`), { clock });
+export function lateLine(_clock: string, seed: string): string {
+  return pick(["Not asleep yet.", "Still up.", "Up late."], `${seed}|late`);
 }
 
-export function allnighterLine(clock: string, seed: string): string {
-  return fill(pick(["Pulled an **all-nighter**. Still going.", "No sleep tonight. It's **{clock}** and I'm still at it.", "**All-nighter.** The sun's up, I'm still here.", "Haven't slept. **{clock}**, still awake."], `${seed}|allnighter`), { clock });
+export function allnighterLine(_clock: string, seed: string): string {
+  return pick(["Pulled an **all-nighter**.", "**All-nighter**, still going.", "Haven't slept yet."], `${seed}|allnighter`);
 }
 
 export function wokeLine(clock: string, hours: number, seed: string): string {

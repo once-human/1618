@@ -64,53 +64,58 @@ export function think(i: BrainInput): BrainOut | null {
   const work = r?.work && ago(r.work.at, now) < 15 * MIN ? r.work : null;
   const repo = work?.repo ?? (i.push && ago(i.push.at, now) < 90 * MIN ? i.push.repo : null);
   const coding = !!work || !!freshPush;
-  const justPushed = !!(i.push && repo && i.push.repo === repo && ago(i.push.at, now) < 6 * MIN);
+  // Claude Code: the session says so, or the Claude app was in front of me within five minutes.
+  const withClaude = work?.via === "claude" || work?.via === "ai" || (!!r?.claudeAt && ago(r.claudeAt, now) < 5 * MIN);
+  const tool = withClaude ? "Claude Code" : work?.via === "editor" ? work.app : null;
 
+  const call = active && r?.call ? r.call : null;
   const video = active && r?.media && r.media.source !== "music" ? r.media : null;
+  const chat = active ? (r?.chat ?? null) : null;
   const focus = active ? (r?.focus ?? []) : [];
 
   const devices = new Set<"phone" | "laptop">();
-  const parts: string[] = [];
+  const song$ = (m: { track: string }) => `%%${m.track}%%`;
 
-  // ---- 1 & 2: code, with whatever plays alongside ----
-  if (coding) {
+  // ---- a call beats everything ----
+  if (call) {
     devices.add("laptop");
-    const forMs = work ? now - Date.parse(work.since) : 0;
-    const via = work?.via ?? "push";
-    const s = `${seed}|code|${via}|${repo}`;
-    const R = repo ? `@@${repo}@@` : "";
-    let main: string;
-    if ((via === "claude" || via === "ai") && repo)
-      main = forMs >= 90 * MIN
-        ? say(["Working on {R} with Claude, {dur} in", "{dur} into {R} with Claude"], s, { R, dur: dur(forMs) })
-        : say(["Working on {R} with Claude", "Writing code in {R} with Claude", "Building {R} with Claude"], s, { R });
-    else if (via === "claude" || via === "ai") main = say(["Working with **Claude**", "In **Claude**, working something out"], s);
-    else if (via === "editor") main = repo ? say(["Writing code in {R}", "Working on {R}"], s, { R }) : "Writing code";
-    else if (via === "terminal") main = say(["In the terminal, working on {R}", "In the terminal in {R}"], s, { R });
-    else main = say(["Just pushed to {R}", "Pushed to {R} a few minutes ago"], s, { R: `@@${freshPush!.repo}@@` });
-    parts.push(main);
-    if (music) {
-      if (musicOnPhone) devices.add("phone");
-      parts.push(say([", listening to **{track}** by {artist}", ", with **{track}** by {artist} on", ", playing **{track}** by {artist}"], `${s}|m`, music));
-    } else if (video) parts.push(`, ${videoWhere(video)}`);
-    let text = parts.join("") + ".";
-    if (pinning) {
-      devices.add("phone");
-      text += say([" Also saving pins to **{board}** on my phone.", " Phone's out too, saving pins to **{board}**."], `${s}|p`, { board: pinning.board ?? "a board" });
-    }
-    if (justPushed && via !== "push") text += " Just pushed.";
-    return { text, devices: [...devices] };
+    const forMs = now - Date.parse(call.since);
+    return { text: `${call.label}${forMs >= 15 * MIN ? `, ${dur(forMs)} in` : ""}.`, devices: [...devices] };
   }
 
-  // ---- 1: music (the phone first) ----
+  // ---- code, with whatever plays alongside ----
+  if (coding && repo) {
+    devices.add("laptop");
+    const s = `${seed}|code|${repo}`;
+    const hover = i.push && i.push.repo === repo ? `pushed ${agoWords(ago(i.push.at, now))}` : work ? `working since ${clockOf(work.since)}` : "";
+    let text = `Working on @@${repo}|${hover}@@${tool ? ` with ${tool === "Claude Code" ? "**Claude Code**" : tool}` : ""}`;
+    if (music) {
+      if (musicOnPhone) devices.add("phone");
+      text += say([`, to ${song$(music)}`, `, ${song$(music)} on`], `${s}|m`);
+    } else if (video) text += video.source === "youtube" ? ", YouTube on the side" : ", something on in the background";
+    text += ".";
+    if (pinning) {
+      devices.add("phone");
+      text += " Saving pins on the side.";
+    }
+    return { text, devices: [...devices] };
+  }
+  if (coding && withClaude) {
+    devices.add("laptop");
+    return { text: say(["Working on something with **Claude Code**.", "Building something with **Claude Code**."], `${seed}|code`), devices: [...devices] };
+  }
+
+  // ---- music (the phone first) ----
   if (music) {
     devices.add(musicOnPhone ? "phone" : "laptop");
     const s = `${seed}|music|${music.track}`;
-    let text = say(["Listening to **{track}** by {artist}", "Playing **{track}** by {artist}", "**{track}** by {artist} is on"], s, music);
-    if (musicOnPhone && !active && !pinning) text += " on my phone";
+    let text = say([`Listening to ${song$(music)} by {artist}`, `${song$(music)} by {artist} on`, `Headphones on, ${song$(music)} by {artist}`], s, music);
     if (pinning) {
       devices.add("phone");
-      text += say([", saving pins to **{board}**", ", scrolling Pinterest"], `${s}|p`, { board: pinning.board ?? "a board" });
+      text += ", saving pins";
+    } else if (chat) {
+      devices.add("laptop");
+      text += `, texting on **${chat.name}**`;
     } else if (active && !video) {
       const c = focusClause(focus, `${s}|f`);
       if (c) {
@@ -121,41 +126,40 @@ export function think(i: BrainInput): BrainOut | null {
     return { text: text + ".", devices: [...devices] };
   }
 
-  // ---- 3: something playing on the laptop ----
+  // ---- something playing on the laptop ----
   if (video) {
     devices.add("laptop");
     const s = `${seed}|video|${video.source}`;
     const forMs = now - Date.parse(video.since);
-    let text = videoWhere(video);
-    text = text.charAt(0).toUpperCase() + text.slice(1);
-    if (video.source === "youtube" && forMs >= 30 * MIN) text += `. ${dur(forMs)} in${(video.videos ?? 0) >= 2 ? `, ${video.videos} videos` : ""}`;
-    else if (video.source === "youtube" && (video.videos ?? 0) >= 2) text += `, video number ${video.videos}`;
+    let text: string;
+    if (video.source === "youtube")
+      text =
+        forMs >= 45 * MIN && (video.videos ?? 0) >= 3
+          ? say(["YouTube rabbit hole, {n} videos in", "{n} YouTube videos deep"], s, { n: video.videos })
+          : say(["Watching a **YouTube** video", "On **YouTube**, don't ask", "**YouTube** break"], s);
+    else text = say(["Watching something on **Netflix**", "Streaming something on **Netflix**", "On **Netflix**"], s);
     if (phoneUp) {
       devices.add("phone");
-      text += ". Phone's in hand too";
+      text += ", phone in hand too";
     }
-    void s;
     return { text: text + ".", devices: [...devices] };
   }
 
-  // ---- 1: the phone on its own ----
+  // ---- a long chat ----
+  if (chat) {
+    devices.add("laptop");
+    return { text: say(["Texting on **{name}**, probably.", "Deep in **{name}** chats.", "Catching up on **{name}**."], `${seed}|chat`, chat), devices: [...devices] };
+  }
+
+  // ---- the phone on its own ----
   if (phoneUp) {
     devices.add("phone");
     const s = `${seed}|phone`;
-    let text = pinning
-      ? say(["Active on my phone, saving pins to **{board}**.", "Saving pins to **{board}** on my phone."], s, { board: pinning.board ?? "a board" })
-      : say(["Active on my phone.", "On my phone."], s);
-    if (active) {
-      const c = focusClause(focus, `${s}|f`);
-      if (c) {
-        devices.add("laptop");
-        text += ` The laptop's open too, ${c}.`;
-      }
-    }
+    const text = pinning ? say(["Saving pins to **{board}**.", "On Pinterest, saving to **{board}**."], s, { board: pinning.board ?? "a board" }) : say(["On my phone.", "Phone in hand."], s);
     return { text, devices: [...devices] };
   }
 
-  // ---- 4: just the laptop, by what's mostly been in front of me ----
+  // ---- just the laptop, by what's mostly been in front of me ----
   if (active && focus.length) {
     devices.add("laptop");
     const c = focusClause(focus, `${seed}|solo`);
@@ -164,33 +168,36 @@ export function think(i: BrainInput): BrainOut | null {
   return null;
 }
 
-/** "watching a YouTube video in Chrome": what, and where, never which video. */
-function videoWhere(v: { source: string; browser: string | null }): string {
-  const where = v.browser ? ` in ${v.browser}` : "";
-  return v.source === "youtube" ? `watching a **YouTube** video${where}` : `watching a video${where}`;
-}
+const agoWords = (ms: number) => {
+  const m = Math.round(ms / MIN);
+  if (m < 1) return "just now";
+  if (m < 60) return `${m} min ago`;
+  const h = Math.round(m / 60);
+  return `${h} hour${h === 1 ? "" : "s"} ago`;
+};
+const clockOf = (iso: string) => new Date(Date.parse(iso) + 5.5 * 3600_000).toISOString().slice(11, 16);
 
-/** "probably texting someone on WhatsApp", "bouncing between Telegram and Chrome"… or null when there's nothing worth saying. */
+/** "texting on WhatsApp, probably", "switching between Telegram and Chrome"… or null when there's nothing worth saying. */
 export function focusClause(focus: { name: string; category: string; share: number }[], seed: string): string | null {
   const [a, b] = focus;
   if (!a) return null;
-  if (b && a.share < 0.55 && b.share >= 0.25 && a.category !== b.category) return say(["switching between **{a}** and **{b}**", "going back and forth between **{a}** and **{b}**"], seed, { a: a.name, b: b.name });
+  if (b && a.share < 0.55 && b.share >= 0.25 && a.category !== b.category) return say(["switching between **{a}** and **{b}**", "juggling **{a}** and **{b}**"], seed, { a: a.name, b: b.name });
   const v = { name: a.name };
   switch (a.category) {
     case "chat":
-      return say(["probably texting someone on **{name}**", "probably replying to someone on **{name}**", "catching up on **{name}**"], seed, v);
+      return say(["texting on **{name}**, probably", "on **{name}**"], seed, v);
     case "ai":
-      return say(["talking something through with **{name}**", "working something out in **{name}**"], seed, v);
+      return say(["chatting with **{name}**", "thinking out loud with **{name}**"], seed, v);
     case "browser":
-      return say(["browsing in **{name}**", "on the web in **{name}**"], seed, v);
+      return say(["browsing in **{name}**", "somewhere on the internet"], seed, v);
     case "files":
-      return "in the file manager";
+      return "digging through files";
     case "tool":
-      return "in settings";
+      return "tweaking settings";
     case "notes":
       return say(["writing in **{name}**", "taking notes in **{name}**"], seed, v);
     case "design":
-      return say(["designing in **{name}**", "working in **{name}**"], seed, v);
+      return say(["designing in **{name}**", "pushing pixels in **{name}**"], seed, v);
     case "editor":
     case "ide":
       return "writing code";
@@ -201,19 +208,19 @@ export function focusClause(focus: { name: string; category: string; share: numb
   }
 }
 
-/** The laptop, in one short line for under the sentence: battery, and how busy it is. Only while I'm actually at it. */
+/** The second line's device bit: "On the laptop: 100%, plugged in, CPU 55%, 9.4 of 31.6 GB memory." Only while I'm at it. */
 export function laptopLine(desk: DeskLive | null): string | null {
   const r = desk?.online && desk.active ? desk.recent : null;
-  if (!r) return null;
+  if (!r) return desk?.online && desk.active ? "On the laptop." : null;
   const bits: string[] = [];
-  if (r.battery) bits.push(`Laptop at ${r.battery.pct}%${r.battery.charging ? (r.battery.pct >= 100 ? ", plugged in" : ", charging") : ""}`);
+  if (r.battery) bits.push(`${r.battery.pct}%${r.battery.charging ? (r.battery.pct >= 100 ? ", plugged in" : ", charging") : ""}`);
   if (r.sys) {
     // Memory as one pool: RAM plus swap (zram included).
     const used = Math.round((r.sys.memGB + (r.sys.swapGB ?? 0)) * 10) / 10;
     const total = Math.round((r.sys.totalGB + (r.sys.swapTotalGB ?? 0)) * 10) / 10;
-    bits.push(`CPU ${Math.round(r.sys.cpu)}%, ${used} of ${total} GB memory in use`);
+    bits.push(`CPU ${Math.round(r.sys.cpu)}%`, `${used} of ${total} GB memory`);
   }
-  return bits.length ? bits.join(". ") + "." : null;
+  return bits.length ? `On the laptop: ${bits.join(", ")}.` : "On the laptop.";
 }
 
 /** When I'm not at the laptop but my phone's doing something: say so instead of the laptop's numbers. */
@@ -222,5 +229,5 @@ export function phoneLine(i: BrainInput, text: string): string | null {
   if (online && i.desk?.active) return null;
   if (/phone|Pinterest/i.test(text)) return null;
   const phone = !!i.music?.nowPlaying || (!!i.pin && Date.now() - Date.parse(i.pin.at) < 10 * MIN) || (!!i.phoneAt && i.now - Date.parse(i.phoneAt) < 5 * MIN);
-  return phone ? "Not on the laptop. Probably on my phone." : null;
+  return phone ? "Probably on my phone." : null;
 }
