@@ -274,6 +274,20 @@ export interface AppleSong {
   tint: string | null;
 }
 
+/** The clip, cover and link of an Apple song by its own id, which is exact where a search by name can pick the wrong song. */
+export async function appleSongById(id: number): Promise<AppleSong | null> {
+  "use cache: remote";
+  const r = await fetchJson<{ results?: ItunesResult[] }>(`${ITUNES}/lookup?id=${id}&country=in`, "apple lookup by id");
+  const one = r.data?.results?.[0];
+  if (!one?.trackViewUrl) {
+    cacheLife({ stale: 30, revalidate: 120, expire: 600 });
+    return null;
+  }
+  cacheLife("weeks");
+  const art = appleArt(one.artworkUrl100);
+  return { art, link: appleLink(one.trackViewUrl), preview: one.previewUrl ?? null, durationMs: one.trackTimeMillis ?? null, tint: await coverTint(art) };
+}
+
 /**
  * Songs Apple's search can't find, filled in by hand: tracks that only exist
  * inside a DJ mix album, whose songs the public API doesn't list. The cover
