@@ -66,15 +66,13 @@ export function Timeline({ limit = 40 }: { limit?: number }) {
                     <span className="flex items-center gap-1.5">
                       {many ? (
                         linked ? (
-                          <button type="button" aria-expanded={open} aria-label={open ? "Hide the songs" : "Show the songs"} onClick={() => setOpenSongs(open ? null : e.at)} className="-m-1 shrink-0 cursor-pointer p-1">
-                            {chevron}
-                          </button>
+                          chevron
                         ) : (
                           chevron
                         )
                       ) : null}
                       {linked ? (
-                        <a href={e.url!} target="_blank" rel="noopener noreferrer" className="block truncate hover:underline">
+                        <a href={e.url!} target="_blank" rel="noopener noreferrer" onClick={(ev) => ev.stopPropagation()} className="block truncate hover:underline">
                           {e.title}
                         </a>
                       ) : (
@@ -83,9 +81,7 @@ export function Timeline({ limit = 40 }: { limit?: number }) {
                     </span>
                     {e.detail ? (
                       linked ? (
-                        <button type="button" onClick={() => setOpenSongs(open ? null : e.at)} className="block w-full cursor-pointer truncate text-left text-quiet">
-                          {e.detail}
-                        </button>
+                        <span className="block truncate text-quiet">{e.detail}</span>
                       ) : (
                         <span className="block truncate text-quiet">{e.detail}</span>
                       )
@@ -105,7 +101,22 @@ export function Timeline({ limit = 40 }: { limit?: number }) {
               return (
                 <li key={`${e.kind}${e.at}${i}`}>
                   {linked ? (
-                    <div className={`${cls} hover:bg-ink/[0.03]`}>{body}</div>
+                    // The whole row opens the songs; only the project name is a link out.
+                    <div
+                      role="button"
+                      tabIndex={0}
+                      aria-expanded={open}
+                      onClick={() => setOpenSongs(open ? null : e.at)}
+                      onKeyDown={(ev) => {
+                        if (ev.target === ev.currentTarget && (ev.key === "Enter" || ev.key === " ")) {
+                          ev.preventDefault();
+                          setOpenSongs(open ? null : e.at);
+                        }
+                      }}
+                      className={`${cls} cursor-pointer hover:bg-ink/[0.03]`}
+                    >
+                      {body}
+                    </div>
                   ) : many ? (
                     <button type="button" aria-expanded={open} onClick={() => setOpenSongs(open ? null : e.at)} className={`${cls} w-full cursor-pointer text-left hover:bg-ink/[0.03]`}>
                       {body}
