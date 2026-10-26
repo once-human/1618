@@ -174,6 +174,7 @@ export function VisitorsMap() {
   const liveN = useMemo(() => new Map((data?.live ?? []).map((l) => [`${l.city}|${l.country}`, l.n])), [data]);
   const opening = useMemo(() => (box && data ? home(places, box) : null), [box, data, places]);
   const view = moved ?? opening;
+  const busiest = useMemo(() => (opening && box ? fit({ ...opening, w: opening.w / 1.5 }, box) : null), [opening, box]); // the button: 1.5× closer on the same part
   useEffect(() => {
     viewRef.current = view;
   });
@@ -387,7 +388,7 @@ export function VisitorsMap() {
       }
     }
   }
-  const atHome = !!opening && !!view && Math.abs(view.w - opening.w) < 0.05 && Math.abs(view.cx - opening.cx) < 0.05 && Math.abs(view.cy - opening.cy) < 0.05;
+  const atHome = !!busiest && !!view && Math.abs(view.w - busiest.w) < 0.05 && Math.abs(view.cx - busiest.cx) < 0.05 && Math.abs(view.cy - busiest.cy) < 0.05;
   const btn = "border-ink bg-paper hover:bg-ink hover:text-paper grid size-9 place-items-center border text-[18px] leading-none disabled:opacity-30";
   const pill = "border-ink bg-paper hover:bg-ink hover:text-paper border px-2.5 py-1 disabled:opacity-30";
 
@@ -544,7 +545,7 @@ export function VisitorsMap() {
                   </button>
                 </div>
                 <div className="absolute bottom-2 left-2 z-10 flex flex-wrap gap-1 text-[13px]" onPointerDown={(e) => e.stopPropagation()}>
-                  <button type="button" className={pill} disabled={atHome} onClick={() => opening && fly(opening, () => setMoved(null))}>
+                  <button type="button" className={pill} disabled={atHome} onClick={() => busiest && fly(busiest)}>
                     Busiest part
                   </button>
                   <button type="button" className={pill} disabled={view.w >= COLS - 0.01} onClick={() => fly({ cx: COLS / 2, cy: ROWS / 2, w: COLS })}>
