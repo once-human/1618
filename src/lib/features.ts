@@ -207,12 +207,14 @@ export async function checkFeatures(): Promise<Feature[]> {
       name: "My laptop",
       what: "A small agent on my laptop tells the site what I'm up to there: what I'm building, what I'm on, what's playing.",
       where: [
-        { href: "/", label: "the Pulse" },
+        { href: "/", label: "Signals" },
         { href: "/now", label: "/now" },
       ],
       ok: desk.online ? true : null,
       state: desk.online
-        ? `Reporting now: ${desk.doing?.label ?? "at the laptop"}${desk.doing?.detail ? ` (${desk.doing.detail})` : ""}.`
+        ? `Reporting now: ${desk.doing?.label ?? "at the laptop"}${desk.doing?.detail ? ` (${desk.doing.detail})` : ""}.${
+            desk.recent?.sys ? ` The agent itself uses ${desk.recent.sys.agentMB} MB of RAM and ${desk.recent.sys.agentCPU}% of a CPU core; the laptop is at ${Math.round(desk.recent.sys.cpu)}% CPU, ${desk.recent.sys.memGB} of ${desk.recent.sys.totalGB} GB RAM, up ${desk.recent.sys.uptimeH} h.` : ""
+          }${desk.recent?.battery ? ` Battery ${desk.recent.battery.pct}%${desk.recent.battery.charging ? ", charging" : ""}.` : ""}`
         : desk.lastSeen
           ? `Not reporting right now. Last heard ${ago(desk.lastSeen, now)}.`
           : "The agent hasn't reported yet.",

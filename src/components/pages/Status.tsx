@@ -6,7 +6,7 @@ import type { SourceCheck } from "@/lib/history/sources";
 import type { Feature } from "@/lib/features";
 import { useHere } from "@/lib/presence/client";
 import { useOthers } from "@/lib/presence/here";
-import { hereLine } from "@/components/live/Pulse";
+import { hereLine } from "@/components/live/Signals";
 import { projects } from "@/content/projects";
 
 const cell = "border-t border-ink pt-1.5";

@@ -15,10 +15,13 @@ const COLOR: Record<string, string> = {
   writing: "bg-ink/50",
   design: "bg-ink/40",
   music: "bg-ink/25",
+  ai: "bg-ink/70",
+  files: "bg-ink/20",
+  tool: "bg-ink/20",
   other: "bg-ink/20",
   idle: "bg-transparent",
 };
-const WORDS: Record<string, string> = { claude: "with Claude Code", coding: "coding", terminal: "in the terminal", watching: "watching", browsing: "browsing", chat: "chatting", writing: "writing", design: "designing", music: "music sites", other: "other" };
+const WORDS: Record<string, string> = { claude: "with Claude Code", coding: "coding", terminal: "in the terminal", watching: "watching", browsing: "browsing", chat: "chatting", writing: "writing", design: "designing", music: "music sites", ai: "with Claude", files: "in files", tool: "in settings", other: "other" };
 const hm = (m: number) => (m >= 60 ? `${Math.floor(m / 60)}h ${m % 60 ? `${m % 60}m` : ""}`.trim() : `${m}m`);
 const clock = (iso: string | null) => (iso ? new Date(Date.parse(iso) + IST).toISOString().slice(11, 16) : "");
 const dayLabel = (day: string) => new Date(`${day}T12:00:00Z`).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });

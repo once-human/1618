@@ -1,7 +1,7 @@
 import { HERO } from "@/content/story";
 import { BigWord } from "@/components/site/BigWord";
 import { Frame } from "@/components/site/Frame";
-import { Pulse } from "@/components/live/Pulse";
+import { Signals } from "@/components/live/Signals";
 
 /** Photographs on a loose grid, the name running across them, one line of who. */
 export function Hero() {
@@ -23,7 +23,7 @@ export function Hero() {
       <p className="mt-16 max-w-[34ch] text-[17px] leading-snug md:mt-24">{HERO.line}</p>
 
       {/* Live: what I'm doing right now, and who else is here with you. */}
-      <Pulse className="border-ink relative z-20 mt-10 max-w-[64ch] border-t pt-3" />
+      <Signals className="border-ink relative z-20 mt-10 max-w-[64ch] border-t pt-3" />
     </section>
   );
 }

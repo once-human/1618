@@ -1,5 +1,5 @@
 /**
- * The Pulse's words: what the line at the top says, in my voice. Every
+ * The words of Signals: what the line at the top says, in my voice. Every
  * situation has a few ways of saying it; one is picked by a seed made of the
  * situation and a 25-minute bucket of time, so the line changes as time goes
  * on but never flickers between refreshes. **double stars** mark the bold bits.

@@ -8,7 +8,8 @@ import { placeName } from "@/lib/geo";
 import { clockIn, fmtNum, hourIn, timeAgo } from "@/lib/time";
 import { bedClock, inBed } from "@/lib/presence/asleep";
 import { bursts, sleepNow } from "@/lib/presence/sleep";
-import { allnighterLine, bedLine, doingLine, lateLine, musicLine, noSleepTail, pick, quietLine, wokeLine } from "@/lib/presence/voice";
+import { allnighterLine, bedLine, lateLine, noSleepTail, pick, quietLine, wokeLine } from "@/lib/presence/voice";
+import { laptopLine, think } from "@/lib/presence/brain";
 
 type State = "active" | "around" | "away";
 
@@ -24,11 +25,11 @@ function Words({ text }: { text: string }) {
 }
 
 /**
- * The Pulse: one sentence that says where I am, built from everything live: going to
+ * Signals: one sentence that says where I am, built from everything live: going to
  * bed ("Hey Siri, good night") or a status I set from my phone wins, whichever
  * is newer; otherwise what's playing, or the most recent thing I did anywhere. Underneath: my time against yours, and who else is here.
  */
-export function Pulse({ className = "" }: { className?: string }) {
+export function Signals({ className = "" }: { className?: string }) {
   const presence = usePresence();
   const music = useMusic();
   const saved = useSaved();
@@ -87,21 +88,23 @@ export function Pulse({ className = "" }: { className?: string }) {
   // Up very late, or through the night: said first, before whatever I'm doing.
   const prefix = guess?.state === "allnighter" ? allnighterLine(mine.label, seed("an")) + " " : guess?.state === "late" ? lateLine(mine.label, seed("late")) + " " : "";
   const tired = guess?.noSleep && guess.state === "awake" ? noSleepTail(seed("ns")) : "";
-  const d = desk?.online && desk.active ? desk : null;
-  // A track from a real music player on the laptop (never YouTube), when Last.fm hasn't caught it.
-  const deskTrack = d?.playing && d.playing.label !== "Watching YouTube" && d.playing.detail ? { track: d.playing.label, artist: d.playing.detail } : null;
+  // Everything live from both devices, folded into one sentence (see presence/brain.ts).
+  const brain = think({
+    now,
+    seed: seed("brain"),
+    desk,
+    music: music?.tracks?.[0] ? { track: music.tracks[0].track, artist: music.tracks[0].artist, nowPlaying: !!music.tracks[0].nowPlaying, at: music.tracks[0].at ?? new Date(now).toISOString() } : null,
+    push: presence.github ? { repo: presence.github.repo, at: presence.github.at } : null,
+    pin: saved?.pins[0]?.at ? { at: saved.pins[0].at, board: saved.pins[0].board ?? null } : null,
+    phoneAt: presence.health?.at ?? null,
+  });
 
   let state: State;
   let text: string;
   let clip: React.ReactNode = null;
-  if (d?.doing) {
+  if (brain) {
     state = "active";
-    const forMs = d.doingSince ? now - Date.parse(d.doingSince) : 0;
-    const song = playing ? { track: playing.track, artist: playing.artist } : deskTrack;
-    text = prefix + doingLine(d.doing, forMs, seed(`do|${d.doing.label}`)) + (song ? " " + musicLine(song.track, song.artist, seed("m"), false) : "") + tired;
-  } else if (playing) {
-    state = "active";
-    text = prefix + musicLine(playing.track, playing.artist, seed(`m|${playing.track}`), true) + tired;
+    text = prefix + brain.text + tired;
   } else if (since < 15 * 60_000 && latest) {
     state = "active";
     text = prefix + pick([`Around. Just ${latest.what}.`, `Just ${latest.what}.`, `Here. Just ${latest.what}.`], seed("around")) + tired;
@@ -166,6 +169,7 @@ export function Pulse({ className = "" }: { className?: string }) {
           </>
         )}
         {!bed && guess?.woke ? <> {wokeLine(clock(guess.woke.at), guess.woke.hours, seed("woke"))}</> : null}
+        {laptopLine(desk) ? <> {laptopLine(desk)}</> : null}
         {typeof steps === "number" && steps > 0 ? <> {fmtNum(steps)} steps today.</> : null}
         {here && here.people > 0 ? <> {hereLine(here, others)}</> : null}
       </p>

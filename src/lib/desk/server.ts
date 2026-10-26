@@ -1,4 +1,5 @@
 import { kvGet, kvSet, q } from "@/lib/db";
+import { recent } from "./recent";
 import { GAP_MS, buildSpans, cleanSample, doingKey, live, rollup, type DayRollup, type Live, type Sample, type Span } from "./model";
 
 const DAY_MS = 86_400_000;
@@ -39,8 +40,16 @@ export async function ingest(body: unknown): Promise<number> {
 }
 
 export async function getLive(): Promise<Live> {
-  const [row, act, since] = await Promise.all([kvGet<Sample>("desk:last"), kvGet<string>("desk:active"), kvGet<{ key: string; at: string }>("desk:since")]);
-  return live(row?.value ?? null, Date.now(), act?.value ?? null, since?.value ?? null);
+  const since15 = new Date(Date.now() - 15 * 60_000).toISOString();
+  const [row, act, since, rows] = await Promise.all([
+    kvGet<Sample>("desk:last"),
+    kvGet<string>("desk:active"),
+    kvGet<{ key: string; at: string }>("desk:since"),
+    q<{ data: Sample }>("desk recent", (db) => db`SELECT data FROM desk_samples WHERE at >= ${since15} ORDER BY at`),
+  ]);
+  const now = Date.now();
+  const l = live(row?.value ?? null, now, act?.value ?? null, since?.value ?? null);
+  return { ...l, recent: l.online ? recent((rows ?? []).map((r) => r.data), now) : null };
 }
 
 export interface DeskDays {

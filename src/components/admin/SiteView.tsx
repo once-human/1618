@@ -38,6 +38,12 @@ export function SiteView({ data }: { data: AdminState }) {
           <p className="text-[14.5px]">
             {desk?.online ? `Reporting now: ${desk.doing?.label ?? "at the laptop"}.` : "Not reporting right now."} Samples go to /api/ingest/desk with the site key. Apps and sites by name, never window titles; YouTube is only &ldquo;YouTube&rdquo;.
           </p>
+          {desk?.recent?.sys ? (
+            <p className="text-a-quiet mt-1 text-[13.5px] tabular-nums">
+              Agent {desk.recent.sys.agentMB} MB RAM, {desk.recent.sys.agentCPU}% CPU{desk.recent.sys.guiMB ? `; settings app ${desk.recent.sys.guiMB} MB` : ""}. Laptop {Math.round(desk.recent.sys.cpu)}% CPU, {desk.recent.sys.memGB}/{desk.recent.sys.totalGB} GB RAM
+              {desk.recent.battery ? `, battery ${desk.recent.battery.pct}%${desk.recent.battery.charging ? " charging" : ""}` : ""}.
+            </p>
+          ) : null}
           <p className="mt-2 text-[14px]">
             <a className="underline" href="https://github.com/once-human/desk-agent" target="_blank" rel="noreferrer">
               github.com/once-human/desk-agent

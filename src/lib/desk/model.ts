@@ -10,7 +10,7 @@
 export const GAP_MS = 150_000; // samples further apart than this are a break (laptop off or the agent stopped)
 export const STEP_MS = 60_000; // how long a lone sample counts for
 
-export type Kind = "claude" | "coding" | "terminal" | "watching" | "browsing" | "chat" | "writing" | "design" | "music" | "other" | "idle";
+export type Kind = "claude" | "coding" | "terminal" | "watching" | "browsing" | "chat" | "writing" | "design" | "music" | "ai" | "files" | "tool" | "other" | "idle";
 
 export interface Sample {
   t: string;
@@ -22,6 +22,10 @@ export interface Sample {
   claude: boolean;
   media: { player: string; state: "playing" | "paused"; source: string; title: string | null; artist: string | null; videos: number | null } | null;
   battery: { pct: number; charging: boolean } | null;
+  /** Seconds each app was focused in this sample's 30 seconds, longest first. */
+  focus: { id: string; name: string; category: string; s: number }[];
+  /** How hard the laptop is working, and what the agent costs. */
+  sys: { cpu: number; mem: number; memGB: number; totalGB: number; agentMB: number; agentCPU: number; guiMB: number; uptimeH: number } | null;
 }
 
 /** Things that never go on the site, whatever the agent says. */
@@ -31,6 +35,32 @@ const YOUTUBE = /youtube\.com|youtu\.be|ytimg|youtube/i;
 
 const str = (v: unknown, max: number): string | null => (typeof v === "string" && v.trim() ? v.trim().slice(0, max) : null);
 const cat = (v: unknown) => (str(v, 24) ?? "other").toLowerCase().replace(/[^a-z-]/g, "");
+
+/** Apps an older agent doesn't know the category of (the agent's own catalog has these too). */
+const KNOWN: Record<string, { name: string; category: string }> = {
+  "com.anthropic.claude": { name: "Claude", category: "ai" },
+  "in.onkaryaglewad.deskagent": { name: "desk-agent", category: "tool" },
+  "org.telegram.desktop": { name: "Telegram", category: "chat" },
+  "org.kde.dolphin": { name: "Files", category: "files" },
+  thunar: { name: "Files", category: "files" },
+  "org.gnome.nautilus": { name: "Files", category: "files" },
+};
+const WEBAPP: Record<string, { name: string; category: string }> = {
+  "web.whatsapp.com": { name: "WhatsApp", category: "chat" },
+  "web.telegram.org": { name: "Telegram", category: "chat" },
+  "discord.com": { name: "Discord", category: "chat" },
+  "claude.ai": { name: "Claude", category: "ai" },
+  "chatgpt.com": { name: "ChatGPT", category: "ai" },
+  "www.figma.com": { name: "Figma", category: "design" },
+  "mail.google.com": { name: "Gmail", category: "chat" },
+};
+export function fixApp<T extends { id: string; name: string; category: string }>(a: T): T {
+  const id = a.id.toLowerCase();
+  if (KNOWN[id] && a.category === "other") return { ...a, ...KNOWN[id] };
+  const web = /^(?:chrome|chromium|brave|msedge)-([^_]+)__/.exec(id)?.[1];
+  if (web && WEBAPP[web] && (a.category === "other" || a.category === "chat")) return { ...a, ...WEBAPP[web] };
+  return a;
+}
 
 /** A sample from the agent, made safe: unknown fields dropped, lengths capped, adult sites and YouTube titles removed. */
 export function cleanSample(raw: unknown): Sample | null {
@@ -63,11 +93,27 @@ export function cleanSample(raw: unknown): Sample | null {
       videos: yt && typeof media.videos === "number" && media.videos >= 0 ? Math.min(999, Math.round(media.videos)) : null,
     };
   }
+  const num = (v: unknown, max: number) => (typeof v === "number" && Number.isFinite(v) ? Math.max(0, Math.min(max, Math.round(v * 10) / 10)) : 0);
+  const sys = o.sys && typeof o.sys === "object" ? (o.sys as Record<string, unknown>) : null;
+  const focus = Array.isArray(o.focus)
+    ? (o.focus as unknown[])
+        .slice(0, 4)
+        .flatMap((f) => {
+          if (!f || typeof f !== "object") return [];
+          const x = f as Record<string, unknown>;
+          const s = num(x.s, 600);
+          return s > 0 ? [fixApp({ id: str(x.id, 60) ?? "app", name: str(x.name, 40) ?? "an app", category: cat(x.category), s })] : [];
+        })
+    : [];
   return {
     t: new Date(t).toISOString(),
+    focus,
+    sys: sys
+      ? { cpu: num(sys.cpu, 100), mem: num(sys.mem, 100), memGB: num(sys.memGB, 4096), totalGB: num(sys.totalGB, 4096), agentMB: num(sys.agentMB, 100000), agentCPU: num(sys.agentCPU, 1600), guiMB: num(sys.guiMB, 100000), uptimeH: num(sys.uptimeH, 100000) }
+      : null,
     active: o.active === true,
     idleS: typeof o.idleS === "number" && o.idleS >= 0 ? Math.min(86400, Math.round(o.idleS)) : 0,
-    app: app ? { id: str(app.id, 40) ?? "app", name: str(app.name, 40) ?? "an app", category: cat(app.category) } : null,
+    app: app ? fixApp({ id: str(app.id, 60) ?? "app", name: str(app.name, 40) ?? "an app", category: cat(app.category) }) : null,
     site: siteOut,
     repo: str(o.repo, 60),
     claude: o.claude === true,
@@ -85,13 +131,21 @@ export interface Doing {
 }
 
 /** What I'm doing, from one sample. Claude first, then code, then the site, then the app. */
+/** The app I mostly had in front of me during the sample (not just the last one flicked to). */
+export function mainApp(s: Sample): Sample["app"] {
+  const f = s.focus?.[0];
+  return f ? { id: f.id, name: f.name, category: f.category } : s.app;
+}
+
 export function doing(s: Sample): Doing {
   if (!s.active) return { kind: "idle", label: "Away from the laptop", detail: null };
   if (s.claude) return { kind: "claude", label: "Working with Claude Code", detail: s.repo };
-  const app = s.app;
+  const app = mainApp(s);
+  const ytPlaying = s.media?.source === "youtube" && s.media.state === "playing";
+  if (ytPlaying && (!app || app.category === "browser" || app.category === "media")) return { kind: "watching", label: "Watching YouTube", detail: null };
   if (app && (app.category === "editor" || app.category === "ide")) return { kind: "coding", label: "Coding", detail: s.repo };
   if (app?.category === "terminal") return { kind: "terminal", label: s.repo ? "In the terminal" : "In the terminal", detail: s.repo };
-  if (s.site) {
+  if (s.site && (!app || app.category === "browser")) {
     const c = s.site.category;
     if (c === "private") return { kind: "browsing", label: "Browsing", detail: null };
     if (YOUTUBE.test(s.site.host) || (s.media?.source === "youtube" && s.media.state === "playing")) return { kind: "watching", label: "Watching YouTube", detail: null };
@@ -107,7 +161,11 @@ export function doing(s: Sample): Doing {
   if (app) {
     if (app.category === "chat") return { kind: "chat", label: `In ${app.name}`, detail: null };
     if (app.category === "design") return { kind: "design", label: `In ${app.name}`, detail: null };
-    if (app.category === "browser") return { kind: "browsing", label: "Browsing", detail: null };
+    if (app.category === "browser") return s.media?.source === "browser" && s.media.state === "playing" ? { kind: "watching", label: `Watching something in ${app.name}`, detail: null } : { kind: "browsing", label: "Browsing", detail: null };
+    if (app.category === "ai") return { kind: "ai", label: `In ${app.name}`, detail: null };
+    if (app.category === "files") return { kind: "files", label: "In the file manager", detail: null };
+    if (app.category === "notes") return { kind: "writing", label: `In ${app.name}`, detail: null };
+    if (app.category === "tool") return { kind: "tool", label: `In ${app.name}`, detail: null };
     if (app.category === "media") return { kind: "watching", label: `In ${app.name}`, detail: null };
     return { kind: "other", label: `In ${app.name}`, detail: null };
   }
@@ -261,6 +319,8 @@ export interface Live {
   /** When the current doing began (same label and repo/site, no long gap). */
   doingSince: string | null;
   playing: { label: string; detail: string | null } | null;
+  /** The last few minutes, boiled down (see recent.ts); filled in by the server. */
+  recent?: import("./recent").DeskRecent | null;
 }
 
 /** The key that says two samples are the same activity. */
