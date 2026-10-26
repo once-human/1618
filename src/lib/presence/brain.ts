@@ -83,7 +83,7 @@ export function think(i: BrainInput): BrainOut | null {
   if (call) {
     devices.add("laptop");
     const forMs = now - Date.parse(call.since);
-    return { text: `${call.label}.`, note: forMs >= 15 * MIN ? `${dur(forMs)} in` : undefined, devices: [...devices] };
+    return { text: `${call.sure ? call.label : `Probably o${call.label.slice(1)}`}.`, note: forMs >= 15 * MIN ? `${dur(forMs)} in` : undefined, devices: [...devices] };
   }
 
   // ---- code, with whatever plays alongside ----

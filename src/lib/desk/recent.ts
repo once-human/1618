@@ -15,7 +15,8 @@ export interface DeskRecent {
   /** The last time the Claude app was in front of me, in the last 15 minutes. */
   claudeAt: string | null;
   /** A call going on now (the microphone is recording). */
-  call: { label: string; since: string } | null;
+  /** `sure`: the microphone has been on for five minutes straight; before that (but past four checks) it's only a guess. */
+  call: { label: string; since: string; sure: boolean } | null;
   /** A stretch of chatting: five minutes or more in a chat app in the last twenty. */
   chat: { name: string; minutes: number } | null;
   /** What's playing on the laptop right now, and since when. */
@@ -73,7 +74,10 @@ export function recent(samples: Sample[], now: number): DeskRecent {
   if (last?.call && Date.parse(last.t) >= now - 4 * MIN) {
     let since = last.t;
     for (let i = ss.length - 1; i >= 0 && ss[i].call; i--) since = ss[i].t;
-    call = { label: callLabel(last), since };
+    // Four checks in a row (about 90 seconds) is "probably a call"; five minutes straight is a call.
+    // A burst of dictation shorter than that never gets a mention.
+    const forMs = Date.parse(last.t) - Date.parse(since);
+    if (forMs >= 90_000) call = { label: callLabel(last), since, sure: forMs >= 5 * MIN };
   }
 
   // Chat: dwell in chat apps over the last 20 minutes.

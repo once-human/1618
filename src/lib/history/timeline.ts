@@ -7,6 +7,7 @@ import type { SavedPin, TodayEvent } from "@/lib/presence/types";
 import { appleSong, ghEvents, ghRecentCommits } from "@/lib/presence/server";
 import { parseCredit } from "./credits";
 import { spansBetween } from "@/lib/desk/server";
+import type { Span } from "@/lib/desk/model";
 import { nightsIn, withMusic } from "@/lib/presence/sleep";
 import { sleepInputs } from "@/lib/presence/sleepData";
 import { puneClock } from "@/lib/time";
@@ -228,15 +229,18 @@ async function buildTimeline(HOURS: number): Promise<{ hours: number; events: To
     else if (s.kind === "coding") cur.apps.add(s.label);
     if (s.detail && !s.detail.includes(".")) cur.repos.set(s.detail, (cur.repos.get(s.detail) ?? 0) + (to - from));
   }
-  for (const run of runs) {
-    const near = sessions.find((x) => run.from <= x.to + 20 * 60_000 && run.to >= x.from - 20 * 60_000);
+  // A run of pushes joins the work session it overlaps only when that session is on the same project (or the laptop
+  // couldn't tell which). Pushes to another repo get a row of their own, so a push to desk-agent never turns
+  // into a push to 1618. Biggest runs first, so the busiest project names an unnamed session.
+  for (const run of [...runs].sort((a, b) => b.n - a.n)) {
+    const near = sessions.find((x) => run.from <= x.to + 20 * 60_000 && run.to >= x.from - 20 * 60_000 && (!x.repos.size || x.repos.has(run.repo)));
     if (near) {
       near.repos.set(run.repo, (near.repos.get(run.repo) ?? 0) + 1);
       near.pushes += run.n;
       near.from = Math.min(near.from, run.from);
       near.to = Math.max(near.to, run.to);
     } else {
-      // Pushed with no laptop record (the agent was off, or Claude Code pushed from the cloud).
+      // Pushed with no laptop record (the agent was off, or Claude Code pushed from the cloud), or to another project.
       sessions.push({ from: run.from, to: run.to, active: 0, claude: 0, repos: new Map([[run.repo, 1]]), apps: new Set(), pushes: run.n });
     }
   }
@@ -276,8 +280,17 @@ async function buildTimeline(HOURS: number): Promise<{ hours: number; events: To
   }
 
   // Calls, long chats, YouTube and Netflix: stretches of the same thing with gaps under 10 minutes.
-  const stretches: { key: string; label: string; kind: string; from: number; to: number; total: number }[] = [];
-  for (const s of spans) {
+  const stretches: { key: string; label: string; kind: string; from: number; to: number; total: number; longest: number }[] = [];
+  // A call is the microphone on for four checks in a row (about 90 seconds) or more: shorter bursts of
+  // dictation don't count. Five minutes straight is "on a call"; less is "probably".
+  const callRuns: Span[] = [];
+  for (const s of spans.filter((x) => x.kind === "call")) {
+    const last = callRuns[callRuns.length - 1];
+    if (last && last.label === s.label && Date.parse(s.start) - Date.parse(last.end) <= 60_000) last.end = s.end;
+    else callRuns.push({ ...s });
+  }
+  const usable = [...callRuns.filter((r) => Date.parse(r.end) - Date.parse(r.start) >= 90_000), ...spans.filter((x) => x.kind !== "call")].sort((a, b) => a.start.localeCompare(b.start));
+  for (const s of usable) {
     const k = s.kind === "call" ? `call|${s.label}` : s.kind === "chat" ? `chat|${s.label}` : s.kind === "watching" ? `watch|${s.label}` : null;
     if (!k) continue;
     const from = Date.parse(s.start);
@@ -286,15 +299,16 @@ async function buildTimeline(HOURS: number): Promise<{ hours: number; events: To
     if (cur && from - cur.to < 10 * 60_000) {
       cur.to = Math.max(cur.to, to);
       cur.total += to - from;
-    } else stretches.push({ key: k, label: s.label, kind: s.kind, from, to, total: to - from });
+      cur.longest = Math.max(cur.longest, to - from);
+    } else stretches.push({ key: k, label: s.label, kind: s.kind, from, to, total: to - from, longest: to - from });
   }
   for (const x of stretches) {
-    const min = x.kind === "call" ? 5 : x.kind === "chat" ? 5 : 30;
+    const min = x.kind === "call" ? 1.5 : x.kind === "chat" ? 5 : 30;
     if (x.total < min * 60_000) continue;
     const name = x.label.replace(/^(On|In|Watching) /, "");
     const title =
       x.kind === "call"
-        ? `${x.label}, ${hm(x.total)}`
+        ? `${x.longest >= 5 * 60_000 ? x.label : `Probably o${x.label.slice(1)}`}, ${hm(x.total)}`
         : x.kind === "chat"
           ? `Texting on ${name}, ${hm(x.total)}`
           : x.label === "Watching YouTube"

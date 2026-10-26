@@ -47,9 +47,13 @@ test("nothing going on is null", () => {
 });
 
 test("a call beats everything", () => {
-  const out = think({ ...base, music: song, desk: desk({ call: { label: "On a call on Google Meet", since: ago(20) } }) });
+  const out = think({ ...base, music: song, desk: desk({ call: { label: "On a call on Google Meet", since: ago(20), sure: true } }) });
   assert.match(out!.text, /^On a call on Google Meet\.$/);
   assert.equal(out!.note, "20 minutes in");
+});
+test("a short stretch of mic is only probably a call", () => {
+  const out = think({ ...base, desk: desk({ call: { label: "On a call on Google Meet", since: ago(3), sure: false } }) });
+  assert.match(out!.text, /^Probably on a call on Google Meet\.$/);
 });
 test("other video is Netflix", () => {
   assert.match(think({ ...base, desk: desk({ media: { source: "browser", title: null, artist: null, videos: null, since: ago(5), browser: "Chrome" } }) })!.text, /Netflix/);
