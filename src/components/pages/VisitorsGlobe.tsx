@@ -18,7 +18,8 @@ const D2R = Math.PI / 180;
 const MAX_LAT = 1.35; // radians: stop short of the poles so it never flips
 const MIN_S = 0.75;
 const MAX_S = 6;
-const HOME_S = 1.55; // opens close enough to read the towns, with the limb still showing
+const HOME_S = 1; // where it opens
+const BUSIEST_S = 1.5; // where the "Busiest part" button takes you
 const SPIN = 0.00007; // radians per millisecond: a turn in about 90 seconds
 const EARTH_KM = 6371;
 const key = (p: GPlace) => `${p.city}|${p.country}`;
@@ -133,7 +134,7 @@ export function VisitorsGlobe({ places, live, shown, onHover, onPin, goto, total
   const [fine, setFine] = useState<{ v: Float32Array; deg: number } | null>(null);
   const [spin, setSpin] = useState(() => typeof window === "undefined" || !matchMedia("(prefers-reduced-motion: reduce)").matches);
   const [hint, setHint] = useState(false);
-  const [atHome, setAtHome] = useState(true);
+  const [atBusiest, setAtBusiest] = useState(false);
   const [facts, setFacts] = useState("");
 
   const placed = useMemo(() => places.filter((p) => p.lat != null && p.lon != null), [places]);
@@ -579,8 +580,8 @@ export function VisitorsGlobe({ places, live, shown, onHover, onPin, goto, total
         } else text(coordEl.current, "");
       } else text(coordEl.current, `${dms(s.lat / D2R, s.lon / D2R)} · centre`);
 
-      const homeNow = Math.abs(wrap(s.lon - P.open.lon)) < 0.01 && Math.abs(s.lat - P.open.lat) < 0.01 && Math.abs(s.s - HOME_S) < 0.02;
-      setAtHome((c) => (c === homeNow ? c : homeNow));
+      const homeNow = Math.abs(wrap(s.lon - P.open.lon)) < 0.01 && Math.abs(s.lat - P.open.lat) < 0.01 && Math.abs(s.s - BUSIEST_S) < 0.05;
+      setAtBusiest((c) => (c === homeNow ? c : homeNow));
 
       if (moving) s.raf = requestAnimationFrame(draw);
       else if (liveNow) s.raf = requestAnimationFrame(tick);
@@ -759,7 +760,7 @@ export function VisitorsGlobe({ places, live, shown, onHover, onPin, goto, total
           </button>
         </div>
         <div className="absolute bottom-2 left-2 z-10 flex flex-wrap gap-1 text-[13px]" onPointerDown={(e) => e.stopPropagation()} onPointerUp={(e) => e.stopPropagation()}>
-          <button type="button" className={pill} disabled={atHome} onClick={() => flyTo(open, HOME_S)}>
+          <button type="button" className={pill} disabled={atBusiest} onClick={() => flyTo(open, BUSIEST_S)}>
             Busiest part
           </button>
           <button type="button" className={spin ? pill.replace("bg-paper", "bg-ink text-paper").replace("hover:bg-ink hover:text-paper", "") : pill} aria-pressed={spin} onClick={() => setSpin((v) => !v)}>
