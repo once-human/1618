@@ -162,7 +162,7 @@ export interface SavedPin {
 
 /** One thing I did today, for the day's timeline. */
 export interface TodayEvent {
-  kind: "music" | "code" | "pin" | "move" | "sleep" | "desk";
+  kind: "music" | "code" | "pin" | "move" | "sleep" | "desk" | "call" | "chat" | "watch";
   at: string;
   /** For a run of songs: when it ended. */
   until?: string;

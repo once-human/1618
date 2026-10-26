@@ -6,7 +6,7 @@ import { Preview } from "@/components/live/Preview";
 import { puneClock, puneDayLabel } from "@/lib/time";
 import type { TodayEvent } from "@/lib/presence/types";
 
-const KIND: Record<TodayEvent["kind"], string> = { music: "music", code: "code", pin: "saved", move: "moved", sleep: "sleep", desk: "laptop" };
+const KIND: Record<TodayEvent["kind"], string> = { music: "music", code: "code", pin: "saved", move: "moved", sleep: "sleep", desk: "laptop", call: "call", chat: "chat", watch: "watching" };
 
 /**
  * The last seven days across everything, like a diary that writes itself:

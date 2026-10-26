@@ -239,9 +239,10 @@ async function buildTimeline(HOURS: number): Promise<{ hours: number; events: To
     // The project comes first. If the laptop didn't see which one, take the nearest push or session that did.
     let repo = repoOf(x);
     if (!repo && x.claude >= 20 * 60_000) {
+      // Up to half a day away: with no push of its own, it is almost always the project just worked on.
       const near = [...runs.map((r) => ({ repo: r.repo, from: r.from, to: r.to })), ...sessions.filter((y) => y !== x && repoOf(y)).map((y) => ({ repo: repoOf(y)!, from: y.from, to: y.to }))]
         .map((r) => ({ repo: r.repo, gap: Math.max(r.from - x.to, x.from - r.to, 0) }))
-        .filter((r) => r.gap <= 3 * 3600_000)
+        .filter((r) => r.gap <= 12 * 3600_000)
         .sort((a, b) => a.gap - b.gap)[0];
       repo = near?.repo ?? null;
     }
@@ -262,7 +263,7 @@ async function buildTimeline(HOURS: number): Promise<{ hours: number; events: To
       kind: "code",
       at: new Date(x.from).toISOString(),
       until: x.to - x.from > 60_000 ? new Date(x.to).toISOString() : undefined,
-      title: repo ? `Worked on ${repo}${length}` : `Worked on something${length}`,
+      title: repo ? `Worked on ${repo}${length}` : `Worked with Claude Code${length}`,
       detail: [withClaude ? "with Claude Code" : null, pushes, builtTo].filter(Boolean).join(" · ") || null,
       url: repo ? `https://github.com/${GH_USER}/${repo}` : null,
       songs: songs.length > 1 ? songs : undefined,
@@ -294,7 +295,7 @@ async function buildTimeline(HOURS: number): Promise<{ hours: number; events: To
           : x.label === "Watching YouTube"
             ? `On YouTube for ${hm(x.total)}`
             : `${x.label}, ${hm(x.total)}`;
-    out.push({ kind: "desk", at: new Date(x.from).toISOString(), until: new Date(x.to).toISOString(), title, detail: null, url: null });
+    out.push({ kind: x.kind === "call" ? "call" : x.kind === "chat" ? "chat" : "watch", at: new Date(x.from).toISOString(), until: new Date(x.to).toISOString(), title, detail: null, url: null });
   }
   // Music during a work session says so.
   for (const e of out)
