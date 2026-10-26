@@ -11,14 +11,14 @@ export function inBed(
   presence: Presence | null | undefined,
   now: number,
   lastPinAt?: string | null,
-  /** Music is ignored for the first two hours (I fall asleep to it), then playing something means I'm up. The laptop being used counts after ten minutes. */
+  /** Music is ignored for the first two hours (I fall asleep to it), then playing something means I'm up. Anything else (laptop, push, pin, status) counts after the first hour. */
   also?: { musicAt?: string | null; deskAt?: string | null },
 ): Bedtime | null {
   const b = presence?.bedtime;
   if (!b || Date.parse(b.until) <= now) return null;
   const bed = Date.parse(b.at);
-  const after = bed + 10 * 60_000;
-  if (presence.status && Date.parse(presence.status.setAt) > bed) return null;
+  const after = bed + 3600_000;
+  if (presence.status && Date.parse(presence.status.setAt) > after) return null;
   if (presence.github && Date.parse(presence.github.at) > after) return null;
   if (lastPinAt && Date.parse(lastPinAt) > after) return null;
   if (also?.deskAt && Date.parse(also.deskAt) > after) return null;
