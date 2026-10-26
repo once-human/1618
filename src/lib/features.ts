@@ -8,6 +8,7 @@ import { getSaved } from "@/lib/presence/pinterest";
 import { soundtrack } from "@/lib/history/soundtrack";
 import { owner, telegramConfigured } from "@/lib/talk/telegram";
 import { projects } from "@/content/projects";
+import { getLive as getDesk } from "@/lib/desk/server";
 import { skyAt } from "@/lib/sky";
 
 /**
@@ -45,7 +46,7 @@ export async function checkFeatures(): Promise<Feature[]> {
   cacheLife({ stale: 30, revalidate: 60, expire: 300 });
 
   const withRepo = projects.filter((p) => p.repo);
-  const [presence, tracks, saved, counts, today, me, statusKv, soundtracks, setPlace, lastBed] = await Promise.all([
+  const [presence, tracks, saved, counts, today, me, statusKv, soundtracks, setPlace, lastBed, desk] = await Promise.all([
     getPresence(),
     getMusic().catch(() => null),
     getSaved(4).catch(() => null),
@@ -72,6 +73,7 @@ export async function checkFeatures(): Promise<Feature[]> {
     Promise.all(withRepo.map((p) => soundtrack(p.repo!).catch(() => null))),
     getPlace(),
     lastBedtime(),
+    getDesk(),
   ]);
   const c = counts?.[0];
   const now = Date.now();
@@ -187,7 +189,7 @@ export async function checkFeatures(): Promise<Feature[]> {
       id: "bedtime",
       group: "From my day",
       name: "Gone to bed",
-      what: "When I say \"Hey Siri, good night\", my phone tells the site. It says when I went to bed for five hours (less if I'm clearly up again), and the timeline keeps it.",
+      what: "When I say \"Hey Siri, good night\", my phone tells the site. It says when I went to bed for seven hours. "Hey Siri, good morning" ends it, and so does doing something once I've been asleep a while (an hour for the laptop, a push or a pin, two for music). The timeline keeps it. When I haven't said anything, quiet nights read as slept.",
       where: [
         { href: "/", label: "home" },
         { href: "/now", label: "/now" },
@@ -198,6 +200,22 @@ export async function checkFeatures(): Promise<Feature[]> {
         if (bed) return `Went to bed at ${bedClock(bed, place.tz)}, ${ago(bed.at, now)}.`;
         return lastBed ? `Up. Last good night ${ago(lastBed.at, now)}, at ${bedClock(lastBed, place.tz)}.` : "Waiting for the first good night.";
       })(),
+    },
+    {
+      id: "laptop",
+      group: "From my day",
+      name: "My laptop",
+      what: "A small agent on my laptop says what I'm doing there: the app or site by name, the repo I'm in, whether Claude Code is working, what's playing. Never window titles, and YouTube is only ever \"YouTube\".",
+      where: [
+        { href: "/", label: "the status line" },
+        { href: "/now", label: "/now" },
+      ],
+      ok: desk.online ? true : null,
+      state: desk.online
+        ? `Reporting now: ${desk.doing?.label ?? "at the laptop"}${desk.doing?.detail ? ` (${desk.doing.detail})` : ""}.`
+        : desk.lastSeen
+          ? `Not reporting right now. Last heard ${ago(desk.lastSeen, now)}.`
+          : "The agent hasn't reported yet.",
     },
     {
       id: "place",
