@@ -9,7 +9,7 @@ import { clockIn, fmtNum, hourIn, timeAgo } from "@/lib/time";
 import { bedClock, inBed } from "@/lib/presence/asleep";
 import { bursts, sleepNow } from "@/lib/presence/sleep";
 import { allnighterLine, bedLine, lateLine, noSleepTail, pick, quietLine, wokeLine } from "@/lib/presence/voice";
-import { laptopLine, think } from "@/lib/presence/brain";
+import { laptopLine, phoneLine, think } from "@/lib/presence/brain";
 
 type State = "active" | "around" | "away";
 
@@ -17,9 +17,18 @@ const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 /** A line from voice.ts, with its **bold** bits. */
 function Words({ text }: { text: string }) {
+  // **bold**, and @@repo@@ for a repository: underlined, linking to it.
   return (
     <>
-      {text.split("**").map((part, i) => (i % 2 ? <span key={i} className="font-semibold">{part}</span> : part))}
+      {text.split(/(@@[^@]+@@)/).map((chunk, k) =>
+        chunk.startsWith("@@") ? (
+          <a key={k} href={`https://github.com/once-human/${chunk.slice(2, -2)}`} target="_blank" rel="noopener noreferrer" className="font-semibold underline decoration-1 underline-offset-4">
+            {chunk.slice(2, -2)}
+          </a>
+        ) : (
+          chunk.split("**").map((part, i) => (i % 2 ? <span key={`${k}-${i}`} className="font-semibold">{part}</span> : part))
+        ),
+      )}
     </>
   );
 }
@@ -89,7 +98,7 @@ export function Signals({ className = "" }: { className?: string }) {
   const prefix = guess?.state === "allnighter" ? allnighterLine(mine.label, seed("an")) + " " : guess?.state === "late" ? lateLine(mine.label, seed("late")) + " " : "";
   const tired = guess?.noSleep && guess.state === "awake" ? noSleepTail(seed("ns")) : "";
   // Everything live from both devices, folded into one sentence (see presence/brain.ts).
-  const brain = think({
+  const brainInput = {
     now,
     seed: seed("brain"),
     desk,
@@ -97,7 +106,8 @@ export function Signals({ className = "" }: { className?: string }) {
     push: presence.github ? { repo: presence.github.repo, at: presence.github.at } : null,
     pin: saved?.pins[0]?.at ? { at: saved.pins[0].at, board: saved.pins[0].board ?? null } : null,
     phoneAt: presence.health?.at ?? null,
-  });
+  };
+  const brain = think(brainInput);
 
   let state: State;
   let text: string;
@@ -169,7 +179,7 @@ export function Signals({ className = "" }: { className?: string }) {
           </>
         )}
         {!bed && guess?.woke ? <> {wokeLine(clock(guess.woke.at), guess.woke.hours, seed("woke"))}</> : null}
-        {laptopLine(desk) ? <> {laptopLine(desk)}</> : null}
+        {(laptopLine(desk) ?? (brain ? phoneLine(brainInput, brain.text) : null)) ? <> {laptopLine(desk) ?? phoneLine(brainInput, brain!.text)}</> : null}
         {typeof steps === "number" && steps > 0 ? <> {fmtNum(steps)} steps today.</> : null}
         {here && here.people > 0 ? <> {hereLine(here, others)}</> : null}
       </p>

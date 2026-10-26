@@ -92,13 +92,13 @@ export function quietLine(state: "probably" | "asleep" | "crashed" | "out", cloc
     case "probably":
       return fill(pick(["Probably asleep. Went quiet at **{clock}**.", "Quiet since **{clock}**. Probably out cold.", "Likely asleep, nothing since **{clock}**."], s), v);
     case "asleep":
-      return fill(pick(["Asleep since about **{clock}**.", "Out cold since **{clock}**.", "Sleeping. Last sign of life at **{clock}**.", "Asleep. Went quiet at **{clock}**, {dur} ago."], s), v);
+      return fill(pick(["Asleep since about **{clock}**.", "Sleeping. Last sign of life at **{clock}**.", "Asleep. Went quiet at **{clock}**, {dur} ago."], s), v);
     case "crashed":
-      return fill(pick(["Crashed, probably. No sleep last night, quiet since **{clock}**.", "Finally asleep, I'd guess. Quiet since **{clock}** after a night without any.", "The all-nighter caught up. Quiet since **{clock}**."], s), v);
+      return fill(pick(["Crashed, probably. No sleep last night, quiet since **{clock}**.", "Probably asleep after a night without any. Quiet since **{clock}**.", "No sleep last night, quiet since **{clock}**."], s), v);
     case "out":
       return forMs < 2 * 3600_000
-        ? fill(pick(["Stepped away. Back soon, probably.", "Away from the screen for {dur}.", "Away for a bit. Quiet since **{clock}**."], s), v)
-        : fill(pick(["Out somewhere. Quiet since **{clock}**.", "Probably outside. Nothing since **{clock}**.", "Off the grid since **{clock}**.", "Away from the screens, {dur} now. Out living, hopefully."], s), v);
+        ? fill(pick(["Stepped away.", "Away from the screen for {dur}.", "Away for a bit. Quiet since **{clock}**."], s), v)
+        : fill(pick(["Out somewhere. Quiet since **{clock}**.", "Probably out. Nothing since **{clock}**.", "Away from the screens, {dur} now."], s), v);
   }
 }
 
