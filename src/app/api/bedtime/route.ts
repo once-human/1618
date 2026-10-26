@@ -1,3 +1,4 @@
+import { revalidateTag } from "next/cache";
 import { connection } from "next/server";
 import { isAdmin } from "@/lib/db";
 import { BED_HOURS, endBedtime, getBedtime, goToBed } from "@/lib/presence/bedtime";
@@ -21,10 +22,13 @@ export async function POST(req: Request) {
   if (!(await isAdmin(req))) return new Response("Not allowed", { status: 401 });
   const bedtime = await goToBed("siri");
   if (!bedtime) return Response.json({ ok: false, reason: "couldn't reach the database" }, { status: 503 });
+  revalidateTag("timeline", { expire: 0 }); // the timeline says so at once
   return Response.json({ ok: true, bedtime });
 }
 
 export async function DELETE(req: Request) {
   if (!(await isAdmin(req))) return new Response("Not allowed", { status: 401 });
-  return Response.json({ ok: true, ended: await endBedtime() });
+  const ended = await endBedtime();
+  revalidateTag("timeline", { expire: 0 });
+  return Response.json({ ok: true, ended });
 }

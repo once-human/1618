@@ -1,5 +1,6 @@
 import { connection } from "next/server";
 import { isAdmin, kvGet, kvSet } from "@/lib/db";
+import { BUNDLED } from "@/lib/shortcuts";
 
 /**
  * Signed iPhone Shortcuts for feeding the site, downloadable from /admin.
@@ -13,8 +14,9 @@ export async function GET(_req: Request, ctx: RouteContext<"/api/shortcuts/[name
   const { name } = await ctx.params;
   if (!NAMES[name]) return new Response("Not found", { status: 404 });
   const file = await kvGet<{ b64: string }>(`shortcut:${name}`);
-  if (!file) return new Response("Not uploaded yet", { status: 404 });
-  return new Response(Buffer.from(file.value.b64, "base64"), {
+  const b64 = file?.value.b64 ?? BUNDLED[name];
+  if (!b64) return new Response("Not uploaded yet", { status: 404 });
+  return new Response(Buffer.from(b64, "base64"), {
     headers: {
       "Content-Type": "application/octet-stream",
       "Content-Disposition": `attachment; filename="${NAMES[name]}.shortcut"`,

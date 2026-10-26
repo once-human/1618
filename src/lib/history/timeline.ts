@@ -1,5 +1,5 @@
 import "server-only";
-import { cacheLife } from "next/cache";
+import { cacheLife, cacheTag } from "next/cache";
 import { q } from "@/lib/db";
 import { scrobbles, type Scrobble } from "@/lib/presence/lastfm";
 import { getSaved } from "@/lib/presence/pinterest";
@@ -7,7 +7,7 @@ import type { SavedPin, TodayEvent } from "@/lib/presence/types";
 import { appleSong, ghEvents } from "@/lib/presence/server";
 import { parseCredit } from "./credits";
 import { spansBetween } from "@/lib/desk/server";
-import { bursts, nightsIn } from "@/lib/presence/sleep";
+import { nightsIn, withMusic } from "@/lib/presence/sleep";
 import { sleepInputs } from "@/lib/presence/sleepData";
 import { puneClock } from "@/lib/time";
 
@@ -33,6 +33,7 @@ const HOURS = 24 * 30;
 export async function getTimeline(): Promise<{ hours: number; events: TodayEvent[] }> {
   "use cache: remote";
   cacheLife({ stale: 60, revalidate: 120, expire: 900 });
+  cacheTag("timeline"); // saying good night refreshes it at once (api/bedtime)
   return buildTimeline(HOURS);
 }
 
@@ -319,10 +320,20 @@ async function buildTimeline(HOURS: number): Promise<{ hours: number; events: To
     handsOn.push(to);
   }
   const clockOf = (ms: number) => puneClock(new Date(ms).toISOString());
-  const night = nightsIn({ now, tz: "Asia/Kolkata", bursts: bursts(handsOn.filter(Number.isFinite)), past: sleepIn?.past ?? [], horizon: HOURS * 3600_000, told });
+  const night = nightsIn({ now, tz: "Asia/Kolkata", bursts: withMusic(handsOn.filter(Number.isFinite), list.map((p) => p.uts * 1000)), past: sleepIn?.past ?? [], horizon: HOURS * 3600_000, told });
   for (const n of night) {
     if (n.kind === "allnighter") {
       out.push({ kind: "sleep", at: new Date(n.at).toISOString(), title: "Pulled an all-nighter", detail: "no sleep that night, still up after 7 am", url: null });
+    } else if (n.kind === "nap") {
+      if (n.from < now - HOURS * 3600_000 + 3600_000) continue;
+      out.push({
+        kind: "sleep",
+        at: new Date(n.from).toISOString(),
+        until: n.ongoing ? undefined : new Date(n.to).toISOString(),
+        title: n.ongoing ? "Napping, probably" : `Nap, about ${hours(n.to - n.from)}`,
+        detail: "quiet in the day after a night with no sleep",
+        url: null,
+      });
     } else if (n.kind === "restless") {
       out.push({ kind: "sleep", at: new Date(n.at).toISOString(), title: "Said good night, didn't sleep", detail: n.upAt ? `up again at ${clockOf(n.upAt)}` : "still up", url: null });
     } else if (n.told) {
@@ -333,7 +344,7 @@ async function buildTimeline(HOURS: number): Promise<{ hours: number; events: To
         kind: "sleep",
         at: new Date(n.from).toISOString(),
         until: n.ongoing ? undefined : new Date(n.to).toISOString(),
-        title: n.ongoing ? "Went to bed" : `Slept ${hours(n.to - n.from)}`,
+        title: n.ongoing ? "Said good night" : `Slept ${hours(n.to - n.from)}`,
         detail: parts.join(", "),
         url: null,
       });

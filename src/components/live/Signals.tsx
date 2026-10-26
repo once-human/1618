@@ -96,8 +96,9 @@ export function Signals({ className = "" }: { className?: string }) {
         tz: place.tz,
         bursts: bursts([
           ...sleepIn.bursts.flat(),
-          ...signals.map((s) => Date.parse(s.at)),
-          ...(playing || (desk?.online && desk.active) ? [now] : []),
+          // Music isn't in here: it only counts once it has gone on a while, which the stored history already says (see withMusic).
+          ...signals.filter((s) => !s.what.startsWith("played ")).map((s) => Date.parse(s.at)),
+          ...(desk?.online && desk.active ? [now] : []),
           ...(presence.status ? [Date.parse(presence.status.setAt)] : []),
         ]),
         past: sleepIn.past,

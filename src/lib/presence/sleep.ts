@@ -39,10 +39,12 @@ const MIN = 60_000;
 const HOUR = 60 * MIN;
 export const PROBABLY_AFTER = 45 * MIN;
 export const SURE_AFTER = 2 * HOUR;
-const CRASH_AFTER = 90 * MIN;
+const CRASH_AFTER = HOUR; // a nap after a night without sleep counts from an hour, like any sleep
 const MAIN_SLEEP = 3 * HOUR;
 /** Shorter than this, night or day, it wasn't sleep and isn't noted. */
 export const MIN_SLEEP = HOUR;
+/** How long after "good night" I can still be up before it stops saying I went to bed (see presence/asleep.ts). */
+const BED_GRACE = 30 * MIN;
 /** How long the site says "in bed" after a good night (see presence/bedtime.ts). */
 const BED_MS = 7 * HOUR;
 const FIXED: [number, number] = [23 * 60, 10 * 60];
@@ -56,6 +58,29 @@ export function bursts(points: number[]): Burst[] {
     else out.push([p, p]);
   }
   return out;
+}
+
+/**
+ * Music alone says I'm up only once it has gone on a while. I fall asleep to
+ * it, so the first 30 minutes after I last did anything (or after it started,
+ * if that was later) don't count; if it's still going after that, I'm up.
+ * `hands` are the moments I did something myself, `plays` the music's.
+ */
+export const MUSIC_GRACE = 30 * MIN;
+export function withMusic(hands: number[], plays: number[]): Burst[] {
+  const h = bursts(hands);
+  const kept: number[] = [];
+  let start = -Infinity;
+  let prev = -Infinity;
+  let i = 0;
+  for (const p of [...plays].filter(Number.isFinite).sort((a, b) => a - b)) {
+    if (p - prev >= 10 * MIN) start = p; // a new stretch of music
+    prev = p;
+    while (i < h.length && h[i][0] <= p) i++;
+    const lastHands = i ? h[i - 1][1] : -Infinity;
+    if (p - Math.max(start, lastHands) >= MUSIC_GRACE) kept.push(p);
+  }
+  return bursts([...hands, ...kept]);
 }
 
 export const localMin = (ms: number, tz: string) => {
@@ -170,15 +195,17 @@ export type Night =
   /** Said good night but stayed up (or was up again within the hour): not a sleep. */
   | { kind: "restless"; at: number; upAt: number | null }
   /** Still up after 7 am with no sleep since the evening before. `at` is that night's midnight. */
-  | { kind: "allnighter"; at: number };
+  | { kind: "allnighter"; at: number }
+  /** Quiet for an hour or more in the day after a night with no sleep: probably a nap. (Quiet after a night I did sleep is just being out.) */
+  | { kind: "nap"; from: number; to: number; ongoing: boolean };
 
 const localDate = (ms: number, tz: string) => new Intl.DateTimeFormat("en-CA", { timeZone: tz }).format(new Date(ms));
 
 /**
  * For the timeline: every sleep of an hour or more, every good night that
- * didn't turn into sleep, and every night I never slept. Pass `bursts` of
- * things only I do (the laptop in use, pushes, pins), not music: I fall asleep
- * to it, so it can't say I'm up.
+ * didn't turn into sleep, and every night I never slept, with the nap that
+ * follows one. Pass `bursts` from withMusic: things I do myself, plus music
+ * once it has gone on past the half hour I fall asleep to it.
  *
  * - A good night starts a sleep once I've been quiet an hour: anything I do
  *   within the hour after it (or after the last thing I did) means I wasn't
@@ -212,7 +239,10 @@ export function nightsIn(input: Input & { told?: Told[] }): Night[] {
     const end = ongoing ? now : stop;
     const up = t.ended ?? (wake < Infinity ? wake : null);
     if (end - cur < MIN_SLEEP) {
-      if (ongoing && end >= t.at) out.push({ kind: "slept", from: t.at, to: now, ongoing: true, told: true, goodNight: t.at, upAt: null });
+      // It shows the moment I say good night. It stays as that for the first half hour, and a little longer while
+      // I've been quiet less than an hour; still doing things after the half hour, it turns into "didn't sleep".
+      const stillUp = cur >= now - 10 * MIN;
+      if (ongoing && end >= t.at && !(now - t.at >= BED_GRACE && stillUp)) out.push({ kind: "slept", from: t.at, to: now, ongoing: true, told: true, goodNight: t.at, upAt: null });
       else out.push({ kind: "restless", at: t.at, upAt: up });
       return;
     }
@@ -238,7 +268,17 @@ export function nightsIn(input: Input & { told?: Told[] }): Night[] {
     if (x.hours.size < 3 || !x.after7) continue;
     const midnight = Math.round((x.ref - localMin(x.ref, tz) * MIN) / MIN) * MIN;
     const slept = out.some((n) => n.kind === "slept" && n.from < midnight + 7 * HOUR && n.to > midnight - 3 * HOUR);
-    if (!slept) out.push({ kind: "allnighter", at: midnight });
+    if (slept) continue;
+    out.push({ kind: "allnighter", at: midnight });
+    // The day after: an hour or more quiet, starting between 07:00 and 22:00, is probably a nap (even a guessed
+    // "sleep" from the quiet of the morning: after a night without sleep that's what it is).
+    const day = (from: number) => from >= midnight + 7 * HOUR && from < midnight + 22 * HOUR;
+    out.forEach((n, i) => {
+      if (n.kind === "slept" && !n.told && day(n.from)) out[i] = { kind: "nap", from: n.from, to: n.to, ongoing: n.ongoing };
+    });
+    for (const g of gaps)
+      if (g.to - g.from >= MIN_SLEEP && day(g.from) && !out.some((n) => (n.kind === "slept" || n.kind === "nap") && n.from < g.to && n.to > g.from))
+        out.push({ kind: "nap", from: g.from, to: g.to, ongoing: g.ongoing });
   }
   return out;
 }

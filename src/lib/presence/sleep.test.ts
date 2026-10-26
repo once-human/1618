@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { bursts, nightsIn, sleepNow } from "./sleep";
+import { bursts, nightsIn, sleepNow, withMusic } from "./sleep";
 
 const TZ = "Asia/Kolkata";
 // IST helper: day 0 = 2026-10-26.
@@ -99,4 +99,46 @@ test("quiet at the laptop that ends with a good night was not sleep", () => {
   const past = [{ at: at(1, 3, 42), endedAt: at(1, 4, 8) }];
   const r = sleepNow({ now: at(1, 4, 14), tz: TZ, bursts: bursts([...pts, ...every(at(1, 4, 8), at(1, 4, 14))]), past });
   assert.equal(r.woke, null);
+});
+
+test("music for the half hour after I stop is falling asleep to it; after that I'm up", () => {
+  const hands = every(at(0, 20), at(0, 23));
+  // Songs every four minutes from 23:00.
+  const shortMusic = every(at(0, 23, 4), at(0, 23, 28), 4 * 60_000);
+  assert.deepEqual(withMusic(hands, shortMusic), bursts(hands));
+  const longMusic = every(at(0, 23, 4), at(1, 1), 4 * 60_000);
+  const b = withMusic(hands, longMusic);
+  assert.equal(b[b.length - 1][1] > at(1, 0, 50), true); // still going at 1 am: up
+  assert.equal(b.some(([s, e]) => s <= at(0, 23, 20) && e >= at(0, 23, 20) && s > at(0, 23)), false); // the first half hour doesn't count
+});
+test("music that starts while I'm already quiet gets its own half hour", () => {
+  const hands = every(at(0, 20), at(0, 21));
+  const m = every(at(0, 23), at(0, 23, 28), 4 * 60_000);
+  assert.deepEqual(withMusic(hands, m), bursts(hands));
+});
+test("a night of music alone is still a sleep", () => {
+  const hands = every(at(0, 20), at(0, 23, 30));
+  const music = every(at(0, 23, 34), at(0, 23, 58), 4 * 60_000); // an album's first half hour
+  const n = night(withMusic(hands, music).flat(), at(1, 9), [{ at: at(0, 23, 31), ended: null }]);
+  void n;
+  const nn = nightsIn({ now: at(1, 9), tz: TZ, bursts: withMusic(hands, music), past: [], told: [{ at: at(0, 23, 31), ended: at(1, 7) }] });
+  assert.ok(nn.some((x) => x.kind === "slept" && x.told));
+});
+test("quiet in the day after an all-nighter is a nap; after a night I slept it's just being out", () => {
+  const up = [...every(at(0, 18), at(1, 8)), ...every(at(1, 11), at(1, 12))];
+  const after = nightsIn({ now: at(1, 16), tz: TZ, bursts: bursts(up), past: [] });
+  const nap = after.find((x) => x.kind === "nap");
+  assert.ok(nap && nap.kind === "nap" && nap.from === at(1, 8));
+  const slept = [...every(at(0, 18), at(0, 23, 30)), ...every(at(1, 7), at(1, 8)), ...every(at(1, 11), at(1, 12))];
+  assert.ok(!nightsIn({ now: at(1, 16), tz: TZ, bursts: bursts(slept), past: [] }).some((x) => x.kind === "nap"));
+});
+
+test("a good night shows at once, and turns into 'didn't sleep' if I'm still working half an hour later", () => {
+  const gn = at(1, 3, 42);
+  const pts = every(at(0, 20), at(1, 4, 20));
+  const soon = night(pts.filter((t) => t <= at(1, 3, 50)), at(1, 3, 50), [{ at: gn, ended: null }]);
+  assert.ok(soon.some((x) => x.kind === "slept" && x.ongoing && x.told)); // "Said good night"
+  const later = night(pts, at(1, 4, 20), [{ at: gn, ended: null }]);
+  assert.ok(later.some((x) => x.kind === "restless"));
+  assert.ok(!later.some((x) => x.kind === "slept"));
 });

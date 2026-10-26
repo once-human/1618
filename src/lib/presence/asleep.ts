@@ -4,25 +4,25 @@ import { clockIn } from "@/lib/time";
 /**
  * Is "went to bed" still true? It is for seven hours after "Hey Siri, good
  * night", unless I've clearly got up since: a status I set afterwards, or a
- * push or a pin more than ten minutes after it. Music doesn't count; I fall
- * asleep to it. Shared by every place that says where I am, so they agree.
+ * push or a pin more than half an hour after it. Music only counts once it has gone
+ * on past half an hour (I fall asleep to it). Shared by every place that says where I am, so they agree.
  */
 export function inBed(
   presence: Presence | null | undefined,
   now: number,
   lastPinAt?: string | null,
-  /** Music is ignored for the first two hours (I fall asleep to it), then playing something means I'm up. Anything else (laptop, push, pin, status) counts after the first hour. */
+  /** Music is ignored for the first half hour (I fall asleep to it); still playing after that means I'm up. Anything else (laptop, push, pin, status) counts after the first half hour. */
   also?: { musicAt?: string | null; deskAt?: string | null },
 ): Bedtime | null {
   const b = presence?.bedtime;
   if (!b || Date.parse(b.until) <= now) return null;
   const bed = Date.parse(b.at);
-  const after = bed + 3600_000;
+  const after = bed + 30 * 60_000;
   if (presence.status && Date.parse(presence.status.setAt) > after) return null;
   if (presence.github && Date.parse(presence.github.at) > after) return null;
   if (lastPinAt && Date.parse(lastPinAt) > after) return null;
   if (also?.deskAt && Date.parse(also.deskAt) > after) return null;
-  if (also?.musicAt && Date.parse(also.musicAt) > bed + 2 * 3600_000) return null;
+  if (also?.musicAt && Date.parse(also.musicAt) > bed + 30 * 60_000) return null;
   return b;
 }
 
