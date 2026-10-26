@@ -290,7 +290,7 @@ const CURATED: { has: string[]; id: number; art: string; link: string }[] = [
 ];
 
 /** Bump when AppleSong gains fields, so weeks-old cached lookups are redone. */
-const APPLE_SHAPE = 6;
+const APPLE_SHAPE = 7;
 
 /** The dominant colour of a cover image, as #rrggbb. */
 async function coverTint(url: string | null): Promise<string | null> {
@@ -348,6 +348,39 @@ async function artistSongs(name: string) {
     "apple lookup",
   );
   return { ok: songs.ok, results: (songs.data?.results ?? []).filter((r) => r.wrapperType === "track") };
+}
+
+/**
+ * Songs inside an album, read off its Apple Music page, for albums whose tracks
+ * the public API won't list (DJ mixes). Each comes with its own Apple id, and
+ * a lookup by id gives the real clip, link and cover. Best effort: if the page
+ * can't be read this finds nothing and the other sources carry on.
+ */
+async function albumSongIds(album: string): Promise<{ ok: boolean; songs: { name: string; id: number }[] }> {
+  const found = await fetchJson<{ results?: { collectionId: number; collectionName: string }[] }>(
+    `${ITUNES}/search?term=${encodeURIComponent(stripRelease(album))}&entity=album&limit=10&country=in`,
+    "apple album",
+  );
+  if (!found.ok) return { ok: false, songs: [] };
+  const hit = found.data?.results?.find((a) => nameSim(stripRelease(a.collectionName), stripRelease(album)) >= 0.9);
+  if (!hit) return { ok: true, songs: [] };
+  try {
+    const res = await fetch(`https://music.apple.com/in/album/${hit.collectionId}`, {
+      headers: { "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Safari/605.1.15" },
+      redirect: "follow",
+      signal: AbortSignal.timeout(TIMEOUT),
+    });
+    if (!res.ok) return { ok: false, songs: [] };
+    const html = await res.text();
+    const songs = [...html.matchAll(/"@type":"MusicRecording","name":"((?:[^"\\]|\\.)*)"[^]*?\/song\/[^"]*?\/(\d+)"/g)].map((m) => ({
+      name: JSON.parse(`"${m[1]}"`) as string,
+      id: Number(m[2]),
+    }));
+    return { ok: true, songs };
+  } catch (e) {
+    console.warn(`[music] album page error: ${(e as Error).message}`);
+    return { ok: false, songs: [] };
+  }
 }
 
 interface DeezerTrack {
@@ -476,6 +509,19 @@ export async function appleSong(
       if (!ok) failed = true;
       consider(results);
       if (sure()) break;
+    }
+  }
+
+  // 2b. The album's own page, for tracks that only exist inside a mix: find the song by name, then look it up by id
+  if (!sure() && album) {
+    const { ok, songs } = await albumSongIds(album);
+    if (!ok) failed = true;
+    const mine = norm(track);
+    const song = songs.find((x) => nameSim(x.name, track) >= 0.9 || norm(x.name) === mine);
+    if (song) {
+      const byId = await fetchJson<{ results?: ItunesResult[] }>(`${ITUNES}/lookup?id=${song.id}&country=in`, "apple lookup by id");
+      if (!byId.ok) failed = true;
+      consider(byId.data?.results ?? []);
     }
   }
 

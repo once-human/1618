@@ -104,7 +104,7 @@ export async function getTimeline(): Promise<{ hours: number; events: TodayEvent
       while (next < todo.length) {
         const s = todo[next++];
         const raw = rawOf.get(s)!;
-        const song = await appleSong(raw.artist, raw.track, raw.album, 6).catch(() => null);
+        const song = await appleSong(raw.artist, raw.track, raw.album, 7).catch(() => null);
         if (song) Object.assign(s, { image: song.art, preview: song.preview, url: song.link });
       }
     };
