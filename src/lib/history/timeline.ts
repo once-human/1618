@@ -303,7 +303,7 @@ async function buildTimeline(HOURS: number): Promise<{ hours: number; events: To
     } else stretches.push({ key: k, label: s.label, kind: s.kind, from, to, total: to - from, longest: to - from });
   }
   for (const x of stretches) {
-    const min = x.kind === "call" ? 1.5 : x.kind === "chat" ? 5 : 30;
+    const min = x.kind === "call" ? 1.5 : 5;
     if (x.total < min * 60_000) continue;
     const name = x.label.replace(/^(On|In|Watching) /, "");
     const title =
