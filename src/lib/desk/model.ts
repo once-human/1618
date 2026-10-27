@@ -212,6 +212,33 @@ export interface Span {
 }
 
 /** Samples, oldest first, folded into spans per lane; a gap longer than GAP_MS ends every span (the laptop was off). */
+/** Ten minutes in one browser, nothing playing, no call: nobody is there, whatever the compositor says (a tab holding the screen awake stops it noticing). */
+export const STALE_MS = 10 * 60_000;
+
+/**
+ * The agent trusts the desktop's idle timer, which a browser tab can hold at zero for hours. So a long stretch
+ * of the same browser (and site), with nothing playing and no call, counts as away after the first ten minutes.
+ * Coding, the terminal, Claude, calls and anything playing are left as they are.
+ */
+export function settle(samples: Sample[]): Sample[] {
+  const sorted = [...samples].sort((a, b) => a.t.localeCompare(b.t));
+  let key = "";
+  let from = 0;
+  let prev = -Infinity;
+  return sorted.map((s) => {
+    const t = Date.parse(s.t);
+    const app = mainApp(s);
+    const still = s.active && !s.call && !s.claude && app?.category === "browser" && s.media?.state !== "playing";
+    const k = still ? `${app!.id}|${s.site?.host ?? ""}` : "";
+    if (!k || k !== key || t - prev > GAP_MS) {
+      key = k;
+      from = t;
+    }
+    prev = t;
+    return k && t - from >= STALE_MS ? { ...s, active: false, idleS: Math.max(s.idleS, Math.round((t - from) / 1000)) } : s;
+  });
+}
+
 export function buildSpans(samples: Sample[]): Span[] {
   const spans: Span[] = [];
   const open: Partial<Record<Span["lane"], Span & { key: string }>> = {};
@@ -225,7 +252,7 @@ export function buildSpans(samples: Sample[]): Span[] {
     }
   };
   let prev = -Infinity;
-  const sorted = [...samples].sort((a, b) => a.t.localeCompare(b.t));
+  const sorted = settle(samples);
   sorted.forEach((s, i) => {
     const t = Date.parse(s.t);
     if (t - prev > GAP_MS) {

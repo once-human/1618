@@ -13,9 +13,18 @@ const base = { now: NOW, seed: "s", desk: null, music: null, push: null, pin: nu
 const song = { track: "Destruct", artist: "Fred again..", nowPlaying: true, at: ago(1) };
 
 test("YouTube playing wins over the browser being focused", () => {
-  const out = think({ ...base, desk: desk({ focus: [{ name: "Chrome", category: "browser", share: 1 }], media: { source: "youtube", title: null, artist: null, videos: 6, since: ago(10), browser: "Chrome" } }) });
+  const out = think({ ...base, desk: desk({ focus: [{ name: "Chrome", category: "browser", share: 1 }], media: { source: "youtube", title: null, artist: null, videos: 6, since: ago(75), browser: "Chrome" } }) });
   assert.match(out!.text, /YouTube/);
   assert.doesNotMatch(out!.text, /Chrome/);
+});
+test("a short YouTube stretch stays private", () => {
+  const out = think({ ...base, desk: desk({ media: { source: "youtube", title: null, artist: null, videos: 2, since: ago(10), browser: "Chrome" } }) });
+  assert.doesNotMatch(out?.text ?? "", /YouTube/);
+});
+test("a song that just ended is still the last thing I played", () => {
+  const out = think({ ...base, music: { track: "Destruct", artist: "Fred again..", nowPlaying: false, at: ago(5) }, desk: desk({}, false) });
+  assert.match(out!.text, /Just played %%Destruct%% by Fred again\.\./);
+  assert.equal(think({ ...base, music: { track: "Destruct", artist: "Fred again..", nowPlaying: false, at: ago(12) }, desk: desk({}, false) }), null);
 });
 test("music from the phone comes before what the laptop's focused on", () => {
   const out = think({ ...base, music: song, desk: desk({ focus: [{ name: "Chrome", category: "browser", share: 1 }] }) });

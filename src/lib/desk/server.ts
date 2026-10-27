@@ -1,6 +1,6 @@
 import { kvGet, kvSet, q } from "@/lib/db";
 import { recent } from "./recent";
-import { GAP_MS, buildSpans, cleanSample, doingKey, live, rollup, type DayRollup, type Live, type Sample, type Span } from "./model";
+import { GAP_MS, buildSpans, cleanSample, settle, doingKey, live, rollup, type DayRollup, type Live, type Sample, type Span } from "./model";
 
 const DAY_MS = 86_400_000;
 const IST = 5.5 * 3600_000;
@@ -54,7 +54,10 @@ export async function getLive(): Promise<Live> {
     q<{ data: Sample }>("desk recent", (db) => db`SELECT data FROM desk_samples WHERE at >= ${since} ORDER BY at`),
   ]);
   const now = Date.now();
-  const l = live(row?.value ?? null, now, act?.value ?? null, doingSince?.value ?? null, expect?.value ?? null);
+  // The newest sample as settled against the minutes before it: a browser left alone for ten minutes is away.
+  const settled = settle((rows ?? []).map((r) => r.data));
+  const newest = row?.value ? (settled.find((x) => x.t === row.value.t) ?? row.value) : null;
+  const l = live(newest, now, act?.value ?? null, doingSince?.value ?? null, expect?.value ?? null);
   // "Recent" is read as of the newest sample: between uploads that is the last thing the agent told us.
   const lastMs = row?.value ? Date.parse(row.value.t) : now;
   return { ...l, recent: l.online ? recent((rows ?? []).map((r) => r.data), Math.min(now, lastMs + 60_000)) : null };

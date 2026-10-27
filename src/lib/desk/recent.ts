@@ -5,7 +5,7 @@
  * how long, battery and how busy the machine is. The site's brain
  * (presence/brain.ts) reads this together with my phone.
  */
-import { callLabel, mainApp, type Sample } from "./model";
+import { callLabel, mainApp, settle, type Sample } from "./model";
 
 export interface DeskRecent {
   /** Apps by share of focused time in the last five minutes, biggest first. */
@@ -29,7 +29,7 @@ const MIN = 60_000;
 
 /** `samples` oldest first; only the last 15 minutes are looked at. */
 export function recent(samples: Sample[], now: number): DeskRecent {
-  const ss = samples.filter((s) => Date.parse(s.t) >= now - 15 * MIN).sort((a, b) => a.t.localeCompare(b.t));
+  const ss = settle(samples).filter((s) => Date.parse(s.t) >= now - 15 * MIN);
   const last = ss[ss.length - 1] ?? null;
 
   // Focus: dwell seconds when the agent sends them, else each sample counts for its 30 seconds.

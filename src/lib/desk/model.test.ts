@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { buildSpans, cleanSample, doing, live, playing, rollup, type Sample } from "./model";
+import { buildSpans, cleanSample, doing, live, playing, rollup, settle, type Sample } from "./model";
 
 const at = (min: number) => new Date(Date.UTC(2026, 9, 26, 10, min)).toISOString();
 const s = (min: number, over: Record<string, unknown> = {}): Sample =>
@@ -61,4 +61,17 @@ test("between batched uploads the laptop is still there until the next one is du
   assert.equal(live(s(0), Date.parse(at(18)), null, null, expect).online, false);
   // A final upload clears the expectation, so a closed lid shows as away after the usual four minutes.
   assert.equal(live(s(0), Date.parse(at(10)), null, null, null).online, false);
+});
+
+test("ten minutes alone in one browser, nothing playing, counts as away; playing or coding does not", () => {
+  const mk = (i: number, over: Record<string, unknown>) =>
+    cleanSample({ t: new Date(Date.UTC(2026, 9, 26, 10, 0, i * 30)).toISOString(), active: true, idleS: 0, ...over })!;
+  const chrome = { app: { id: "chrome", name: "Chrome", category: "browser" } };
+  const run = (over: Record<string, unknown>) => settle(Array.from({ length: 30 }, (_, i) => mk(i, over)));
+  const idle = run(chrome);
+  assert.equal(idle[19].active, true);
+  assert.equal(idle[20].active, false);
+  assert.equal(idle[29].active, false);
+  assert.ok(run({ ...chrome, media: { source: "youtube", state: "playing", player: "chrome" } }).every((x) => x.active));
+  assert.ok(run({ app: { id: "kitty", name: "Kitty", category: "terminal" } }).every((x) => x.active));
 });

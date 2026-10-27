@@ -54,7 +54,8 @@ export function think(i: BrainInput): BrainOut | null {
   const r = online ? (desk?.recent ?? null) : null;
 
   // ---- what each signal says ----
-  const song = i.music?.nowPlaying ? i.music : null;
+  // A song that just ended is still the last thing I played: it stays for about five minutes after it (a song runs three or four).
+  const song = i.music && (i.music.nowPlaying || ago(i.music.at, now) < 8 * MIN) ? i.music : null;
   const laptopSong = r?.media?.source === "music" ? r.media : null;
   const songOnLaptop = !!(song && laptopSong?.title && laptopSong.title.toLowerCase().includes(song.track.toLowerCase().slice(0, 12)));
   const music = song ?? (laptopSong?.title ? { track: laptopSong.title, artist: laptopSong.artist ?? "", nowPlaying: true, at: laptopSong.since } : null);
@@ -72,7 +73,8 @@ export function think(i: BrainInput): BrainOut | null {
   const tool = withClaude ? "Claude Code" : work?.via === "editor" ? work.app : null;
 
   const call = active && r?.call ? r.call : null;
-  const video = active && r?.media && r.media.source !== "music" ? r.media : null;
+  // YouTube only gets said once it has been a long stretch (an hour); a quick video stays private.
+  const video = active && r?.media && r.media.source !== "music" && (r.media.source !== "youtube" || ago(r.media.since, now) >= 60 * MIN) ? r.media : null;
   const chat = active ? (r?.chat ?? null) : null;
   const focus = active ? (r?.focus ?? []) : [];
 
@@ -95,7 +97,7 @@ export function think(i: BrainInput): BrainOut | null {
     let text = `Working on @@${repo}@@${tool ? ` with ${tool === "Claude Code" ? "**Claude Code**" : tool}` : ""}`;
     if (music) {
       if (musicOnPhone) devices.add("phone");
-      text += say([`, to ${song$(music)}`, `, ${song$(music)} on`], `${s}|m`);
+      text += music.nowPlaying ? say([`, to ${song$(music)}`, `, ${song$(music)} on`], `${s}|m`) : `, just played ${song$(music)}`;
     } else if (video) text += video.source === "youtube" ? ", YouTube on the side" : ", something on in the background";
     text += ".";
     if (pinning) {
@@ -113,7 +115,9 @@ export function think(i: BrainInput): BrainOut | null {
   if (music) {
     devices.add(musicOnPhone ? "phone" : "laptop");
     const s = `${seed}|music|${music.track}`;
-    let text = say([`Listening to ${song$(music)} by {artist}`, `${song$(music)} by {artist} on`, `Headphones on, ${song$(music)} by {artist}`], s, music);
+    let text = music.nowPlaying
+      ? say([`Listening to ${song$(music)} by {artist}`, `${song$(music)} by {artist} on`, `Headphones on, ${song$(music)} by {artist}`], s, music)
+      : say([`Just played ${song$(music)} by {artist}`], s, music);
     if (pinning) {
       devices.add("phone");
       text += ", saving pins";
