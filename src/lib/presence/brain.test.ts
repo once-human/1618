@@ -13,7 +13,7 @@ const base = { now: NOW, seed: "s", desk: null, music: null, push: null, pin: nu
 const song = { track: "Destruct", artist: "Fred again..", nowPlaying: true, at: ago(1) };
 
 test("YouTube playing wins over the browser being focused", () => {
-  const out = think({ ...base, desk: desk({ focus: [{ name: "Chrome", category: "browser", share: 1 }], media: { source: "youtube", title: null, artist: null, videos: 6, since: ago(75), browser: "Chrome" } }) });
+  const out = think({ ...base, desk: desk({ focus: [{ name: "Chrome", category: "browser", share: 1 }], media: { source: "youtube", title: null, artist: null, videos: 6, since: ago(20), browser: "Chrome" } }) });
   assert.match(out!.text, /YouTube/);
   assert.doesNotMatch(out!.text, /Chrome/);
 });

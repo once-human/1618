@@ -71,7 +71,7 @@ export function DeskDays() {
                 .join(", ")}
               {summary.repos.length ? `. Repos: ${summary.repos.map((r) => r.name).join(", ")}` : ""}
               {summary.sites.length ? `. Sites: ${summary.sites.map((r) => r.name).join(", ")}` : ""}
-              {summary.youtubeMin >= 60 ? `. ${hm(summary.youtubeMin)} on YouTube` : ""}
+              {summary.youtubeMin >= 30 ? `. ${hm(summary.youtubeMin)} on YouTube` : ""}
               {summary.tracks.length ? `. Played ${summary.tracks.map((t) => t.label).join(", ")}` : ""}.
             </p>
           </li>

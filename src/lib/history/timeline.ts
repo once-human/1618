@@ -303,8 +303,8 @@ async function buildTimeline(HOURS: number): Promise<{ hours: number; events: To
     } else stretches.push({ key: k, label: s.label, kind: s.kind, from, to, total: to - from, longest: to - from });
   }
   for (const x of stretches) {
-    // YouTube only shows once it has been a real stretch (an hour); Netflix and the like from five minutes.
-    const min = x.kind === "call" ? 1.5 : x.key === "watch|Watching YouTube" ? 60 : 5;
+    // YouTube only shows once it has been a real stretch (30 minutes); Netflix and the like from five minutes.
+    const min = x.kind === "call" ? 1.5 : x.key === "watch|Watching YouTube" ? 30 : 5;
     if (x.total < min * 60_000) continue;
     const name = x.label.replace(/^(On|In|Watching) /, "");
     const title =

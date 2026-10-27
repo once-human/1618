@@ -73,8 +73,8 @@ export function think(i: BrainInput): BrainOut | null {
   const tool = withClaude ? "Claude Code" : work?.via === "editor" ? work.app : null;
 
   const call = active && r?.call ? r.call : null;
-  // YouTube only gets said once it has been a long stretch (an hour); a quick video stays private.
-  const video = active && r?.media && r.media.source !== "music" && (r.media.source !== "youtube" || ago(r.media.since, now) >= 60 * MIN) ? r.media : null;
+  // YouTube only gets said once it has been a real stretch (15 minutes); a quick video stays private.
+  const video = active && r?.media && r.media.source !== "music" && (r.media.source !== "youtube" || ago(r.media.since, now) >= 15 * MIN) ? r.media : null;
   const chat = active ? (r?.chat ?? null) : null;
   const focus = active ? (r?.focus ?? []) : [];
 
