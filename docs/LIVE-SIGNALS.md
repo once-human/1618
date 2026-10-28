@@ -19,7 +19,7 @@ when its stamp changes. Slower parts poll their own routes: `/api/listening` (10
 | Latest saves | Widget feed + RSS (save times) | none | 10 min |
 | Steps, sleep, workouts | Apple Health via an iPhone Shortcut → `POST /api/ingest/health` | Shortcut with `ADMIN_SECRET` | per day |
 | My status | iPhone Shortcut → `POST /api/status` | Shortcut with `ADMIN_SECRET` | expires on its own |
-| Gone to bed | "Hey Siri, good night" (the *Good Night* Shortcut) → `POST /api/bedtime` | Shortcut with `ADMIN_SECRET` | shown 5 h, kept in history |
+| Gone to bed | "Hey Siri, good night" (the *Good Night* Shortcut) → `POST /api/bedtime` | Shortcut with `ADMIN_SECRET` | shown 7 h, kept in history |
 
 Rule: a signal is real or hidden.
 
@@ -40,14 +40,19 @@ plays per run until it reaches the first scrobble. It runs:
 
 ## Going to bed
 
-Saying "Hey Siri, good night" runs the *Good Night* shortcut (Siri runs a shortcut when you say its
-name). It records the moment in `kv` (`bedtime`) and as a `sleep` event in the history store. For the
-next five hours Signals (the live line at the top), /now, Talk and the curl version say "Went to bed at 01:12"
-(`src/lib/presence/asleep.ts`). It stops sooner if I'm clearly up: a status set afterwards, or a push
-or a pin more than ten minutes after it. Music doesn't end it; I fall asleep to it. "I'm up" on
-/admin ends it by hand. The history keeps one bedtime per night (noon to noon), at the last time I
-went to bed that night; under ten minutes in bed doesn't count and is dropped. The timeline shows each night, and any stretch on /history shows the usual
-time once there are a couple of nights.
+Saying "Hey Siri, good night" runs the *Good Night* shortcut. It records the moment in `kv` (`bedtime`) and
+as a `sleep` event in the history store. For seven hours the live line, /now, Talk and the curl version say
+"Went to bed at 01:12" (`src/lib/presence/asleep.ts`). It stops sooner once I'm clearly up, more than 30
+minutes after it: a status, a push, a pin, laptop activity, or music still playing (music in the first half
+hour doesn't count; I fall asleep to it). "Hey Siri, good morning" (*Good Morning*) ends it and stamps the
+wake time; "I'm up" on /admin does too. "Good night" shows at once and flips to "didn't sleep" after 30
+minutes of still working.
+
+When I haven't said anything, `src/lib/presence/sleep.ts` infers it from gaps in activity: my night is
+23:00-10:00 (widened by the nights I actually report); quiet 45 minutes at night is "probably asleep", two
+hours is asleep; quiet in the day is "out", or a crash after a night with no sleep; up through the night
+and past 7 am is an all-nighter. Nothing under an hour counts as sleep. The history keeps one bedtime per
+night (noon to noon) and the timeline shows each night.
 
 ## Things only I do
 

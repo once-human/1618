@@ -13,7 +13,7 @@ export const metadata: Metadata = pageMeta(
   "/privacy",
 );
 
-const UPDATED = "27 October 2026";
+const UPDATED = "28 October 2026";
 const host = SITE_URL.replace(/^https?:\/\//, "");
 
 const link = "underline decoration-1 underline-offset-4 hover:decoration-2";
@@ -167,7 +167,8 @@ export default function Privacy() {
               <Ext href="https://vercel.com/legal/privacy-policy">Vercel privacy policy</Ext>.
             </p>
             <p>
-              Still no cookies. The clock shows the time where I am, and your own time next to it, both
+              Still no cookies for visitors. (The only cookie this site ever sets is the sign-in
+              cookie for my own private admin page, which nobody else has.) The clock shows the time where I am, and your own time next to it, both
               worked out in your browser. The weather is for the town I&apos;m in, fetched by the
               server, never based on where you are.
             </p>
@@ -258,21 +259,56 @@ export default function Privacy() {
           <Part title="My Pinterest">
             <p>
               The site shows my own Pinterest: my profile, my boards and the pins I&apos;ve saved,
-              along with account numbers such as followers and monthly views. It reads them from my
-              public profile and through Pinterest&apos;s official API, using access I granted to my
-              own account.
+              with account numbers such as followers. It reads them from my public Pinterest
+              profile and the public feeds Pinterest publishes for it, the same things anyone
+              could open in a browser. Nothing is read through a login.
             </p>
             <p>
-              That access is read only. The site never posts, saves, edits or deletes anything on
-              Pinterest. It only ever reads my account. Visitors never sign in with Pinterest, and
-              the site never asks for or sees anyone else&apos;s Pinterest data.
+              The site never posts, saves, edits or deletes anything on Pinterest, and it holds no
+              access to my Pinterest account. Visitors never sign in with Pinterest, and the site
+              never asks for or sees anyone else&apos;s Pinterest data. The site keeps a record of my
+              own saves in its database, so it can show my history over time. None of it is sold,
+              shared, or used for advertising.
+            </p>
+          </Part>
+
+          <Part title="My laptop and my phone">
+            <p>
+              A small program on my laptop (<Ext href="https://github.com/once-human/desk-agent">desk-agent</Ext>)
+              sends the site a short note about once a minute, so the site can say what I&apos;m up
+              to. Each note says whether I&apos;m at the laptop, which app is in front (its name and
+              kind, such as &ldquo;editor&rdquo; or &ldquo;chat&rdquo;), which website (the site&apos;s
+              name only, never the page, the address or the title), which code project I&apos;m in,
+              whether Claude Code is working, whether the microphone is in use (the site then says I&apos;m
+              probably on a call; it never hears anything), what music is playing, and how busy the
+              laptop is (battery, memory, processor).
             </p>
             <p>
-              The access keys are kept encrypted in the hosting settings and are used only on the
-              server. They are never sent to your browser. The site keeps a record of my own saves
-              in its database, so it can show my history over time. None of it is sold, shared, or
-              used for advertising. I can withdraw the site&apos;s access at any time from my
-              Pinterest settings.
+              Window titles, page titles, file names, messages and what is on my screen never leave
+              the laptop. Videos on YouTube and the like are never named: the site only says I&apos;m
+              watching. Adult sites are shown as &ldquo;a private site&rdquo;. A chat app shows only its name (such as WhatsApp), never who I&apos;m talking to or what is said.
+            </p>
+            <p>
+              The newest note is the live line at the top of the home page. Notes are kept for 7
+              days in full detail; after that each day is kept as totals and a list of stretches
+              (for example &ldquo;two hours coding&rdquo;), which is what the public timeline and
+              laptop bars (the last 7 days, or 30) are drawn from. If the laptop stops
+              reporting, the site says &ldquo;last seen&rdquo; and doesn&apos;t guess.
+            </p>
+            <p>
+              My phone sends the city I&apos;m in (never closer than a city, and coordinates rounded
+              to about 10 km, to get the weather from Open-Meteo), my steps, a status line when I set
+              one, and the moment I say good night or good morning. This is all about me, not you.
+            </p>
+          </Part>
+
+          <Part title="What your browser keeps">
+            <p>
+              No cookies, but your browser&apos;s own storage on this site holds a few small things, only
+              on your device: the random code for the visitor log, a marker that you&apos;ve been
+              counted, your chat&apos;s code if you wrote to me, the songs you sent (so the site can say
+              when I play one), ids for the live &ldquo;who&apos;s here&rdquo; count, and whether you
+              turned the log off. Clearing your browser&apos;s data for this site removes all of it.
             </p>
           </Part>
 

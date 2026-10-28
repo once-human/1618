@@ -27,6 +27,9 @@ A few things on the page are happening right now rather than written once:
   next time you visit it'll tell you if I played it.
 - **Saved.** My Pinterest: profile, boards as little mosaics, the colours of what I've been saving,
   and the latest saves, which slide in on their own.
+- **My laptop.** A small agent tells the site what I'm doing there: the app and kind of thing (coding,
+  chatting, watching), the website's name, the project, whether Claude Code is working, whether I'm on
+  a call. Never window titles. It feeds the live line and a 7- and 30-day timeline.
 - **Talk to me.** On [/talk](https://onkaryaglewad.in/talk), write to me, under your name or
   anonymously. It lands on my phone, and when I reply it shows up on your screen while you're still
   there (or waits for you on any page if you've left). Your chat stays in your browser; open it on
@@ -50,7 +53,7 @@ anywhere to jump around. In a terminal, try:
 curl -L onkaryaglewad.in
 ```
 
-The site has no cookies, no ads and no analytics company. It does keep its own visitor log, so I
+The site sets no cookies for visitors, and has no ads and no analytics company. It does keep its own visitor log, so I
 can see how people find it and what they read: the town, the kind of device, and the pages in
 order. Never an IP address. Each visit is kept in full for 30 days, then only as a count per
 country. The [privacy page](https://onkaryaglewad.in/privacy) explains exactly what it keeps, and
@@ -70,16 +73,17 @@ or turn it off. Browsers that ask not to be tracked aren't.
 
 ## Still being made
 
-The photographs are still being shot. Until each one exists, its place on the page is a plain tone
-close to the real picture's colour, captioned with what it will show.
+The photographs are still to come. Until each one exists, its place on the page is a plain tone
+close to the real picture's colour, captioned with what it will show (`docs/ASSET-BRIEFS.md`).
 
 ## Built with
 
-Next.js, TypeScript and Tailwind, with GSAP and Lenis for the scroll, set in Archivo (its width axis
-is what squeezes the big words when you scroll fast). Server routes gather the live pieces (Last.fm,
-Apple Music, Pinterest, GitHub, Apple Health, Open-Meteo) and cache each on its own schedule; a small Neon
-Postgres database keeps the history, and Supabase Realtime carries everything that has to be instant
-(who's here, and replies to messages). Hosted on Vercel.
+Next.js 16, React 19, TypeScript and Tailwind 4, with GSAP and Lenis for the scroll, set in Archivo (its
+width axis squeezes the big words when you scroll fast). Server routes gather the live pieces (Last.fm,
+Apple Music, Pinterest's public pages, GitHub, Apple Health, Open-Meteo, the laptop agent) and cache each
+on its own schedule; a Neon Postgres database keeps the history, and Supabase Realtime carries what has to
+be instant (who's here, replies to messages). Hosted on Vercel, with a GitHub Action that keeps the
+history fresh every 15 minutes. See `docs/ARCHITECTURE.md` for the map.
 
 ## Run it locally
 
@@ -89,4 +93,12 @@ pnpm dev
 ```
 
 Then open http://localhost:3000. The day and the work index work without any setup. The live parts
-need their keys and the database; `docs/LIVE-SIGNALS.md` lists them.
+need their keys and the database (`docs/ARCHITECTURE.md` lists the variables, `docs/LIVE-SIGNALS.md`
+explains each source). Before pushing: `pnpm lint && pnpm typecheck && pnpm test`.
+
+## Docs
+
+- `docs/ARCHITECTURE.md`: how the site is built
+- `docs/LIVE-SIGNALS.md`: every live source, the history store, limits
+- `docs/CONTENT-VERIFY.md`: what's public, and what to double-check
+- `docs/ASSET-BRIEFS.md`: the photographs still to make
