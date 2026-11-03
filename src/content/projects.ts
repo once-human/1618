@@ -27,6 +27,40 @@ export interface Project {
 
 export const projects: Project[] = [
   {
+    slug: "fob",
+    name: "fob",
+    tagline: "A carry device built from scratch on a budget smartwatch board: not a watch.",
+    status: "In development",
+    role: "Product, interaction and visual design, firmware",
+    tags: ["Hardware", "Firmware", "Interaction design", "Embedded"],
+    summary:
+      "fob started as a Fire-Boltt BSW051 smartwatch. I removed the firmware and am rebuilding everything on its board as something to hang off a belt loop, a bag or a set of keys: a crown-driven dial of modes with an ambient resting screen instead of a watch face.",
+    sections: [
+      {
+        heading: "What it is",
+        body: [
+          "A 368 × 448 AMOLED screen, a crown, a touch panel, a haptic motor and Bluetooth, on a Realtek RTL8762D. The interface is written from scratch: a vector renderer, the motion, the haptics and the screens.",
+          "The crown is the only button. Turn it to move, press to act, press twice to go back to the dial. Touch is switched off on the resting screen so a belt brushing fabric does nothing.",
+        ],
+      },
+      {
+        heading: "The design",
+        body: [
+          "The visual language follows this site: giant lowercase type, hairline rules, bone-white ink on black, and one signal colour reserved for whatever is waiting on you. Colour otherwise comes from content, never from the interface. The pet is the one retro thing, a pixel creature that reacts to what the device is doing.",
+          "Everything is sketched on paper first, then drawn as screens, then rebuilt pixel for pixel in a laptop simulator before it is flashed. The book linked below has the sketches, the architecture, the interaction reasoning, the motion tokens and every screen.",
+        ],
+      },
+      {
+        heading: "Where it is",
+        body: [
+          "Running on the device today: the renderer (about 25 ms for a full-screen redraw), boot animation, three clock faces, touch, crown, haptics, Bluetooth with wireless updates and a laptop simulator. Designed but not built yet: the dial and its nine modes, per-mode memory, pairing and settings, and the pack system for swapping photos and faces over Bluetooth.",
+          "Still to prove: iPhone notifications and music control without an app, the camera shutter over Bluetooth, and battery life on a fitted cell.",
+        ],
+      },
+    ],
+    links: [{ label: "The fob book (design, sketches, architecture)", href: "/fob/book.html" }],
+  },
+  {
     slug: "sahn",
     name: "SAHN",
     tagline: "A marketplace matching event organisers with vendors and free community venues.",

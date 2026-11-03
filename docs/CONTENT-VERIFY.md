@@ -17,6 +17,7 @@ invented, but some lines are public statements worth a second look. Edit in `src
 | Project Friday | Link to `once-human/project-friday` | Repo may be private (link would 404) |
 | PixelOS sky | "unable to brick a phone" | A strong promise; soften unless certain |
 | Head-tracked window | Live URL `pfolio-headtrack-test.vercel.app` | Confirm it's current |
+| fob page | Names the Fire-Boltt BSW051, "about 25 ms" full redraw, and "running today" vs "designed" split | Numbers come from the device's own status readout; adjust if the firmware changes |
 
 ## Draft lines that were written by Claude, not Onkar
 
