@@ -780,6 +780,7 @@ function build2(){
  const ez=t=>{let a=0,b=1,m,x1=.2,y1=.7,x2=.2,y2=1;for(let i=0;i<22;i++){m=(a+b)/2;const x=3*(1-m)*(1-m)*m*x1+3*(1-m)*m*m*x2+m*m*m;x<t?a=m:b=m}m=(a+b)/2;return 3*(1-m)*(1-m)*m*y1+3*(1-m)*m*m*y2+m*m*m};
  addLive('L-enter',()=>{const p=((performance.now()%3600)/3600),t=clamp((p-.1)/.5,0,1),e=ez(t),hold=p>.85?1-(p-.85)/.15:1;const s=lerp(fit('music',328,128),12,e),y=lerp(262,47,e),x=lerp(20,130,e);let o=topbar('09:41',t>.9?'music':'dial','')+T(x,y,s,'music',{w:t>.9?400:800,f:t>.9?Q:INK});const a=clamp((t-.3)/.7,0,1);o+=`<g opacity="${a*hold}" transform="translate(0 ${(1-ez(a))*28})">${T(20,150,52,'song',{w:800})+T(20,206,52,'title',{w:800})+T(20,242,17,'artist name',{f:Q})+L(20,290,348,290,'#333',2)+L(20,290,160,290,SG,2)}</g>`;return frame(o)},60);
  addLive('L-casc',()=>{const p=((performance.now()%3600)/3600);let o=topbar('09:41','inbox','3 new');[['whatsapp','riya','are you free tonight?'],['mail','stripe','payout sent'],['calendar','standup','in 10 minutes'],['messages','dad','call me']].forEach((r,i)=>{const t=clamp((p*1.6-.1-i*.1)/.35,0,1),e=ez(t),y=66+i*86+(1-e)*12,al=e*(p>.9?1-(p-.9)/.1:1);o+=`<g opacity="${al}">${L(20,y,348,y,LN)+T(20,y+22,11,r[0],{f:i==0?SG:Q})+T(20,y+54,28,r[1],{w:800,f:i==0?INK:'#9a9488'})+T(20,y+76,14,r[2],{f:Q})}</g>`});return frame(o)},60);
+ document.getElementById('g-motion').insertAdjacentHTML('beforeend',fig('<div id="L-whale">'+whaleFrame(3.4)+'</div>','boot, with the beluga','rings draw, the beluga rises and swims in place (tail flick, bubbles), then the wordmark. stepped in whole pixels so it stays crisp.','live'));addLive('L-whale',()=>whaleFrame((performance.now()%8000)/1000),100);
  /* renumber */
  document.querySelectorAll('section > .idx > span:first-child').forEach((s,i)=>s.textContent=String(i+1).padStart(2,'0'));
  /* diagrams: slight hand wobble */
@@ -787,5 +788,31 @@ function build2(){
  /* status additions */
  const lis=document.querySelectorAll('.statusgrid ul')[1];if(lis)lis.insertAdjacentHTML('beforeend','<li>pairing, settings and the system screens</li><li>forgetting a phone, guarded twice</li><li>sketches for every flow</li>');
 }
+
+/* ---------- the beluga (recreated by eye from the reference pixel art) ---------- */
+const WSP=[[1,0,0,'T'],[1,1,2,'W'],[2,0,0,'T'],[2,1,2,'C'],[2,3,4,'W'],[3,1,1,'T'],[3,2,3,'C'],[3,4,4,'W'],[3,7,7,'C'],[3,8,8,'W'],[3,9,9,'C'],[4,1,2,'T'],[4,3,3,'C'],[4,4,5,'W'],[4,6,9,'C'],[5,2,4,'T'],[5,5,5,'W'],[5,6,7,'C'],[5,8,8,'T'],[6,3,5,'C'],[6,6,7,'S'],[7,3,5,'C'],[8,2,3,'T'],[8,4,4,'C'],[8,5,5,'W'],[9,2,4,'T'],[9,5,7,'W'],[10,3,4,'T'],[10,5,6,'C'],[10,7,9,'W'],
+ [8,21,24,'W'],[9,18,20,'W'],[9,21,24,'C'],[9,25,26,'W'],[10,18,20,'W'],[10,21,25,'C'],[10,26,27,'W'],
+ [11,4,5,'T'],[11,6,9,'C'],[11,10,12,'W'],[11,13,14,'T'],[11,15,17,'W'],[11,18,26,'C'],[11,27,27,'W'],[11,22,22,'o'],
+ [12,5,5,'T'],[12,6,12,'C'],[12,13,13,'T'],[12,14,26,'C'],[12,22,22,'e'],[12,24,27,'o'],[12,27,27,'W'],
+ [13,5,5,'T'],[13,6,19,'C'],[13,20,20,'T'],[13,21,23,'C'],[13,24,26,'k'],
+ [14,7,8,'T'],[14,9,19,'C'],[14,20,20,'S'],[14,21,26,'C'],
+ [15,7,7,'D'],[15,8,11,'T'],[15,12,19,'S'],[15,20,20,'T'],[15,21,23,'C'],[15,24,24,'S'],
+ [16,8,10,'D'],[16,11,11,'T'],[16,12,16,'S'],[16,17,18,'W'],[16,19,19,'S'],[16,20,21,'C'],[16,22,23,'D'],
+ [17,10,12,'D'],[17,13,14,'S'],[17,15,15,'D'],[17,16,16,'W'],[17,17,17,'C'],[17,18,18,'W'],[17,19,20,'S'],[17,21,22,'D'],
+ [18,12,13,'D'],[18,14,15,'W'],[18,16,17,'C'],[18,18,20,'D'],[18,21,21,'C'],[18,22,22,'W'],
+ [19,13,14,'W'],[19,15,16,'C'],[19,20,20,'S'],[19,21,23,'C'],
+ [20,13,15,'C'],[20,21,21,'D'],[20,22,23,'C']];
+const WPAL={W:'#fffbec',C:'#f5f0d9',T:'#e8e3c8',S:'#d3cfb1',D:'#b5b59b',e:'#000',o:'#4a4a2a',k:'#000'};
+const WCELLS=(()=>{const m={};WSP.forEach(([r,a,b,ch])=>{for(let c=a;c<=b;c++)m[r+','+c]=ch});return Object.entries(m).map(([k,v])=>{const [r,c]=k.split(',').map(Number);return {r,c,v}})})();
+function whaleSprite(x,y,s,flick){let o='';WCELLS.forEach(({r,c,v})=>{let dy=0;if(flick&&c<=9&&r<=7)dy=flick*s;o+=R(x+c*s,y+(r-1)*s+dy,s,s,WPAL[v])});return o}
+function whaleFrame(t){const ring=(r,i,p)=>arc(184,214,r,p,['#ece6da','#8e8e8e','#4a4a4a'][i],1.5);let o='';
+ [130,104,78].forEach((r,i)=>{const p=clamp((t-.1-i*.18)/1.1,0,1),e=1-Math.pow(1-p,3),fade=t>6.4?clamp(1-(t-6.4)/.8,0,1):1;o+=`<g opacity="${fade}">${ring(r,i,e)}</g>`});
+ const rise=clamp((t-1.4)/1.0,0,1),e=1-Math.pow(1-rise,3),fade=t>6.4?clamp(1-(t-6.4)/.8,0,1):1,s=7;
+ const bob=t>2.4?Math.round(Math.sin((t-2.4)*2.6))*s*.5:0,flick=t>2.4&&Math.floor((t-2.4)/.45)%2?-1:0;
+ const x=184-14*s,y=148+(1-e)*70+bob;
+ o+=`<g opacity="${e*fade}">${whaleSprite(x,y,s,flick)}</g>`;
+ if(t>2.6&&t<6.4)[0,1,2].forEach(i=>{const k=((t-2.6)*.9+i*.33)%1;o+=C(x+27.5*s+Math.sin(k*9+i)*6,y+10*s-k*60,2+i*.6,'#8e8e8e',`opacity="${(1-k)*.8}"`)});
+ o+=`<g opacity="${clamp((t-3.2)/.7,0,1)*fade}">${T(184,398,64,'fob',{w:800,a:'middle'})}</g>`;
+ return frame(o).replace('<svg class="scr"','<svg class="scr" shape-rendering="crispEdges"')}
 
 </script></body></html>
